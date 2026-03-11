@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+model Fabrico {
+  id Int @id @default(autoincrement())
+
+  foto_de_perfil String?
+  cnpj String? @unique @db.VarChar(14)
+  razao_social String?
+  nome_fantasia String?
+  ativo Boolean @default(true)
+
+  usuarios Usuario[]
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("fabricos")
+}
+
+model Usuario {
+  id Int @id @default(autoincrement())
+
+  email String? @unique
+  nome String?
+  senha String?
+  cargo Role @default(MEMBER)
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("usuarios")
+}
