@@ -62,38 +62,8 @@ DATABASE_URL="postgresql://postgres:123@localhost:5432/postgres"
 Execute o comando:
 
 ```bash
-npx prisma migrate dev --name init
+npx prisma migrate
 ```
-
-**Observação:**  
-Depois de `--name` você pode colocar qualquer nome para identificar a migration.
-
-Exemplo:
-
-```bash
---name init
---name first_migration
---name create_tables
-```
-
----
-
-## 2.5. Gerar o Prisma Client
-
-Após isso utilize o comando:
-
-```bash
-npx prisma generate
-```
-
-Esse comando cria o **Prisma Client**, que será utilizado pela aplicação para acessar o banco de dados.
-
-Os arquivos necessários são gerados automaticamente em:
-
-```text
-node_modules/@prisma/client
-```
-
 ---
 
 
