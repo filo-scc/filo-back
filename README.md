@@ -90,3 +90,13 @@ $ npm run test:e2e
 $ npm run test:cov
 
 ```
+
+
+## 5. Comandos uteis 
+
+```bash
+# Abrir um visulizador do banco de dados em um local host do prisma, bom para ver se as relações estão ocorrendo como deveriam ocorrer e pra testes
+
+$ npx prisma studio
+
+```
