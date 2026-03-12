@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFabricoDto } from "./dto/create-fabrico.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FabricoService {
@@ -8,13 +9,18 @@ export class FabricoService {
 
     async create(data: CreateFabricoDto) {
         try {
-            return this.prisma.fabrico.create({
+            return await this.prisma.fabrico.create({
                 data: {
                     ...data,
                 },
             });
         } catch (error) {
-            console.log("Error creating fabrico:", error);
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("CNPJ já cadastrado");
+                }
+            }
+
             throw error;
         }
     }
@@ -24,21 +30,41 @@ export class FabricoService {
     }
 
     async getById(id: number) {
-        return this.prisma.fabrico.findUnique({
+        const fabrico = await this.prisma.fabrico.findUnique({
             where: { id },
         });
+
+        if (!fabrico) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        return fabrico;
     }
 
     async update(id: number, data: CreateFabricoDto) {
-        return this.prisma.fabrico.update({
-            where: { id },
-            data: {
-                ...data,
-            },
-        });
+        await this.getById(id);
+
+        try {
+            return await this.prisma.fabrico.update({
+                where: { id },
+                data: {
+                    ...data,
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("CNPJ já cadastrado");
+                }
+            }
+
+            throw error;
+        }
     }
 
     async delete(id: number) {
+        await this.getById(id);
+
         return this.prisma.fabrico.delete({
             where: { id },
         });

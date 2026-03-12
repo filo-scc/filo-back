@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Put, Delete } from "@nestjs/common";
+import { Controller, Post, Body, Get, Param, Put, Delete, ParseIntPipe } from "@nestjs/common";
 import { FabricoService } from "./fabrico.service";
 import { CreateFabricoDto } from "./dto/create-fabrico.dto";
 
@@ -17,17 +17,17 @@ export class FabricoController {
     }
 
     @Get(":id")
-    getById(@Param("id") id: number) {
+    getById(@Param("id", ParseIntPipe) id: number) {
         return this.fabricoService.getById(id);
     }
 
     @Put(":id")
-    update(@Param("id") id: number, @Body() data: CreateFabricoDto) {
+    update(@Param("id", ParseIntPipe) id: number, @Body() data: CreateFabricoDto) {
         return this.fabricoService.update(id, data);
     }
 
     @Delete(":id")
-    delete(@Param("id") id: number) {
+    delete(@Param("id", ParseIntPipe) id: number) {
         return this.fabricoService.delete(id);
     }
 }
