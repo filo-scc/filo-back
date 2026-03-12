@@ -12,6 +12,25 @@ enum Role {
   MEMBER
 }
 
+model Cliente {
+  id Int @id @default(autoincrement())
+
+  nome String?
+  cnpj String? @unique
+  telefone String?
+  responsavel String?
+  status Boolean @default(false)
+  
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("clientes")
+}
+
 model Fabrico {
   id Int @id @default(autoincrement())
 
@@ -22,6 +41,7 @@ model Fabrico {
   ativo Boolean @default(true)
 
   usuarios Usuario[]
+  clientes Cliente[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
