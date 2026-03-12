@@ -6,10 +6,10 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Role {
+enum Cargo {
   ADMIN
-  MANAGER
-  MEMBER
+  DONO
+  GERENTE
 }
 
 model Cliente {
@@ -55,7 +55,7 @@ model Usuario {
   email String? @unique
   nome String?
   senha String?
-  cargo Role @default(MEMBER)
+  cargo Cargo @default(GERENTE)
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])

@@ -1,19 +1,72 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateFabricoDto } from './dto/create-fabrico.dto';
+import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateFabricoDto } from "./dto/create-fabrico.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FabricoService {
-  constructor(private prisma: PrismaService) {}
+    constructor(private prisma: PrismaService) {}
 
-  async create(data: CreateFabricoDto) {
-    return this.prisma.fabrico.create({
-      data: {
-        foto_de_perfil: data.foto_de_perfil,
-        cnpj: data.cnpj,
-        razao_social: data.razao_social,
-        nome_fantasia: data.nome_fantasia,
-      },
-    });
-  }
+    async create(data: CreateFabricoDto) {
+        try {
+            return await this.prisma.fabrico.create({
+                data: {
+                    ...data,
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("CNPJ já cadastrado");
+                }
+            }
+
+            throw error;
+        }
+    }
+
+    async getAll() {
+        return this.prisma.fabrico.findMany();
+    }
+
+    async getById(id: number) {
+        const fabrico = await this.prisma.fabrico.findUnique({
+            where: { id },
+        });
+
+        if (!fabrico) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        return fabrico;
+    }
+
+    async update(id: number, data: CreateFabricoDto) {
+        await this.getById(id);
+
+        try {
+            return await this.prisma.fabrico.update({
+                where: { id },
+                data: {
+                    ...data,
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("CNPJ já cadastrado");
+                }
+            }
+
+            throw error;
+        }
+    }
+
+    async delete(id: number) {
+        await this.getById(id);
+
+        return this.prisma.fabrico.delete({
+            where: { id },
+        });
+    }
 }
