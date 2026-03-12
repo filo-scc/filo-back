@@ -8,8 +8,8 @@ datasource db {
 
 enum Cargo {
   ADMIN
-  MANAGER
-  MEMBER
+  DONO
+  GERENTE
 }
 
 model Fabrico {
@@ -35,7 +35,7 @@ model Usuario {
   email String? @unique
   nome String?
   senha String?
-  cargo Cargo @default(MEMBER)
+  cargo Cargo @default(GERENTE)
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
