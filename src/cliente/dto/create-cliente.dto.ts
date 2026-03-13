@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Length, IsNumber } from 'class-validator';
 
 export class CreateClienteDto {
 
@@ -6,6 +6,7 @@ export class CreateClienteDto {
   @IsString()
   nome?: string;
 
+  @IsOptional()
   @IsString()
   @Length(14, 14)
   cnpj?: string;
