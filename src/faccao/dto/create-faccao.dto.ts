@@ -8,4 +8,5 @@ export class CreateFaccaoDto {
     @IsString()
     @Length(11, 11)
     telefone?: string
+    
 }
