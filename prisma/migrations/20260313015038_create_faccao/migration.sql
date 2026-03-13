@@ -7,13 +7,26 @@
 -- AlterEnum
 BEGIN;
 CREATE TYPE "Cargo_new" AS ENUM ('ADMIN', 'DONO', 'GERENTE');
-ALTER TABLE "public"."usuarios" ALTER COLUMN "cargo" DROP DEFAULT;
+ALTER TABLE "filo"."usuarios" ALTER COLUMN "cargo" DROP DEFAULT;
 ALTER TABLE "usuarios" ALTER COLUMN "cargo" TYPE "Cargo_new" USING ("cargo"::text::"Cargo_new");
 ALTER TYPE "Cargo" RENAME TO "Cargo_old";
 ALTER TYPE "Cargo_new" RENAME TO "Cargo";
-DROP TYPE "public"."Cargo_old";
+DROP TYPE "filo"."Cargo_old";
 ALTER TABLE "usuarios" ALTER COLUMN "cargo" SET DEFAULT 'GERENTE';
 COMMIT;
 
 -- AlterTable
 ALTER TABLE "usuarios" ALTER COLUMN "cargo" SET DEFAULT 'GERENTE';
+
+-- CreateTable
+CREATE TABLE "faccoes" (
+    "id" SERIAL NOT NULL,
+    "nome" TEXT NOT NULL,
+    "telefone" TEXT,
+    "fabrico_id" INTEGER NOT NULL,
+
+    CONSTRAINT "faccoes_pkey" PRIMARY KEY ("id")
+);
+
+-- AddForeignKey
+ALTER TABLE "faccoes" ADD CONSTRAINT "faccoes_fabrico_id_fkey" FOREIGN KEY ("fabrico_id") REFERENCES "fabricos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -22,6 +22,7 @@ model Fabrico {
   ativo Boolean @default(true)
 
   usuarios Usuario[]
+  faccoes Faccao[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -44,4 +45,16 @@ model Usuario {
   updated_at DateTime @updatedAt
 
   @@map("usuarios")
+}
+
+model Faccao {
+  id Int @id @default(autoincrement())
+
+  nome String
+  telefone String?
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("faccoes")
 }
