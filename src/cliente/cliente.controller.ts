@@ -18,8 +18,8 @@ export class ClienteController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.clienteService.findOne(+id);
+  findOne(@Req() req:any, @Param('id') id: number ) {
+    return this.clienteService.findOne(req.user.fabrico_id, +id);
   }
 
   @Patch(':id')

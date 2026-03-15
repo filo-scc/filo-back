@@ -55,9 +55,9 @@ export class ClienteService {
   }
 }
 
-  async findOne(id: number) {
+  async findOne(fabrico_id: number, id: number) {
     return this.prisma.cliente.findUnique({
-      where: { id },
+      where: { id, fabrico_id },
     });
   }
 
