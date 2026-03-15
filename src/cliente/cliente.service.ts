@@ -37,8 +37,10 @@ export class ClienteService {
     }
   }
 
-  async findAll() {
-    return this.prisma.cliente.findMany();
+  async findAll(fabrico_id: number) {
+    return this.prisma.cliente.findMany({
+      where: { fabrico_id },
+    });
   }
 
   async findOne(id: number) {

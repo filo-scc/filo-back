@@ -8,14 +8,14 @@ export class ClienteController {
   constructor(private readonly clienteService: ClienteService) {}
 
   @Post()
-  create(@Body() data: CreateClienteDto, @Req() req) {
+  create(@Body() data: CreateClienteDto, @Req() req:any ) {
     return this.clienteService.create(data, req.user.fabrico_id);
   }
 
-  @Get()
-  findAll() {
-    return this.clienteService.findAll();
-  }
+ @Get()
+findAll(@Req() req:any ) {
+  return this.clienteService.findAll(req.user.fabrico_id);
+}
 
   @Get(':id')
   findOne(@Param('id') id: string) {
