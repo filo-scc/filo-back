@@ -23,8 +23,8 @@ export class ClienteController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateClienteDto: UpdateClienteDto) {
-    return this.clienteService.update(+id, updateClienteDto);
+  update(@Param('id') id: number,@Req() req:any ,@Body() updateClienteDto: UpdateClienteDto) {
+    return this.clienteService.update(req.user.fabrico_id,id, updateClienteDto);
   }
 
   @Delete(':id')

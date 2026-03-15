@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,17 +56,44 @@ export class ClienteService {
 }
 
   async findOne(fabrico_id: number, id: number) {
-    return this.prisma.cliente.findUnique({
+    try {
+    const cliente = await this.prisma.cliente.findFirst({
       where: { id, fabrico_id },
     });
-  }
 
-  async update(id: number, data: UpdateClienteDto) {
-    return this.prisma.cliente.update({
-      where: { id },
-      data,
-    });
+    if (!cliente) {
+      throw new Error('Cliente não encontrado');
+    }
+
+    return cliente;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new Error('Erro ao buscar cliente');
+      }
+      if (error instanceof Prisma.PrismaClientValidationError) {
+        throw new Error('Parâmetros de consulta inválidos');
+      }
+      throw error;
+    }
+  } 
+
+  async update(fabrico_id: number, id: number, data: UpdateClienteDto) {
+    try { 
+
+      await this.findOne(fabrico_id,id)
+      
+      return this.prisma.cliente.update({
+        where: { id, fabrico_id },
+        data,
+      });
+    }
+    catch (error) {
+      if(error instanceof Prisma.PrismaClientKnownRequestError){
+        throw new Error('Não foi possivel atualizar o cliente')
+      }
+      throw error
   }
+}
 
   async remove(fabrico_id: number, id: number) {
     
