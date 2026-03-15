@@ -12,10 +12,10 @@ export class ClienteController {
     return this.clienteService.create(data, req.user.fabrico_id);
   }
 
- @Get()
-findAll(@Req() req:any ) {
-  return this.clienteService.findAll(req.user.fabrico_id);
-}
+  @Get()
+  findAll(@Req() req:any ) {
+    return this.clienteService.findAll(req.user.fabrico_id);
+  }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -28,7 +28,7 @@ findAll(@Req() req:any ) {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.clienteService.remove(+id);
+  remove(@Param('id') id: number, @Req() req:any ) {
+    return this.clienteService.remove(req.user.fabrico_id, +id);
   }
 }

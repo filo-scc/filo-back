@@ -37,11 +37,23 @@ export class ClienteService {
     }
   }
 
-  async findAll(fabrico_id: number) {
+ async findAll(fabrico_id: number) {
+  try { 
     return this.prisma.cliente.findMany({
       where: { fabrico_id },
     });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      throw new Error('Erro ao buscar clientes');
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      throw new Error('Parâmetros de consulta inválidos');
+    }
+
+    throw error;
   }
+}
 
   async findOne(id: number) {
     return this.prisma.cliente.findUnique({
@@ -56,9 +68,29 @@ export class ClienteService {
     });
   }
 
-  async remove(id: number) {
+  async remove(fabrico_id: number, id: number) {
+    
+    try {
+    const cliente = await this.prisma.cliente.findFirst({
+      where: { id, fabrico_id },
+    });
+
+    if (!cliente) {
+      throw new Error('Cliente não encontrado');
+    }
+
     return this.prisma.cliente.delete({
       where: { id },
     });
+
+    }catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new Error('Erro ao deletar cliente');
+      }
+      if (error instanceof Prisma.PrismaClientValidationError) {
+        throw new Error('Parâmetros de consulta inválidos');
+      }
+      throw error;
+    }
   }
 }
