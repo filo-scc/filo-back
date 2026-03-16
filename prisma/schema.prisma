@@ -12,24 +12,6 @@ enum Cargo {
   GERENTE
 }
 
-model Cliente {
-  id Int @id @default(autoincrement())
-
-  nome String
-  cnpj String? @unique
-  telefone String?
-  responsavel String?
-  status Boolean @default(true)
-  
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  fabrico_id Int
-  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
-
-  @@map("clientes")
-}
-
 model Fabrico {
   id Int @id @default(autoincrement())
 
@@ -63,4 +45,22 @@ model Usuario {
   updated_at DateTime @updatedAt
 
   @@map("usuarios")
+}
+
+model Cliente {
+  id Int @id @default(autoincrement())
+
+  nome String
+  cnpj String? @unique
+  telefone String?
+  responsavel String?
+  status Boolean @default(true)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("clientes")
 }
