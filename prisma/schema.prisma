@@ -22,6 +22,7 @@ model Fabrico {
   ativo Boolean @default(true)
 
   usuarios Usuario[]
+  produtos Produto[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -44,4 +45,25 @@ model Usuario {
   updated_at DateTime @updatedAt
 
   @@map("usuarios")
+}
+
+model Produto{
+  id Int @id @default(autoincrement())
+  foto String?
+  nome String
+  tipo TipoProduto
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields:[fabrico_id], references:[id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("produtos")
+}
+
+enum TipoProduto{
+  VESTUARIO
+  CALCADO
+  ACESSORIO
 }
