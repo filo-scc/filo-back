@@ -15,7 +15,7 @@ enum Cargo {
 model Cliente {
   id Int @id @default(autoincrement())
 
-  nome String?
+  nome String
   cnpj String? @unique
   telefone String?
   responsavel String?

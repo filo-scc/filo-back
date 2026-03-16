@@ -2,9 +2,8 @@ import { IsBoolean, IsOptional, IsString, Length, IsNumber } from 'class-validat
 
 export class CreateClienteDto {
 
-  @IsOptional()
   @IsString()
-  nome?: string;
+  nome: string;
 
   @IsOptional()
   @IsString()
