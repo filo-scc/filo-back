@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from "@nestjs/common";
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from "@nestjs/common";
 import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
@@ -8,27 +8,31 @@ export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
 
     @Post()
-    create(@Body() data: CreateClienteDto, @Req() req: any) {
-        return this.clienteService.create(data, req.user.fabrico_id);
+    create(@Body() data: CreateClienteDto, @Query("fabrico_id") fabrico_id: number) {
+        return this.clienteService.create(data, Number(fabrico_id));
     }
 
     @Get()
-    findAll(@Req() req: any) {
-        return this.clienteService.findAll(req.user.fabrico_id);
+    findAll(@Query("fabrico_id") fabrico_id: number) {
+        return this.clienteService.findAll(Number(fabrico_id));
     }
 
     @Get(":id")
-    findOne(@Req() req: any, @Param("id") id: number) {
-        return this.clienteService.findOne(req.user.fabrico_id, +id);
+    findOne(@Query("fabrico_id") fabrico_id: number, @Param("id") id: number) {
+        return this.clienteService.findOne(Number(fabrico_id), +id);
     }
 
     @Patch(":id")
-    update(@Param("id") id: number, @Req() req: any, @Body() updateClienteDto: UpdateClienteDto) {
-        return this.clienteService.update(req.user.fabrico_id, id, updateClienteDto);
+    update(
+        @Query("fabrico_id") fabrico_id: number,
+        @Param("id") id: number,
+        @Body() updateClienteDto: UpdateClienteDto,
+    ) {
+        return this.clienteService.update(Number(fabrico_id), +id, updateClienteDto);
     }
 
     @Delete(":id")
-    remove(@Param("id") id: number, @Req() req: any) {
-        return this.clienteService.remove(req.user.fabrico_id, +id);
+    remove(@Query("fabrico_id") fabrico_id: number, @Param("id") id: number) {
+        return this.clienteService.remove(Number(fabrico_id), +id);
     }
 }
