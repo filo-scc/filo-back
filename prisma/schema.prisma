@@ -19,9 +19,8 @@ model Cliente {
   cnpj String? @unique
   telefone String?
   responsavel String?
-  status Boolean @default(false)
+  status Boolean @default(true)
   
-
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
