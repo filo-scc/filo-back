@@ -28,16 +28,12 @@ export class ClienteController {
     }
 
     @Put(":id")
-    update(
-        @Body() { fabrico_id }: { fabrico_id: number },
-        @Param("id") id: number,
-        @Body() updateClienteDto: UpdateClienteDto,
-    ) {
-        return this.clienteService.update(Number(fabrico_id), +id, updateClienteDto);
+    update(@Param("id") id: number, @Body() data: UpdateClienteDto) {
+        return this.clienteService.update(Number(data.fabrico_id), +id, data);
     }
 
     @Delete(":id")
-    remove(@Param("fabrico_id") fabrico_id: number, @Param("id") id: number) {
-        return this.clienteService.remove(Number(fabrico_id), +id);
+    remove(@Param("id") id: number) {
+        return this.clienteService.remove(id);
     }
 }

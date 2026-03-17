@@ -108,7 +108,7 @@ export class ClienteService {
         }
     }
 
-    async remove(fabrico_id: number, id: number) {
+    async remove(id: number) {
         try {
             await this.findOne(id);
 
