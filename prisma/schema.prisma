@@ -17,6 +17,7 @@ model Fabrico {
   usuarios Usuario[]
   clientes Cliente[]
   faccoes Faccao[]
+  etapas   Etapa[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -74,4 +75,20 @@ model Cliente {
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   @@map("clientes")
+}
+
+model Etapa {
+  id          Int     @id @default(autoincrement())
+  fabrico_id  Int
+  nome        String  @db.VarChar(255)
+  descricao   String? @db.Text
+  ordem       Int
+  ativa       Boolean @default(true)
+
+  fabrico     Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("etapas")
 }
