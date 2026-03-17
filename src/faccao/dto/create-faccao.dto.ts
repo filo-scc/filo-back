@@ -5,9 +5,9 @@ export class CreateFaccaoDto {
 
     @IsOptional()
     @IsString()
-    @Length(11, 11)
+    @Length(9, 11)
     telefone?: string;
 
     @IsNumber()
-    fabricoId: number;    
+    fabrico_id: number;    
 }

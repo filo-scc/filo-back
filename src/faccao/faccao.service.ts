@@ -43,7 +43,7 @@ export class FaccaoService {
             const existente = await this.prisma.faccao.findFirst({
                 where: {
                     nome: data.nome,
-                    fabrico_id: data.fabricoId,
+                    fabrico_id: data.fabrico_id,
                 },
             });
 
@@ -55,45 +55,39 @@ export class FaccaoService {
                 data: {
                     nome: data.nome,
                     telefone: data.telefone ?? null,
-                    fabrico_id: data.fabricoId,
+                    fabrico_id: data.fabrico_id,
                 },
             });
 
             return { message: "Facção criada com sucesso!" };
         } catch (error) {
-            console.log("ERRO create:", error);
-            throw new InternalServerErrorException("Erro ao criar facção!");
+            console.log("ERRO create: ");
+            throw error;
         }
     }
 
     async update(id: number, data: UpdateFaccaoDto) {
-        try {
-            const existente = await this.prisma.faccao.findFirst({
-                where: {
-                    ...data,
-                    NOT: {
-                        id: id,
-                    },
-                },
-            });
+        const existente = await this.prisma.faccao.findMany({
+            where: {
+                nome: data.nome,
+                fabrico_id: data.fabrico_id,
+            },
+        });
 
-            if (existente) {
-                throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
-            }
-
-            await this.prisma.faccao.update({
-                where: { id },
-                data: {
-                    nome: data.nome,
-                    telefone: data.telefone ?? null,
-                },
-            });
-
-            return { message: "Facção atualizada com sucesso!" };
-        } catch (error) {
-            console.log("ERRO update:", error);
-            throw new InternalServerErrorException("Erro ao atualizar facção!");
+        if (existente.length > 0) {
+          if(existente[0].nome == data.nome){
+            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+          }
         }
+
+        await this.prisma.faccao.update({
+            where: { id },
+            data: {
+                ...data,
+            },
+        });
+
+        return { message: "Facção atualizada com sucesso!" };
     }
 
     async delete(id: number) {

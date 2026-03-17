@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put} from "@nestjs/common";
 import { FaccaoService } from "./faccao.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
@@ -22,8 +22,9 @@ export class FaccaoController {
         return this.faccaoService.getById(+id);
     }
 
-    @Patch(":id")
-    update(@Param("id") id: string, @Req() req, @Body() data: UpdateFaccaoDto) {
+    @Put(":id")
+    update(@Param("id") id: string, @Body() data: UpdateFaccaoDto) {
+        // Caso queira alterar qualquer info que não seja o nome remover o nome do body
         return this.faccaoService.update(+id, data);
     }
 
