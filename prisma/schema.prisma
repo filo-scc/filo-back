@@ -22,6 +22,8 @@ model Fabrico {
   ativo Boolean @default(true)
 
   usuarios Usuario[]
+  clientes Cliente[]
+  faccoes Faccao[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -38,11 +40,43 @@ model Usuario {
   foto_de_perfil String?
   cargo Cargo @default(GERENTE)
 
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   fabrico_id Int?
   fabrico Fabrico? @relation(fields: [fabrico_id], references: [id])
+
+  @@map("usuarios")
+}
+
+model Faccao {
+  id         Int     @id @default(autoincrement())
+  nome       String
+  telefone   String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@map("usuarios")
+  fabrico_id Int
+  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("faccoes")
+}
+
+model Cliente {
+  id Int @id @default(autoincrement())
+
+  nome String
+  cnpj String? @unique
+  telefone String?
+  responsavel String?
+  status Boolean @default(true)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("clientes")
 }
