@@ -1,34 +1,34 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from '@nestjs/common';
-import { FaccaoService } from './faccao.service';
-import { CreateFaccaoDto } from './dto/create-faccao.dto';
-import { UpdateFaccaoDto } from './dto/update-faccao.dto';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from "@nestjs/common";
+import { FaccaoService } from "./faccao.service";
+import { CreateFaccaoDto } from "./dto/create-faccao.dto";
+import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
 
-@Controller('faccoes')
+@Controller("faccoes")
 export class FaccaoController {
-  constructor(private readonly faccaoService: FaccaoService) {}
+    constructor(private readonly faccaoService: FaccaoService) {}
 
-  @Post()
-  create(@Body() data: CreateFaccaoDto, @Req() req) {
-    return this.faccaoService.create(1, data);
-  }
+    @Post()
+    create(@Body() data: CreateFaccaoDto) {
+        return this.faccaoService.create(data);
+    }
 
-  @Get()
-  findAll() {
-    return this.faccaoService.getAll();
-  }
+    @Get()
+    findAll() {
+        return this.faccaoService.getAll();
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.faccaoService.getById(+id);
-  }
+    @Get(":id")
+    findOne(@Param("id") id: string) {
+        return this.faccaoService.getById(+id);
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Req() req, @Body() data: UpdateFaccaoDto) {
-    return this.faccaoService.update(+id, 1, data);
-  }
+    @Patch(":id")
+    update(@Param("id") id: string, @Req() req, @Body() data: UpdateFaccaoDto) {
+        return this.faccaoService.update(+id, data);
+    }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.faccaoService.delete(+id);
-  }
+    @Delete(":id")
+    remove(@Param("id") id: string) {
+        return this.faccaoService.delete(+id);
+    }
 }

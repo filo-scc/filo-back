@@ -1,12 +1,13 @@
-import { IsOptional, IsString, Length } from "class-validator";
+import { IsNumber, IsOptional, IsString, Length } from "class-validator";
 export class CreateFaccaoDto {
-
     @IsString()
-    nome: string
+    nome: string;
 
     @IsOptional()
     @IsString()
     @Length(11, 11)
-    telefone?: string
-    
+    telefone?: string;
+
+    @IsNumber()
+    fabricoId: number;    
 }
