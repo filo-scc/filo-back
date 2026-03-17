@@ -13,8 +13,4 @@ export class UpdateProduto{
     @IsEnum(TipoProduto)
     @IsOptional()
     tipo?: TipoProduto;
-
-    @IsOptional()
-    @IsNumber()
-    fabrico_id?: number;
 }
