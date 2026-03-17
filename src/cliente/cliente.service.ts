@@ -1,9 +1,13 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
-import { ExceptionsHandler } from "@nestjs/core/exceptions/exceptions-handler";
 
 @Injectable()
 export class ClienteService {
@@ -15,7 +19,7 @@ export class ClienteService {
         });
 
         if (cliente_existente) {
-            throw new Error("Nome ja existe troque nesse fabrico");
+            throw new ConflictException("Nome ja existe troque nesse fabrico");
         }
 
         try {
@@ -87,10 +91,10 @@ export class ClienteService {
         }
     }
 
-    async update( id: number, data: UpdateClienteDto) {
+    async update(id: number, data: UpdateClienteDto) {
         try {
             const cliente_existente = await this.prisma.cliente.findFirst({
-                where: { nome: data.nome , fabrico_id: Number(data.fabrico_id), NOT: { id } },
+                where: { nome: data.nome, fabrico_id: Number(data.fabrico_id), NOT: { id } },
             });
 
             if (cliente_existente) {
