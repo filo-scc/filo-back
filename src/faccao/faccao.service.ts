@@ -1,12 +1,8 @@
-import {
-    Injectable,
-    ConflictException,
-    NotFoundException,
-    InternalServerErrorException,
-} from "@nestjs/common";
+import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FaccaoService {
@@ -16,8 +12,42 @@ export class FaccaoService {
         try {
             return await this.prisma.faccao.findMany();
         } catch (error) {
-            console.log("ERRO getAll:", error);
-            throw new InternalServerErrorException("Erro ao buscar facções!");
+            console.error("ERRO getAll:", error);
+
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                console.error("Erro conhecido pelo Prisma:", error.code);
+            }
+
+            if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+                console.error("Erro não conhecido pelo Prisma:");
+            }
+
+            if (error instanceof Prisma.PrismaClientInitializationError) {
+                console.error("Erro de inicialização do Prisma:");
+            }
+
+            if (error instanceof Prisma.PrismaClientRustPanicError) {
+                console.error("Erro pânico do Prisma:");
+            }
+
+            throw error;
+        }
+    }
+
+    async getAllFaccaoByFabrico(id: number) {
+        try {
+            const faccoes = await this.prisma.faccao.findMany({
+                where: { fabrico_id: id },
+            });
+
+            if (!faccoes || faccoes.length === 0) {
+                throw new NotFoundException("Nenhuma facção encontrada para esse fabrico!");
+            }
+
+            return faccoes;
+        } catch (error) {
+            console.log("ERRO getAllFaccaoByFabrico:", error);
+            throw error;
         }
     }
 
@@ -33,8 +63,8 @@ export class FaccaoService {
 
             return faccao;
         } catch (error) {
-            console.log("ERRO getById:", error);
-            throw new InternalServerErrorException("Erro ao buscar facção!");
+            console.log("ERRO getById: ", error);
+            throw error;
         }
     }
 
@@ -75,9 +105,9 @@ export class FaccaoService {
         });
 
         if (existente.length > 0) {
-          if(existente[0].nome == data.nome){
-            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
-          }
+            if (existente[0].nome == data.nome && existente[0].id != id) {
+                throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+            }
         }
 
         await this.prisma.faccao.update({
@@ -106,8 +136,8 @@ export class FaccaoService {
 
             return { message: "Facção deletada com sucesso!" };
         } catch (error) {
-            console.log("ERRO delete:", error);
-            throw new InternalServerErrorException("Erro ao deletar facção!");
+            console.log("ERRO delete: ");
+            throw new error();
         }
     }
 }

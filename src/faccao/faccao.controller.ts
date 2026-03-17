@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Put} from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put } from "@nestjs/common";
 import { FaccaoService } from "./faccao.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
@@ -10,6 +10,11 @@ export class FaccaoController {
     @Post()
     create(@Body() data: CreateFaccaoDto) {
         return this.faccaoService.create(data);
+    }
+
+    @Get("fabrico/:id")
+    findAllFaccaoByFabrico(@Param("id") id: string) {
+        return this.faccaoService.getAllFaccaoByFabrico(Number(id));
     }
 
     @Get()
