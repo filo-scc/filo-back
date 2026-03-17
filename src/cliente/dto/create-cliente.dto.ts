@@ -1,6 +1,7 @@
+import { Prisma } from ".prisma/client/edge";
 import { IsBoolean, IsNumber, IsOptional, IsString, Length } from "class-validator";
 
-export class CreateClienteDto {
+export class CreateClienteDto implements Prisma.ClienteUncheckedCreateInput {
     @IsString()
     nome: string;
 
