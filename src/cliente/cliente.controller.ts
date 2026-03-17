@@ -22,7 +22,7 @@ export class ClienteController {
         return this.clienteService.findAll();
     }
 
-    @Get("/fabrico/:fabrico_id/:id")
+    @Get(":id")
     findOne(@Param("id") id: number) {
         return this.clienteService.findOne(id);
     }
