@@ -86,10 +86,10 @@ export class ClienteService {
         }
     }
 
-    async update(fabrico_id: number, id: number, data: UpdateClienteDto) {
+    async update( id: number, data: UpdateClienteDto) {
         try {
             const cliente_existente = await this.prisma.cliente.findFirst({
-                where: { nome: data.nome , fabrico_id: Number(fabrico_id), NOT: { id } },
+                where: { nome: data.nome , fabrico_id: Number(data.fabrico_id), NOT: { id } },
             });
 
             if (cliente_existente) {

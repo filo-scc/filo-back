@@ -29,7 +29,7 @@ export class ClienteController {
 
     @Put(":id")
     update(@Param("id") id: number, @Body() data: UpdateClienteDto) {
-        return this.clienteService.update(Number(data.fabrico_id), +id, data);
+        return this.clienteService.update(id, data);
     }
 
     @Delete(":id")
