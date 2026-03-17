@@ -6,15 +6,8 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Cargo {
-  ADMIN
-  DONO
-  GERENTE
-}
-
 model Fabrico {
-  id Int @id @default(autoincrement())
-
+  id             Int       @id @default(autoincrement())
   foto_de_perfil String?
   cnpj String? @unique @db.VarChar(14)
   razao_social String?
@@ -23,6 +16,7 @@ model Fabrico {
 
   usuarios Usuario[]
   clientes Cliente[]
+  faccoes Faccao[]
   
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -31,20 +25,37 @@ model Fabrico {
 }
 
 model Usuario {
-  id Int @id @default(autoincrement())
-
-  email String? @unique
-  nome String?
-  senha String?
-  cargo Cargo @default(GERENTE)
-
+  id         Int      @id @default(autoincrement())
+  email      String?  @unique
+  nome       String?
+  senha      String?
   fabrico_id Int
-  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  cargo      Cargo    @default(GERENTE)
+  fabrico    Fabrico  @relation(fields: [fabrico_id], references: [id])
+
+  @@map("usuarios")
+}
+
+model Faccao {
+  id         Int     @id @default(autoincrement())
+  nome       String
+  telefone   String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@map("usuarios")
+  fabrico_id Int
+  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("faccoes")
+}
+
+enum Cargo {
+  ADMIN
+  DONO
+  GERENTE
 }
 
 model Cliente {

@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+import { ExceptionsHandler } from "@nestjs/core/exceptions/exceptions-handler";
 
 @Injectable()
 export class ClienteService {
@@ -26,11 +27,11 @@ export class ClienteService {
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    throw new Error("Cliente CNPJ Ja existe");
+                    throw new ConflictException("Cliente CNPJ Ja existe");
                 }
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new Error("Dados invalidos");
+                throw new BadRequestException("Dados invalidos");
             }
             throw error;
         }
@@ -43,11 +44,11 @@ export class ClienteService {
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new Error("Erro ao buscar clientes");
+                throw new ConflictException("Erro ao buscar clientes");
             }
 
             if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new Error("Parâmetros de consulta inválidos");
+                throw new BadRequestException("Parâmetros de consulta inválidos");
             }
 
             throw error;
@@ -59,7 +60,7 @@ export class ClienteService {
             return this.prisma.cliente.findMany();
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new Error("Erro ao buscar clientes");
+                throw new ConflictException("Erro ao buscar clientes");
             }
         }
     }
@@ -71,16 +72,16 @@ export class ClienteService {
             });
 
             if (!cliente) {
-                throw new Error("Cliente não encontrado");
+                throw new NotFoundException("Cliente não encontrado");
             }
 
             return cliente;
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new Error("Erro ao buscar cliente");
+                throw new ConflictException("Erro ao buscar cliente");
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new Error("Parâmetros de consulta inválidos");
+                throw new BadRequestException("Parâmetros de consulta inválidos");
             }
             throw error;
         }
@@ -93,7 +94,7 @@ export class ClienteService {
             });
 
             if (cliente_existente) {
-                throw new Error("Nome ja existente ");
+                throw new ConflictException("Nome ja existente ");
             }
 
             return this.prisma.cliente.update({
@@ -102,7 +103,7 @@ export class ClienteService {
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new Error("Não foi possível atualizar o cliente");
+                throw new ConflictException("Não foi possível atualizar o cliente");
             }
             throw error;
         }
@@ -117,10 +118,10 @@ export class ClienteService {
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new Error("Erro ao deletar cliente");
+                throw new ConflictException("Erro ao deletar cliente");
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new Error("Parâmetros de consulta inválidos");
+                throw new BadRequestException("Parâmetros de consulta inválidos");
             }
             throw error;
         }
