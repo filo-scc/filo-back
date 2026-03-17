@@ -9,14 +9,17 @@ datasource db {
 model Fabrico {
   id             Int       @id @default(autoincrement())
   foto_de_perfil String?
-  cnpj           String?   @unique @db.VarChar(14)
-  razao_social   String?
-  nome_fantasia  String?
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  ativo          Boolean   @default(true)
-  faccoes        Faccao[]
-  usuarios       Usuario[]
+  cnpj String? @unique @db.VarChar(14)
+  razao_social String?
+  nome_fantasia String?
+  ativo Boolean @default(true)
+
+  usuarios Usuario[]
+  clientes Cliente[]
+  faccoes Faccao[]
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@map("fabricos")
 }
@@ -53,4 +56,22 @@ enum Cargo {
   ADMIN
   DONO
   GERENTE
+}
+
+model Cliente {
+  id Int @id @default(autoincrement())
+
+  nome String
+  cnpj String? @unique
+  telefone String?
+  responsavel String?
+  status Boolean @default(true)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("clientes")
 }
