@@ -35,10 +35,11 @@ model Usuario {
   email String? @unique
   nome String?
   senha String?
+  foto_de_perfil String?
   cargo Cargo @default(GERENTE)
 
-  fabrico_id Int
-  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  fabrico_id Int?
+  fabrico Fabrico? @relation(fields: [fabrico_id], references: [id])
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
