@@ -8,12 +8,12 @@ import { Prisma } from "@prisma/client";
 export class ClienteService {
     constructor(private prisma: PrismaService) {}
 
-    async create(data: CreateClienteDto, fabrico_id: number) {
+    async create(data: CreateClienteDto) {
         try {
             return await this.prisma.cliente.create({
                 data: {
                     ...data,
-                    fabrico_id,
+                    fabrico_id: Number(data.fabrico_id),
                 },
             });
         } catch (error) {
@@ -38,7 +38,7 @@ export class ClienteService {
     async findAll(fabrico_id: number) {
         try {
             return this.prisma.cliente.findMany({
-                where: { fabrico_id },
+                where: { fabrico_id: Number(fabrico_id) },
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -56,7 +56,7 @@ export class ClienteService {
     async findOne(fabrico_id: number, id: number) {
         try {
             const cliente = await this.prisma.cliente.findFirst({
-                where: { id, fabrico_id },
+                where: { id, fabrico_id: Number(fabrico_id) },
             });
 
             if (!cliente) {
@@ -80,7 +80,7 @@ export class ClienteService {
             await this.findOne(fabrico_id, id);
 
             return this.prisma.cliente.update({
-                where: { id, fabrico_id },
+                where: { id, fabrico_id: Number(data.fabrico_id) },
                 data,
             });
         } catch (error) {

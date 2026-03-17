@@ -1,38 +1,38 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put } from "@nestjs/common";
 import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 
-@Controller("cliente")
+@Controller("clientes")
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
 
     @Post()
-    create(@Body() data: CreateClienteDto, @Query("fabrico_id") fabrico_id: number) {
-        return this.clienteService.create(data, Number(fabrico_id));
+    create(@Body() data: CreateClienteDto) {
+        return this.clienteService.create(data);
     }
 
-    @Get()
-    findAll(@Query("fabrico_id") fabrico_id: number) {
+    @Get("/fabrico/:fabrico_id")
+    findAll(@Param("fabrico_id") fabrico_id: number) {
         return this.clienteService.findAll(Number(fabrico_id));
     }
 
-    @Get(":id")
-    findOne(@Query("fabrico_id") fabrico_id: number, @Param("id") id: number) {
+    @Get("/fabrico/:fabrico_id/:id")
+    findOne(@Param("fabrico_id") fabrico_id: number, @Param("id") id: number) {
         return this.clienteService.findOne(Number(fabrico_id), +id);
     }
 
-    @Patch(":id")
+    @Put("/fabrico/:fabrico_id/:id")
     update(
-        @Query("fabrico_id") fabrico_id: number,
+        @Body() { fabrico_id }: { fabrico_id: number },
         @Param("id") id: number,
         @Body() updateClienteDto: UpdateClienteDto,
     ) {
         return this.clienteService.update(Number(fabrico_id), +id, updateClienteDto);
     }
 
-    @Delete(":id")
-    remove(@Query("fabrico_id") fabrico_id: number, @Param("id") id: number) {
+    @Delete("/fabrico/:fabrico_id/:id")
+    remove(@Param("fabrico_id") fabrico_id: number, @Param("id") id: number) {
         return this.clienteService.remove(Number(fabrico_id), +id);
     }
 }

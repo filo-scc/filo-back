@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, Length } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, IsString, Length } from "class-validator";
 
 export class CreateClienteDto {
     @IsString()
@@ -20,4 +20,7 @@ export class CreateClienteDto {
     @IsOptional()
     @IsString()
     responsavel?: string;
+
+    @IsNumber()
+    fabrico_id: number;
 }
