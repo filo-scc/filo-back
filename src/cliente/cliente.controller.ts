@@ -13,16 +13,21 @@ export class ClienteController {
     }
 
     @Get("/fabrico/:fabrico_id")
-    findAll(@Param("fabrico_id") fabrico_id: number) {
-        return this.clienteService.findAll(Number(fabrico_id));
+    findAllByFabricoID(@Param("fabrico_id") fabrico_id: number) {
+        return this.clienteService.findAllByFabricoID(Number(fabrico_id));
+    }
+
+    @Get()
+    findAllClientes() {
+        return this.clienteService.findAll();
     }
 
     @Get("/fabrico/:fabrico_id/:id")
-    findOne(@Param("fabrico_id") fabrico_id: number, @Param("id") id: number) {
-        return this.clienteService.findOne(Number(fabrico_id), +id);
+    findOne(@Param("id") id: number) {
+        return this.clienteService.findOne(id);
     }
 
-    @Put("/fabrico/:fabrico_id/:id")
+    @Put(":id")
     update(
         @Body() { fabrico_id }: { fabrico_id: number },
         @Param("id") id: number,
@@ -31,7 +36,7 @@ export class ClienteController {
         return this.clienteService.update(Number(fabrico_id), +id, updateClienteDto);
     }
 
-    @Delete("/fabrico/:fabrico_id/:id")
+    @Delete(":id")
     remove(@Param("fabrico_id") fabrico_id: number, @Param("id") id: number) {
         return this.clienteService.remove(Number(fabrico_id), +id);
     }
