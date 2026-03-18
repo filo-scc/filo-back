@@ -2,15 +2,15 @@ import { IsOptional, IsString, IsNumber } from "class-validator";
 export class CreateEnderecoDto {
     @IsOptional()
     @IsString()
-    rua: string;
+    rua?: string;
 
     @IsOptional()
     @IsString()
-    numero: string;
+    numero?: string;
     
     @IsOptional()
     @IsString()
-    bairro: string;
+    bairro?: string;
 
     @IsOptional()
     @IsString()
@@ -18,18 +18,18 @@ export class CreateEnderecoDto {
     
     @IsOptional()
     @IsString()
-    cidade: string;
+    cidade?: string;
     
     @IsOptional()
     @IsString()
-    estado: string;
+    estado?: string;
     
     @IsOptional()
     @IsNumber()
-    usuario_id: number;
+    usuario_id?: number;
     
     @IsOptional()
     @IsNumber()
-    faccao_id: number;
+    faccao_id?: number;
 }
 
