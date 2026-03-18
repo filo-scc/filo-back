@@ -27,8 +27,9 @@ model Fabrico {
   usuarios Usuario[]
   clientes Cliente[]
   faccoes Faccao[]
-  etapas   Etapa[]
-  
+  etapas Etapa[]
+  produtos Produto[]
+
   @@map("fabricos")
 }
 
@@ -55,18 +56,20 @@ model Usuario {
 
 
 model Faccao {
-  id         Int     @id @default(autoincrement())
-  nome       String
-  telefone   String?
+  id Int @id @default(autoincrement())
+
+  nome String
+  telefone String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   fabrico_id Int
-  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
-  endereco   Endereco?
+  endereco Endereco?
 
+  @@unique([fabrico_id, nome])
   @@map("faccoes")
 }
 
@@ -78,48 +81,69 @@ model Cliente {
   telefone String?
   responsavel String?
   status Boolean @default(true)
-  
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  @@unique([fabrico_id, nome])
   @@map("clientes")
 }
 
 model Etapa {
   id          Int     @id @default(autoincrement())
+
   fabrico_id  Int
   nome        String  
   descricao   String? 
   ordem       Int
   ativa       Boolean @default(true)
 
-  fabrico     Fabrico @relation(fields: [fabrico_id], references: [id])
-
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   @@unique([fabrico_id, nome])
   @@map("etapas")
 }
 
 model Endereco {
-  id          Int      @id @default(autoincrement())
-  rua         String?
-  numero      String?
-  bairro      String?
+  id Int @id @default(autoincrement())
+
+  rua String?
+  numero String?
+  bairro String?
   complemento String?
-  cidade      String?
-  estado      String?
+  cidade String?
+  estado String?
+
+  created_at DateTime @default(now())
+  updated_at  DateTime @updatedAt
   
   usuario_id  Int?     @unique 
   usuario     Usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
-  // Relacionamento com Faccao
   faccao_id   Int?     @unique 
   faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
 
   @@map("enderecos")
+}
+
+model Produto {
+  id   Int     @id @default(autoincrement())
+
+  foto String?
+  nome String
+  tipo String
+
+  fabrico_id Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@map("produtos")
 }
