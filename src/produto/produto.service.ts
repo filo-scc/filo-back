@@ -2,20 +2,21 @@ import { NotFoundException, Injectable, ConflictException } from "@nestjs/common
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class ProdutoService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreateProdutoDto) {
-        const produtoExistente = await this.prisma.produto.findFirst({
-            where: { nome: data.nome, fabrico_id: data.fabrico_id },
-        });
-
-        if (produtoExistente) {
-            throw new ConflictException("Já existe um produto com este nome para este fabrico");
+        try {
+            return await this.prisma.produto.create({ data: { ...data } });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                throw new ConflictException("Já existe um produto com este nome para este fabrico");
+            }
+            throw error;
         }
-        return await this.prisma.produto.create({ data: { ...data } });
     }
 
     async findAll() {
@@ -45,16 +46,19 @@ export class ProdutoService {
         if (!produto) {
             throw new NotFoundException("Produto não encontrado");
         }
-        if (dados.nome) {
-            const produtoExistente = await this.prisma.produto.findFirst({
-                where: { nome: dados.nome, fabrico_id: produto.fabrico_id, id: { not: id } },
+
+        try {
+            await this.prisma.produto.update({
+                where: { id: id },
+                data: { ...dados },
             });
-            if (produtoExistente) {
+            return `O produto com o id ${id} foi atualizado`;
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
                 throw new ConflictException("Já existe um produto com este nome para este fabrico");
             }
+            throw error;
         }
-        await this.prisma.produto.update({ where: { id: id }, data: { ...dados } });
-        return `O produto com o ${id} foi atualizado`;
     }
 
     async findAllFabrico(fabrico_id: number) {

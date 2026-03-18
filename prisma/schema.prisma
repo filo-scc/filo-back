@@ -130,5 +130,6 @@ model Produto {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@unique([fabrico_id, nome])
   @@map("produtos")
 }
