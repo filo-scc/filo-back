@@ -145,5 +145,6 @@ model Produto {
 
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  @@unique([fabrico_id, nome])
   @@map("produtos")
 }
