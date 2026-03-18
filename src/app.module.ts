@@ -4,9 +4,10 @@ import { AppService } from './app.service';
 import { FabricoModule } from './fabrico/fabrico.module';
 import { FaccaoModule } from './faccao/faccao.module';
 import { ClienteModule } from './cliente/cliente.module';
+import { EnderecoModule } from './endereco/endereco.module';
 
 @Module({
-  imports: [FabricoModule, ClienteModule, FaccaoModule],
+  imports: [FabricoModule, ClienteModule, FaccaoModule, EnderecoModule],
   controllers: [AppController],
   providers: [AppService],
 })
