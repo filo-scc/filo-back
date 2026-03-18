@@ -17,3 +17,16 @@ COMMIT;
 
 -- AlterTable
 ALTER TABLE "usuarios" ALTER COLUMN "cargo" SET DEFAULT 'GERENTE';
+
+-- CreateTable
+CREATE TABLE "faccoes" (
+    "id" SERIAL NOT NULL,
+    "nome" TEXT NOT NULL,
+    "telefone" TEXT,
+    "fabrico_id" INTEGER NOT NULL,
+
+    CONSTRAINT "faccoes_pkey" PRIMARY KEY ("id")
+);
+
+-- AddForeignKey
+ALTER TABLE "faccoes" ADD CONSTRAINT "faccoes_fabrico_id_fkey" FOREIGN KEY ("fabrico_id") REFERENCES "fabricos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
