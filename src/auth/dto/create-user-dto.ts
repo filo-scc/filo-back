@@ -2,7 +2,7 @@ import { IsEnum, IsNumber, IsOptional, IsString } from "class-validator";
 import { Cargo, Prisma } from "@prisma/client";
 
 export class CreateUserDto implements Prisma.UsuarioUncheckedCreateInput {
-    @IsOptional()
+    @IsString()
     email: string;
 
     @IsString()
