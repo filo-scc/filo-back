@@ -9,26 +9,31 @@ export class ProdutoController {
 
     @Post()
     create(@Body() data: CreateProdutoDto){
-        return this.service.cadastrar(data);
+        return this.service.create(data);
     }
 
     @Get()
-    buscarTodos(){
-        return this.service.buscar_todos();
+    findAll(){
+        return this.service.findAll();
+    }
+
+    @Get("/fabrico/:fabrico_id")
+    findAllFabrico(@Param("fabrico_id", ParseIntPipe) fabrico_id: number){
+        return this.service.findAllFabrico(fabrico_id)
     }
 
     @Get(":id")
-    buscar_Id(@Param("id", ParseIntPipe) id: number){
-        return this.service.buscar_id(id)
+    getById(@Param("id", ParseIntPipe) id: number){
+        return this.service.getById(id)
     }
 
     @Delete(":id")
-    deletar(@Param("id", ParseIntPipe) id: number){
-        return this.service.deletar(id)
+    delete(@Param("id", ParseIntPipe) id: number){
+        return this.service.delete(id)
     }
 
     @Put(':id')
-    async atualizar(@Param('id', ParseIntPipe) id: number, @Body() dadosAtualizados: UpdateProduto){
-        return await this.service.atualizar(id, dadosAtualizados);
+    async update(@Param('id', ParseIntPipe) id: number, @Body() dadosAtualizados: UpdateProduto){
+        return await this.service.update(id, dadosAtualizados);
     }
 }

@@ -51,7 +51,7 @@ model Produto{
   id Int @id @default(autoincrement())
   foto String?
   nome String
-  tipo TipoProduto
+  tipo String
 
   fabrico_id Int
   fabrico Fabrico @relation(fields:[fabrico_id], references:[id])
@@ -60,10 +60,4 @@ model Produto{
   updated_at DateTime @updatedAt
 
   @@map("produtos")
-}
-
-enum TipoProduto{
-  VESTUARIO
-  CALCADO
-  ACESSORIO
 }

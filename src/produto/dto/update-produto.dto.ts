@@ -1,5 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, IsString } from "class-validator";
-import { TipoProduto } from "@prisma/client";
+import { IsOptional, IsString } from "class-validator";
 
 export class UpdateProduto{
     @IsOptional()
@@ -10,7 +9,7 @@ export class UpdateProduto{
     @IsString()
     nome?: string;
 
-    @IsEnum(TipoProduto)
+    @IsString()
     @IsOptional()
-    tipo?: TipoProduto;
+    tipo?: string;
 }
