@@ -16,6 +16,11 @@ export class EtapaController {
         return this.etapaService.getAll();
     }
 
+    @Get("/etapa/:fabrico_id")
+    findAllByFabricoID(@Param("fabrico_id") fabrico_id: number) {
+        return this.etapaService.findAllByFabricoID(Number(fabrico_id));
+    }
+
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number) {
         return this.etapaService.getById(id);

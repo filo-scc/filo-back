@@ -80,8 +80,8 @@ model Cliente {
 model Etapa {
   id          Int     @id @default(autoincrement())
   fabrico_id  Int
-  nome        String  @db.VarChar(255)
-  descricao   String? @db.Text
+  nome        String  @unique
+  descricao   String? 
   ordem       Int
   ativa       Boolean @default(true)
 
