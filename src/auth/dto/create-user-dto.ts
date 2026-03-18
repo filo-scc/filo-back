@@ -20,4 +20,8 @@ export class CreateUserDto implements Prisma.UsuarioUncheckedCreateInput {
 
     @IsNumber()
     fabrico_id: number;
+
+    @IsOptional()
+    @IsString()
+    refresh_token_hash?: string;
 }

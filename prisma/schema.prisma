@@ -21,24 +21,25 @@ model Fabrico {
   nome_fantasia String?
   ativo Boolean @default(true)
 
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   usuarios Usuario[]
   clientes Cliente[]
   faccoes Faccao[]
   
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
   @@map("fabricos")
 }
 
 model Usuario {
   id Int @id @default(autoincrement())
 
-  email String? @unique
+  email String @unique
   nome String?
-  senha String?
+  senha String
   foto_de_perfil String?
   cargo Cargo @default(GERENTE)
+  refresh_token_hash String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -48,6 +49,7 @@ model Usuario {
 
   @@map("usuarios")
 }
+
 
 model Faccao {
   id         Int     @id @default(autoincrement())

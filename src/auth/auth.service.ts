@@ -1,12 +1,28 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+    ConflictException,
+    Injectable,
+    NotFoundException,
+    UnauthorizedException,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
+import { LoginDto } from "./dto/login-dto";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
 
+// const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+// const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+// const JWT_ACCESS_EXPIRATION = process.env.JWT_ACCESS_EXPIRATION;
+// const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION;
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private jwtService: JwtService,
+    ) {}
 
     async create(data: CreateUserDto) {
         const existente = await this.prisma.usuario.findFirst({
@@ -19,6 +35,10 @@ export class AuthService {
         if (existente) {
             throw new ConflictException("Já existe um usuário com esse nome no seu fabrico!");
         }
+
+        const hash = await this.hashData(data.senha);
+
+        data.senha = hash;
 
         await this.prisma.usuario.create({
             data: {
@@ -90,5 +110,78 @@ export class AuthService {
         });
 
         return { message: "Usuário deletado com sucesso!" };
+    }
+
+    async validateUser(email: string, senha: string) {
+        const usuario = await this.prisma.usuario.findUnique({
+            where: { email },
+        });
+
+        if (!usuario) throw new UnauthorizedException("Credenciais inválidas");
+
+        const validacao = await bcrypt.compare(senha, usuario.senha);
+
+        if (!validacao) throw new UnauthorizedException("Credenciais inválidas");
+
+        return usuario;
+    }
+
+    async generateTokens(usuario: any) {
+        const payload = {
+            sub: usuario.id,
+            email: usuario.email,
+            cargo: usuario.cargo,
+            fabrico_id: usuario.fabrico_id,
+        };
+
+        const accessToken = this.jwtService.sign(payload, {
+            secret: process.env.JWT_ACCESS_SECRET,
+            expiresIn: 60 * 15, // 15 minutos
+        });
+
+        const refreshToken = this.jwtService.sign(payload, {
+            secret: process.env.JWT_REFRESH_SECRET,
+            expiresIn: 60 * 60 * 24 * 7, // 7 dias
+        });
+
+        const refreshHash = await this.hashData(refreshToken);
+
+        await this.prisma.usuario.update({
+            where: { id: usuario.id },
+            data: { refresh_token_hash: refreshHash },
+        });
+
+        return { accessToken, refreshToken };
+    }
+
+    async login(dto: LoginDto) {
+        const usuario = await this.validateUser(dto.email, dto.senha);
+
+        return this.generateTokens(usuario);
+    }
+
+    async refresh(@CurrentUser() usuario: any) {
+        const usuarioDb = await this.prisma.usuario.findUnique({
+            where: { id: usuario.id },
+        });
+
+        if (!usuarioDb) throw new UnauthorizedException();
+
+        return this.generateTokens(usuarioDb);
+    }
+
+    async logout(usuarioId: number) {
+        await this.prisma.usuario.update({
+            where: { id: usuarioId },
+            data: { refresh_token_hash: null },
+        });
+
+        return { message: "Logout realizado." };
+    }
+
+    async hashData(data: string) {
+        const rounds = 10;
+
+        return bcrypt.hash(data, rounds);
     }
 }
