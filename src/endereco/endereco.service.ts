@@ -8,13 +8,13 @@ export class EnderecoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createEnderecoDto: CreateEnderecoDto) {
-    const { usuario_id, faccao_id, ...dados } = createEnderecoDto;
+    const { ...dados } = createEnderecoDto;
 
     return this.prisma.endereco.create({
       data: {
         ...dados,
-        usuario_id: usuario_id ? Number(usuario_id) : null,
-        faccao_id: faccao_id ? Number(faccao_id) : null,
+        usuario_id: dados.usuario_id ? Number(dados.usuario_id) : null,
+        faccao_id: dados.faccao_id ? Number(dados.faccao_id) : null,
       },
     });
   }
@@ -22,14 +22,14 @@ export class EnderecoService {
   async update(id: number, updateEnderecoDto: UpdateEnderecoDto) {
     await this.findById(id);
 
-    const { usuario_id, faccao_id, ...dados } = updateEnderecoDto;
+    const { ...dados } = updateEnderecoDto;
 
     return this.prisma.endereco.update({
       where: { id },
       data: {
         ...dados,
-        usuario_id: usuario_id ? Number(usuario_id) : undefined,
-        faccao_id: faccao_id ? Number(faccao_id) : undefined,
+        usuario_id: dados.usuario_id ? Number(dados.usuario_id) : undefined,
+        faccao_id: dados.faccao_id ? Number(dados.faccao_id) : undefined,
       },
     });
   }
