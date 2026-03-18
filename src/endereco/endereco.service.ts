@@ -13,8 +13,6 @@ export class EnderecoService {
     return this.prisma.endereco.create({
       data: {
         ...dados,
-        usuario_id: dados.usuario_id ? Number(dados.usuario_id) : null,
-        faccao_id: dados.faccao_id ? Number(dados.faccao_id) : null,
       },
     });
   }
@@ -28,8 +26,6 @@ export class EnderecoService {
       where: { id },
       data: {
         ...dados,
-        usuario_id: dados.usuario_id ? Number(dados.usuario_id) : undefined,
-        faccao_id: dados.faccao_id ? Number(dados.faccao_id) : undefined,
       },
     });
   }
