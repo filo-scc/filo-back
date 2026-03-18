@@ -7,18 +7,19 @@ datasource db {
 }
 
 model Fabrico {
-  id             Int       @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   foto_de_perfil String?
-  cnpj String? @unique @db.VarChar(14)
-  razao_social String?
-  nome_fantasia String?
-  ativo Boolean @default(true)
+  cnpj           String? @unique @db.VarChar(14)
+  razao_social   String?
+  nome_fantasia  String?
+  ativo          Boolean @default(true)
 
   usuarios Usuario[]
+  produtos Produto[]
   clientes Cliente[]
-  faccoes Faccao[]
+  faccoes  Faccao[]
   etapas   Etapa[]
-  
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -42,9 +43,9 @@ model Usuario {
 }
 
 model Faccao {
-  id         Int     @id @default(autoincrement())
-  nome       String
-  telefone   String?
+  id       Int     @id @default(autoincrement())
+  nome     String
+  telefone String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -66,17 +67,17 @@ enum Cargo {
 model Cliente {
   id Int @id @default(autoincrement())
 
-  nome String
-  cnpj String? @unique
-  telefone String?
+  nome        String
+  cnpj        String? @unique
+  telefone    String?
   responsavel String?
-  status Boolean @default(true)
-  
+  status      Boolean @default(true)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   fabrico_id Int
-  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
 
   @@map("clientes")
 }
@@ -115,4 +116,19 @@ model Endereco {
   faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
 
   @@map("enderecos")
+}
+
+model Produto {
+  id   Int     @id @default(autoincrement())
+  foto String?
+  nome String
+  tipo String
+
+  fabrico_id Int
+  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("produtos")
 }
