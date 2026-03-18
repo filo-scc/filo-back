@@ -35,6 +35,8 @@ model Usuario {
   cargo      Cargo    @default(GERENTE)
   fabrico    Fabrico  @relation(fields: [fabrico_id], references: [id])
 
+  endereco   Endereco?
+
   @@map("usuarios")
 }
 
@@ -48,6 +50,8 @@ model Faccao {
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  endereco   Endereco?
 
   @@map("faccoes")
 }
@@ -74,4 +78,23 @@ model Cliente {
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   @@map("clientes")
+}
+
+model Endereco {
+  id          Int      @id @default(autoincrement())
+  rua         String?
+  numero      String?
+  bairro      String?
+  complemento String?
+  cidade      String?
+  estado      String?
+  
+  usuario_id  Int?     @unique 
+  usuario     Usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  // Relacionamento com Faccao
+  faccao_id   Int?     @unique 
+  faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+
+  @@map("enderecos")
 }
