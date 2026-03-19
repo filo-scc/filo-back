@@ -101,4 +101,47 @@ export class FaccaoService {
 
         return { message: "Facção deletada com sucesso!" };
     }
+
+    async linkProdutos(faccao_id: number, produto_id: number, preco: number) {
+        const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
+        if (!produto) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
+        const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
+        if (!faccao) {
+            throw new NotFoundException("Facção não encontrada");
+        }
+
+        try {
+            await this.prisma.faccaoProduto.create({
+                data: {
+                    produto_id: produto_id,
+                    faccao_id: faccao_id,
+                    preco: preco,
+                },
+            });
+            return { message: "Produto vinculado com sucesso a Facção" };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                throw new ConflictException("Este produto já está vinculado a esta facção");
+            }
+            throw error;
+        }
+    }
+
+    async desvProdutos(faccao_id: number, produto_id: number) {
+        try {
+            await this.prisma.faccaoProduto.delete({
+                where: {
+                    produto_id_faccao_id: { produto_id, faccao_id },
+                },
+            });
+            return { message: "Vínculo removido com sucesso" };
+        } catch {
+            throw new NotFoundException("Vínculo não encontrado para ser removido");
+        }
+    }
+
+    
 }
