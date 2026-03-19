@@ -81,9 +81,12 @@ model Cliente {
   telefone String?
   responsavel String?
   status Boolean @default(true)
+  
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
+  cliente_produto ClienteProduto[]
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
@@ -139,6 +142,8 @@ model Produto {
   nome String
   tipo String
 
+  cliente_produto ClienteProduto[]
+
   fabrico_id Int
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -147,4 +152,19 @@ model Produto {
 
   @@unique([fabrico_id, nome])
   @@map("produtos")
+}
+
+model ClienteProduto{
+
+  nome_para_cliente String 
+  preco_padrao Float?
+  
+  produto_id Int
+  cliente_id Int
+
+  produto Produto @relation(fields: [produto_id], references: [id]) 
+  cliente Cliente @relation(fields: [cliente_id], references: [id]) 
+
+  @@id([produto_id, cliente_id])
+  @@map("cliente_produto")
 }
