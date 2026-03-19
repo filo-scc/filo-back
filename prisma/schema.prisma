@@ -69,6 +69,8 @@ model Faccao {
 
   endereco Endereco?
 
+  faccao_produto FaccaoProduto[]
+
   @@unique([fabrico_id, nome])
   @@map("faccoes")
 }
@@ -144,7 +146,21 @@ model Produto {
   updated_at DateTime @updatedAt
 
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  faccao_produto FaccaoProduto[]
 
   @@unique([fabrico_id, nome])
   @@map("produtos")
+}
+
+model FaccaoProduto {
+  produto_id Int
+  faccao_id Int
+
+  produto Produto @relation(fields: [produto_id], references: [id])
+  faccao  Faccao  @relation(fields: [faccao_id], references: [id])
+
+  preco Float
+
+  @@id([produto_id, faccao_id])
+  @@map("faccao_produto")
 }
