@@ -61,7 +61,7 @@ export class ClienteController {
         @Param("id", ParseIntPipe) cliente_id: number,
         @Body() dto: CreateClienteProdutoDto,
     ) {
-        return this.clienteService.linkClientProduct(cliente_id, dto);
+        return this.clienteService.linkClienteProtudo(cliente_id, dto);
     }
 
     @Get(":id/produtos")
@@ -74,11 +74,11 @@ export class ClienteController {
         @Param("clienteId", ParseIntPipe) cliente_id: number,
         @Param("produtoId", ParseIntPipe) produto_id: number,
     ) {
-        return this.clienteService.removeLink(cliente_id, produto_id);
+        return this.clienteService.removeClienteProtudo(cliente_id, produto_id);
     }
 
     @Put(":id/produtos/:produtoId")
     async updateLinkInformation(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateClienteProdutoDto) {
-        return await this.clienteService.updateLink(id, data);
+        return await this.clienteService.updateClienteProtudo(id, data);
     }
 }

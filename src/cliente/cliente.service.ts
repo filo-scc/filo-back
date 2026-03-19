@@ -143,7 +143,7 @@ export class ClienteService {
         }
     }
 
-    async linkClientProduct(cliente_id: number, data: CreateClienteProdutoDto) {
+    async linkClienteProtudo(cliente_id: number, data: CreateClienteProdutoDto) {
         try {
             const produto_existe = await this.prisma.produto.findUnique({
                 where: {
@@ -224,7 +224,7 @@ export class ClienteService {
         }
     }
 
-    async removeLink(cliente_id: number, product_id: number) {
+    async removeClienteProtudo(cliente_id: number, product_id: number) {
         try {
             return await this.prisma.clienteProduto.delete({
                 where: {
@@ -243,7 +243,7 @@ export class ClienteService {
             throw new ConflictException("Erro ao processar a remoção do vínculo.");
         }
     }
-    async updateLink(cliente_id: number ,data: UpdateClienteProdutoDto,) {
+    async updateClienteProtudo(cliente_id: number ,data: UpdateClienteProdutoDto,) {
         try {
             if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
                 throw new BadRequestException("O preço não pode ser negativo.");
