@@ -159,7 +159,7 @@ export class ClienteService {
         }
     }
 
-    async getAllProductByCliente(cliente_id: number) {
+       async getAllProductByCliente(cliente_id: number) {
         try {
             return this.prisma.clienteProduto.findMany({
                 where: {
@@ -173,6 +173,34 @@ export class ClienteService {
                             foto: true,
                             nome: true,
                             tipo: true,
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                throw new ConflictException("Erro ao buscar clientes");
+            }
+            throw error;
+        }
+    }
+
+        async getAllClienteByProduct(product_id: number) {
+        try {
+            return this.prisma.clienteProduto.findMany({
+                where: {
+                    produto_id: product_id,
+                },
+                select: {
+                    nome_para_cliente:true,
+                    preco_padrao: true,
+                    cliente: {
+                        select: {
+                            nome: true,
+                            cnpj: true,
+                            telefone: true,
+                            responsavel: true,
+                            status: true
                         },
                     },
                 },

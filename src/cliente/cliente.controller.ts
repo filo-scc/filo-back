@@ -62,4 +62,9 @@ export class ClienteController {
     getAllProductByCliente(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.getAllProductByCliente(id);
     }
+
+    @Get("vinculos-produtos/:id")
+    getAllByClientebyProduct(@Param("id", ParseIntPipe) id: number) {
+        return this.clienteService.getAllClienteByProduct(id);
+    }
 }
