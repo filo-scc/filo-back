@@ -8,6 +8,7 @@ import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 
 @Injectable()
 export class ClienteService {
@@ -127,6 +128,33 @@ export class ClienteService {
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Parâmetros de consulta inválidos");
             }
+            throw error;
+        }
+    }
+
+    async VincularClienteProduto(cliente_id: number, data: CreateClienteProdutoDto) {
+        try {
+            const produto_existe = await this.prisma.produto.findUnique({
+                where: {
+                    id: data.produto_id,
+                },
+            });
+
+            if (!produto_existe) {
+                throw new NotFoundException("Esse produto não existe");
+            }
+
+            return this.prisma.clienteProduto.create({
+                data: {
+                    cliente_id: cliente_id,
+                    ...data,
+                },
+            });
+        } catch (error) {
+            if (error instanceof BadRequestException)
+                throw new BadRequestException(
+                    "Este produto já está vinculado a este cliente ou ocorreu um erro interno.",
+                );
             throw error;
         }
     }

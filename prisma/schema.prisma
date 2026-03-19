@@ -157,10 +157,13 @@ model Produto {
 model ClienteProduto{
 
   nome_para_cliente String 
-  preco_padrao Float?
+  preco_padrao Float? @default(0)
   
   produto_id Int
   cliente_id Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   produto Produto @relation(fields: [produto_id], references: [id]) 
   cliente Cliente @relation(fields: [cliente_id], references: [id]) 

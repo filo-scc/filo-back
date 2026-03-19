@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Param,
+    Delete,
+    Put,
+    UseGuards,
+    ParseIntPipe,
+} from "@nestjs/common";
 import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("clientes")
@@ -15,8 +26,8 @@ export class ClienteController {
     }
 
     @Get("/fabrico/:fabrico_id")
-    findAllByFabricoID(@Param("fabrico_id") fabrico_id: number) {
-        return this.clienteService.findAllByFabricoID(Number(fabrico_id));
+    findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
+        return this.clienteService.findAllByFabricoID(fabrico_id);
     }
 
     @Get()
@@ -25,17 +36,25 @@ export class ClienteController {
     }
 
     @Get(":id")
-    findOne(@Param("id") id: number) {
+    findOne(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.findOne(id);
     }
 
     @Put(":id")
-    update(@Param("id") id: number, @Body() data: UpdateClienteDto) {
+    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateClienteDto) {
         return this.clienteService.update(id, data);
     }
 
     @Delete(":id")
-    remove(@Param("id") id: number) {
+    remove(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.remove(id);
+    }
+
+    @Post("produtos/:id")
+    linkClienteToProduct(
+        @Param("id", ParseIntPipe) cliente_id: number,
+        @Body() dto: CreateClienteProdutoDto,
+    ) {
+        return this.clienteService.VincularClienteProduto(cliente_id, dto);
     }
 }
