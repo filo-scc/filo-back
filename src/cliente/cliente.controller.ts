@@ -20,6 +20,11 @@ import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
 
+    @Get("vinculos-produtos/:id")
+    getAllByClientebyProduct(@Param("id", ParseIntPipe) id: number) {
+        return this.clienteService.getAllClienteByProduct(id);
+    }
+
     @Post()
     create(@Body() data: CreateClienteDto) {
         return this.clienteService.create(data);
@@ -63,8 +68,11 @@ export class ClienteController {
         return this.clienteService.getAllProductByCliente(id);
     }
 
-    @Get("vinculos-produtos/:id")
-    getAllByClientebyProduct(@Param("id", ParseIntPipe) id: number) {
-        return this.clienteService.getAllClienteByProduct(id);
+    @Delete(":clienteId/produtos/:produtoId")
+    deleteLinkClienteProduct(
+        @Param("clienteId", ParseIntPipe) cliente_id: number,
+        @Param("produtoId", ParseIntPipe) produto_id: number,
+    ) {
+        return this.clienteService.removeLink(cliente_id, produto_id);
     }
 }

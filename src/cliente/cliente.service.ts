@@ -118,6 +118,16 @@ export class ClienteService {
         try {
             await this.findOne(id);
 
+            const totalVinculos = await this.prisma.clienteProduto.count({
+                where: { cliente_id: id },
+            });
+
+            if (totalVinculos > 0) {
+                throw new BadRequestException(
+                    "Não é possível excluir um cliente que possui produtos vinculados.",
+                );
+            }
+
             return this.prisma.cliente.delete({
                 where: { id },
             });
@@ -141,7 +151,7 @@ export class ClienteService {
             });
 
             if (!produto_existe) {
-                throw new NotFoundException("Esse produto não existe");
+                throw new NotFoundException("Esse vinculo não existe");
             }
 
             return this.prisma.clienteProduto.create({
@@ -159,7 +169,7 @@ export class ClienteService {
         }
     }
 
-       async getAllProductByCliente(cliente_id: number) {
+    async getAllProductByCliente(cliente_id: number) {
         try {
             return this.prisma.clienteProduto.findMany({
                 where: {
@@ -179,20 +189,20 @@ export class ClienteService {
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new ConflictException("Erro ao buscar clientes");
+                throw new ConflictException("Erro ao buscar produtos");
             }
             throw error;
         }
     }
 
-        async getAllClienteByProduct(product_id: number) {
+    async getAllClienteByProduct(product_id: number) {
         try {
             return this.prisma.clienteProduto.findMany({
                 where: {
                     produto_id: product_id,
                 },
                 select: {
-                    nome_para_cliente:true,
+                    nome_para_cliente: true,
                     preco_padrao: true,
                     cliente: {
                         select: {
@@ -200,7 +210,7 @@ export class ClienteService {
                             cnpj: true,
                             telefone: true,
                             responsavel: true,
-                            status: true
+                            status: true,
                         },
                     },
                 },
@@ -210,6 +220,26 @@ export class ClienteService {
                 throw new ConflictException("Erro ao buscar clientes");
             }
             throw error;
+        }
+    }
+
+    async removeLink(cliente_id: number, product_id: number) {
+        try {
+            return await this.prisma.clienteProduto.delete({
+                where: {
+                    produto_id_cliente_id: {
+                        produto_id: product_id,
+                        cliente_id: cliente_id,
+                    },
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2025") {
+                    throw new NotFoundException("Este vínculo não existe ou já foi removido.");
+                }
+            }
+            throw new ConflictException("Erro ao processar a remoção do vínculo.");
         }
     }
 }
