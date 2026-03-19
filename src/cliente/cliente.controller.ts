@@ -50,11 +50,16 @@ export class ClienteController {
         return this.clienteService.remove(id);
     }
 
-    @Post("produtos/:id")
+    @Post(":id/produtos")
     linkClienteToProduct(
         @Param("id", ParseIntPipe) cliente_id: number,
         @Body() dto: CreateClienteProdutoDto,
     ) {
-        return this.clienteService.VincularClienteProduto(cliente_id, dto);
+        return this.clienteService.linkClientProduct(cliente_id, dto);
+    }
+
+    @Get(":id/produtos")
+    getAllProductByCliente(@Param("id", ParseIntPipe) id: number) {
+        return this.clienteService.getAllProductByCliente(id);
     }
 }

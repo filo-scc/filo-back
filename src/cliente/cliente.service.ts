@@ -132,7 +132,7 @@ export class ClienteService {
         }
     }
 
-    async VincularClienteProduto(cliente_id: number, data: CreateClienteProdutoDto) {
+    async linkClientProduct(cliente_id: number, data: CreateClienteProdutoDto) {
         try {
             const produto_existe = await this.prisma.produto.findUnique({
                 where: {
@@ -155,6 +155,32 @@ export class ClienteService {
                 throw new BadRequestException(
                     "Este produto já está vinculado a este cliente ou ocorreu um erro interno.",
                 );
+            throw error;
+        }
+    }
+
+    async getAllProductByCliente(cliente_id: number) {
+        try {
+            return this.prisma.clienteProduto.findMany({
+                where: {
+                    cliente_id: cliente_id,
+                },
+                select: {
+                    nome_para_cliente: true,
+                    preco_padrao: true,
+                    produto: {
+                        select: {
+                            foto: true,
+                            nome: true,
+                            tipo: true,
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                throw new ConflictException("Erro ao buscar clientes");
+            }
             throw error;
         }
     }
