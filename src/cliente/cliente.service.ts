@@ -9,6 +9,7 @@ import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
+import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
 
 @Injectable()
 export class ClienteService {
@@ -240,6 +241,35 @@ export class ClienteService {
                 }
             }
             throw new ConflictException("Erro ao processar a remoção do vínculo.");
+        }
+    }
+    async updateLink(cliente_id: number ,data: UpdateClienteProdutoDto,) {
+        try {
+            if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
+                throw new BadRequestException("O preço não pode ser negativo.");
+            }
+
+            return await this.prisma.clienteProduto.update({
+                where: {
+                    produto_id_cliente_id: {
+                        cliente_id: cliente_id,
+                        produto_id: Number(data.produto_id),
+                    },
+                },
+                data: {
+                    nome_para_cliente: data.nome_para_cliente,
+                    preco_padrao: data.preco_padrao,
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2025") {
+                    throw new NotFoundException("Vínculo entre cliente e produto não encontrado.");
+                }
+            }
+            if (error instanceof BadRequestException || error instanceof NotFoundException) {
+                throw error;
+            }
         }
     }
 }

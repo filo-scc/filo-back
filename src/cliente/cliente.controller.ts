@@ -14,6 +14,7 @@ import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
+import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("clientes")
@@ -74,5 +75,10 @@ export class ClienteController {
         @Param("produtoId", ParseIntPipe) produto_id: number,
     ) {
         return this.clienteService.removeLink(cliente_id, produto_id);
+    }
+
+    @Put(":id/produtos/:produtoId")
+    async updateLinkInformation(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateClienteProdutoDto) {
+        return await this.clienteService.updateLink(id, data);
     }
 }
