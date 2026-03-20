@@ -176,8 +176,27 @@ export class FaccaoService {
             },
         });
         return vinculos.map((vinculo) => ({
-            preco: vinculo.preco, 
-            faccao: vinculo.faccao, 
+            preco: vinculo.preco,
+            faccao: vinculo.faccao,
         }));
+    }
+
+    async updateFaccaoProduto(precoNovo: number, faccao_id: number, produto_id: number) {
+        const vinculo = await this.prisma.faccaoProduto.findFirst({
+            where: { faccao_id: faccao_id, produto_id: produto_id },
+        });
+        if(!vinculo){
+            throw new NotFoundException("Relacionamento não encontrado")
+        }
+        await this.prisma.faccaoProduto.updateMany({
+            where: {
+                faccao_id: faccao_id,
+                produto_id: produto_id,
+            },
+            data: {
+                preco: precoNovo,
+            },
+        });
+        return { message: "Preço atualizado com sucesso!" };
     }
 }

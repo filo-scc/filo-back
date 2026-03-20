@@ -64,4 +64,13 @@ export class FaccaoController {
     getFaccaoByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
         return this.faccaoService.getFaccaoByProduto(idProduto);
     }
+
+    @Put(":faccao_id/produtos/:produto_id")
+    updateFaccaoProduto(
+        @Param("faccao_id", ParseIntPipe) idFaccao: number,
+        @Param("produto_id", ParseIntPipe) idProduto: number,
+        @Body("preco") novoPreco: number,
+    ) {
+        return this.faccaoService.updateFaccaoProduto(novoPreco, idFaccao, idProduto);
+    }
 }
