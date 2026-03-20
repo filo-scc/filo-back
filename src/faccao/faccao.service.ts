@@ -143,5 +143,41 @@ export class FaccaoService {
         }
     }
 
-    
+    async getProdutosByFaccao(faccao_id: number) {
+        const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
+        if (!faccao) {
+            throw new NotFoundException("Facção não encontrada");
+        }
+        const vinculos = await this.prisma.faccaoProduto.findMany({
+            where: {
+                faccao_id: faccao_id,
+            },
+            include: {
+                produto: true,
+            },
+        });
+        return vinculos.map((vinculo) => ({
+            preco: vinculo.preco,
+            produto: vinculo.produto,
+        }));
+    }
+
+    async getFaccaoByProduto(produto_id: number) {
+        const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
+        if (!produto) {
+            throw new NotFoundException("Produto não encontrada");
+        }
+        const vinculos = await this.prisma.faccaoProduto.findMany({
+            where: {
+                produto_id: produto_id,
+            },
+            include: {
+                faccao: true,
+            },
+        });
+        return vinculos.map((vinculo) => ({
+            preco: vinculo.preco, 
+            faccao: vinculo.faccao, 
+        }));
+    }
 }

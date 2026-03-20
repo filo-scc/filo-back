@@ -54,4 +54,14 @@ export class FaccaoController {
     ) {
         return this.faccaoService.desvProdutos(idFaccao, idProduto);
     }
+
+    @Get(":faccao_id/produtos")
+    getProdutosByFaccao(@Param("faccao_id", ParseIntPipe) idFaccao: number) {
+        return this.faccaoService.getProdutosByFaccao(idFaccao);
+    }
+
+    @Get("produtos/:produto_id")
+    getFaccaoByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
+        return this.faccaoService.getFaccaoByProduto(idProduto);
+    }
 }
