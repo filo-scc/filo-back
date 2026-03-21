@@ -1,4 +1,22 @@
-import { IsNumber, IsOptional, IsString, Length } from "class-validator";
+import {
+    IsString,
+    IsInt,
+    IsOptional,
+    IsArray,
+    ValidateNested,
+    IsNumber,
+    Length,
+} from "class-validator";
+
+class ProdutoLinkDto {
+    @IsInt()
+    produto_id: number;
+
+    @IsNumber()
+    preco: number;
+}
+
+import { Type } from "class-transformer";
 export class CreateFaccaoDto {
     @IsString()
     nome: string;
@@ -9,5 +27,11 @@ export class CreateFaccaoDto {
     telefone?: string;
 
     @IsNumber()
-    fabrico_id: number;    
+    fabrico_id: number;
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => ProdutoLinkDto)
+    produtos?: ProdutoLinkDto[];
 }

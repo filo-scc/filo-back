@@ -57,6 +57,14 @@ export class FaccaoService {
                 nome: data.nome,
                 telefone: data.telefone ?? null,
                 fabrico_id: data.fabrico_id,
+                faccao_produto: data.produtos
+                    ? {
+                          create: data.produtos.map((p) => ({
+                              produto_id: p.produto_id,
+                              preco: p.preco,
+                          })),
+                      }
+                    : undefined,
             },
         });
 
@@ -64,24 +72,41 @@ export class FaccaoService {
     }
 
     async update(id: number, data: UpdateFaccaoDto) {
-        const existente = await this.prisma.faccao.findMany({
-            where: {
-                nome: data.nome,
-                fabrico_id: data.fabrico_id,
-                id: { not: id },
-            },
-        });
+        const faccaoAtual = await this.getById(id);
 
-        if (existente) {
-            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+        if (data.nome || data.fabrico_id) {
+            const nomeChecar = data.nome || faccaoAtual.nome;
+            const fabricoChecar = data.fabrico_id || faccaoAtual.fabrico_id;
+
+            const existente = await this.prisma.faccao.findFirst({
+                where: {
+                    nome: nomeChecar,
+                    fabrico_id: fabricoChecar,
+                    id: { not: id },
+                },
+            });
+
+            if (existente) {
+                throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+            }
         }
-
-        await this.getById(id);
 
         await this.prisma.faccao.update({
             where: { id },
             data: {
-                ...data,
+                nome: data.nome,
+                telefone: data.telefone,
+                fabrico_id: data.fabrico_id,
+
+                faccao_produto: data.produtos
+                    ? {
+                          deleteMany: {},
+                          create: data.produtos.map((p) => ({
+                              produto_id: p.produto_id,
+                              preco: p.preco,
+                          })),
+                      }
+                    : undefined,
             },
         });
 
@@ -185,8 +210,8 @@ export class FaccaoService {
         const vinculo = await this.prisma.faccaoProduto.findFirst({
             where: { faccao_id: faccao_id, produto_id: produto_id },
         });
-        if(!vinculo){
-            throw new NotFoundException("Relacionamento não encontrado")
+        if (!vinculo) {
+            throw new NotFoundException("Relacionamento não encontrado");
         }
         await this.prisma.faccaoProduto.updateMany({
             where: {
