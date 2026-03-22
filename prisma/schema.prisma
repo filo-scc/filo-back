@@ -100,11 +100,13 @@ model Etapa {
   descricao   String? 
   ordem       Int
   ativa       Boolean @default(true)
+  icone_id    Int? 
 
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  icone   Icone?   @relation(fields: [icone_id], references: [id])
 
   @@unique([fabrico_id, nome])
   @@map("etapas")
@@ -147,4 +149,13 @@ model Produto {
 
   @@unique([fabrico_id, nome])
   @@map("produtos")
+}
+
+model Icone {
+  id    Int    @id @default(autoincrement())
+  link  String 
+
+  etapas Etapa[]
+
+  @@map("icones")
 }
