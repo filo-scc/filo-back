@@ -21,7 +21,7 @@ export class IconeController {
   constructor(private readonly iconeService: IconeService) {}
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'DONO')
   @Post()
   create(@Body() data: CreateIconeDto) {
     return this.iconeService.create(data);
@@ -37,6 +37,8 @@ export class IconeController {
         return this.iconeService.getById(id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DONO')
   @Put(':id')
   update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateIconeDto) {
     return this.iconeService.update(id, data);
