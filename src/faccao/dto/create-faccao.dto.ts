@@ -17,6 +17,7 @@ class ProdutoLinkDto {
 }
 
 import { Type } from "class-transformer";
+import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
 export class CreateFaccaoDto {
     @IsString()
     nome: string;
@@ -34,4 +35,9 @@ export class CreateFaccaoDto {
     @ValidateNested({ each: true })
     @Type(() => ProdutoLinkDto)
     produtos?: ProdutoLinkDto[];
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => CreateEnderecoDto)
+    endereco?: CreateEnderecoDto;
 }
