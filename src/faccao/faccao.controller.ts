@@ -46,7 +46,6 @@ export class FaccaoController {
     @Roles("DONO", "ADMIN")
     @Put(":id")
     update(@Param("id") id: string, @Body() data: UpdateFaccaoDto) {
-        // Caso queira alterar qualquer info que não seja o nome remover o nome do body
         return this.faccaoService.update(+id, data);
     }
 
