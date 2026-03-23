@@ -31,5 +31,9 @@ export class CreateEnderecoDto {
     @IsOptional()
     @IsNumber()
     faccao_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    cliente_id?: number;
 }
 
