@@ -10,27 +10,36 @@ export class FaccaoService {
 
     async getAll() {
         try {
-            return await this.prisma.faccao.findMany();
+            return await this.prisma.faccao.findMany({
+                include: { 
+                    endereco: true,
+                    faccao_produto: { include: { produto: true } }
+                },
+            });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                console.error("Erro conhecido pelo Prisma:", error.code);
-            }
-
-            throw error;
+            console.error("Erro ao buscar facções:", error);
+            throw new NotFoundException("Nenhuma facção encontrada");
         }
     }
 
+    
     async getAllFaccaoByFabrico(id: number) {
         const faccoes = await this.prisma.faccao.findMany({
             where: { fabrico_id: id },
+            include: { endereco: true }
         });
 
         return faccoes;
     }
 
+    
     async getById(id: number) {
         const faccao = await this.prisma.faccao.findUnique({
             where: { id },
+            include: { 
+                endereco: true,
+                faccao_produto: { include: { produto: true } }
+            }
         });
 
         if (!faccao) {
@@ -40,11 +49,13 @@ export class FaccaoService {
         return faccao;
     }
 
+    
     async create(data: CreateFaccaoDto) {
+        const { endereco, produtos, ...dadosFaccao } = data;
         const existente = await this.prisma.faccao.findFirst({
             where: {
-                nome: data.nome,
-                fabrico_id: data.fabrico_id,
+                nome: dadosFaccao.nome,
+                fabrico_id: dadosFaccao.fabrico_id,
             },
         });
 
@@ -54,29 +65,47 @@ export class FaccaoService {
 
         await this.prisma.faccao.create({
             data: {
-                nome: data.nome,
-                telefone: data.telefone ?? null,
-                fabrico_id: data.fabrico_id,
-                faccao_produto: data.produtos
-                    ? {
-                          create: data.produtos.map((p) => ({
-                              produto_id: p.produto_id,
-                              preco: p.preco,
-                          })),
-                      }
-                    : undefined,
+                ...dadosFaccao,
+                telefone: dadosFaccao.telefone ?? null,
+                
+                endereco: endereco ? {
+                    create: {
+                        rua: endereco.rua,
+                        numero: endereco.numero,
+                        bairro: endereco.bairro,
+                        cidade: endereco.cidade,
+                        estado: endereco.estado,
+                        complemento: endereco.complemento,
+                    }
+                } : undefined,
+                faccao_produto: produtos ? {
+                    create: produtos.map((p) => ({
+                        produto_id: p.produto_id,
+                        preco: p.preco,
+                    })),
+                } : undefined,
             },
+            include: { endereco: true }
         });
 
         return { message: "Facção criada com sucesso!" };
     }
 
+    
     async update(id: number, data: UpdateFaccaoDto) {
-        const faccaoAtual = await this.getById(id);
+        const { endereco, produtos, ...dadosFaccao } = data;
+        
+        
+        await this.getById(id);
 
-        if (data.nome || data.fabrico_id) {
-            const nomeChecar = data.nome || faccaoAtual.nome;
-            const fabricoChecar = data.fabrico_id || faccaoAtual.fabrico_id;
+        
+        if (dadosFaccao.nome || dadosFaccao.fabrico_id) {
+            const faccaoAtual = await this.prisma.faccao.findUnique({ where: { id } });
+            if (!faccaoAtual) {
+                throw new NotFoundException("Facção atual não encontrada!");
+            }
+            const nomeChecar = dadosFaccao.nome || faccaoAtual.nome;
+            const fabricoChecar = dadosFaccao.fabrico_id || faccaoAtual.fabrico_id;
 
             const existente = await this.prisma.faccao.findFirst({
                 where: {
@@ -94,29 +123,32 @@ export class FaccaoService {
         await this.prisma.faccao.update({
             where: { id },
             data: {
-                nome: data.nome,
-                telefone: data.telefone,
-                fabrico_id: data.fabrico_id,
-
-                faccao_produto: data.produtos
-                    ? {
-                          deleteMany: {},
-                          create: data.produtos.map((p) => ({
-                              produto_id: p.produto_id,
-                              preco: p.preco,
-                          })),
-                      }
-                    : undefined,
+                ...dadosFaccao,
+                endereco: endereco ? {
+                    upsert: {
+                        create: { ...endereco },
+                        update: { ...endereco }
+                    }
+                } : undefined,
+                faccao_produto: produtos ? {
+                    deleteMany: {},
+                    create: produtos.map((p) => ({
+                        produto_id: p.produto_id,
+                        preco: p.preco,
+                    })),
+                } : undefined,
             },
+            include: { endereco: true }
         });
 
         return { message: "Facção atualizada com sucesso!" };
     }
 
+
     async delete(id: number) {
         const faccao = await this.getById(id);
 
-        if (!faccao) {
+        if(!faccao) {
             throw new NotFoundException("Facção não encontrada!");
         }
 
@@ -124,8 +156,9 @@ export class FaccaoService {
             where: { id },
         });
 
-        return { message: "Facção deletada com sucesso!" };
+        return { message: "Facção foi removida com sucesso!" };
     }
+
 
     async linkProdutos(faccao_id: number, produto_id: number, preco: number) {
         const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
@@ -146,7 +179,7 @@ export class FaccaoService {
                     preco: preco,
                 },
             });
-            return { message: "Produto vinculado com sucesso a Facção" };
+            return { message: "Produto vinculado com sucesso" };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
                 throw new ConflictException("Este produto já está vinculado a esta facção");
@@ -155,18 +188,18 @@ export class FaccaoService {
         }
     }
 
+
     async desvProdutos(faccao_id: number, produto_id: number) {
         try {
             await this.prisma.faccaoProduto.delete({
-                where: {
-                    produto_id_faccao_id: { produto_id, faccao_id },
-                },
+                where: { produto_id_faccao_id: { produto_id, faccao_id } },
             });
             return { message: "Vínculo removido com sucesso" };
         } catch {
-            throw new NotFoundException("Vínculo não encontrado para ser removido");
+            throw new NotFoundException("Vínculo não encontrado");
         }
     }
+
 
     async getProdutosByFaccao(faccao_id: number) {
         const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
@@ -187,40 +220,40 @@ export class FaccaoService {
         }));
     }
 
+
     async getFaccaoByProduto(produto_id: number) {
+
         const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
         if (!produto) {
             throw new NotFoundException("Produto não encontrada");
         }
+
         const vinculos = await this.prisma.faccaoProduto.findMany({
             where: {
                 produto_id: produto_id,
             },
+
             include: {
                 faccao: true,
             },
         });
+
         return vinculos.map((vinculo) => ({
             preco: vinculo.preco,
             faccao: vinculo.faccao,
-        }));
-    }
+        }));    
+        }
 
+        
     async updateFaccaoProduto(precoNovo: number, faccao_id: number, produto_id: number) {
         const vinculo = await this.prisma.faccaoProduto.findFirst({
-            where: { faccao_id: faccao_id, produto_id: produto_id },
+            where: { faccao_id, produto_id },
         });
-        if (!vinculo) {
-            throw new NotFoundException("Relacionamento não encontrado");
-        }
+        if (!vinculo) throw new NotFoundException("Relacionamento não encontrado");
+
         await this.prisma.faccaoProduto.updateMany({
-            where: {
-                faccao_id: faccao_id,
-                produto_id: produto_id,
-            },
-            data: {
-                preco: precoNovo,
-            },
+            where: { faccao_id, produto_id },
+            data: { preco: precoNovo },
         });
         return { message: "Preço atualizado com sucesso!" };
     }
