@@ -14,7 +14,7 @@ import { AuthService } from "./auth.service";
 import { JwtRefreshGuard } from "./guards/jwt-refresh.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { LoginDto } from "./dto/login-dto";
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
+// import { CurrentUser } from "src/common/decorators/current-user.decorator";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { RolesGuard } from "src/common/guards/roles.guard";
@@ -66,8 +66,8 @@ export class AuthController {
 
     @UseGuards(JwtRefreshGuard)
     @Post("/refresh")
-    refresh(@CurrentUser() usuario: any) {
-        return this.authService.refresh(usuario);
+    refresh(@Req() req: any) {
+        return this.authService.refresh(req.user.id);
     }
 
     @UseGuards(JwtAuthGuard)

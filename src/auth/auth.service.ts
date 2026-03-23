@@ -160,19 +160,19 @@ export class AuthService {
         return this.generateTokens(usuario);
     }
 
-    async refresh(@CurrentUser() usuario: any) {
-        const usuarioDb = await this.prisma.usuario.findUnique({
-            where: { id: usuario.id },
+    async refresh(@CurrentUser() usuario_id: any) {
+        const usuario = await this.prisma.usuario.findUnique({
+            where: { id: usuario_id },
         });
 
-        if (!usuarioDb) throw new UnauthorizedException();
+        if (!usuario) throw new UnauthorizedException();
 
-        return this.generateTokens(usuarioDb);
+        return this.generateTokens(usuario);
     }
 
-    async logout(usuarioId: number) {
+    async logout(usuario_id: number) {
         await this.prisma.usuario.update({
-            where: { id: usuarioId },
+            where: { id: usuario_id },
             data: { refresh_token_hash: null },
         });
 
