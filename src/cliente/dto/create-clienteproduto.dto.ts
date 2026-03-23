@@ -1,9 +1,6 @@
-import { IsInt, IsOptional, IsString, IsNumber, Min } from "class-validator";
+import { IsOptional, IsString, IsNumber, Min } from "class-validator";
 
 export class CreateClienteProdutoDto {
-    @IsInt()
-    produto_id: number;
-
     @IsString()
     nome_para_cliente: string;
 

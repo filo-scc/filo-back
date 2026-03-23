@@ -13,18 +13,13 @@ import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
-import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
-import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("clientes")
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
 
-    @Get("vinculos-produtos/:id")
-    getAllByClientebyProduct(@Param("id", ParseIntPipe) id: number) {
-        return this.clienteService.getAllClienteByProduct(id);
-    }
+   
 
     @Post()
     create(@Body() data: CreateClienteDto) {
@@ -56,29 +51,4 @@ export class ClienteController {
         return this.clienteService.remove(id);
     }
 
-    @Post(":id/produtos")
-    linkClienteToProduct(
-        @Param("id", ParseIntPipe) cliente_id: number,
-        @Body() dto: CreateClienteProdutoDto,
-    ) {
-        return this.clienteService.linkClienteProtudo(cliente_id, dto);
-    }
-
-    @Get(":id/produtos")
-    getAllProductByCliente(@Param("id", ParseIntPipe) id: number) {
-        return this.clienteService.getAllProductByCliente(id);
-    }
-
-    @Delete(":clienteId/produtos/:produtoId")
-    deleteLinkClienteProduct(
-        @Param("clienteId", ParseIntPipe) cliente_id: number,
-        @Param("produtoId", ParseIntPipe) produto_id: number,
-    ) {
-        return this.clienteService.removeClienteProtudo(cliente_id, produto_id);
-    }
-
-    @Put(":id/produtos/:produtoId")
-    async updateLinkInformation(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateClienteProdutoDto) {
-        return await this.clienteService.updateClienteProtudo(id, data);
-    }
 }
