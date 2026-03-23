@@ -19,8 +19,6 @@ import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
 
-   
-
     @Post()
     create(@Body() data: CreateClienteDto) {
         return this.clienteService.create(data);

@@ -3,6 +3,7 @@ import {
     ConflictException,
     Injectable,
     NotFoundException,
+    UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -10,8 +11,10 @@ import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
 import { ClienteService } from "./cliente.service";
 import { ProdutoService } from "src/produto/produto.service";
+import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 
 @Injectable()
+@UseGuards(JwtAuthGuard)
 export class ClienteProdutoService {
     constructor(
         private prisma: PrismaService,
@@ -37,7 +40,7 @@ export class ClienteProdutoService {
                 if (!produto) throw new NotFoundException("Produto não encontrado");
 
                 return tx.clienteProduto.update({
-                    where: { produto_id_cliente_id: { cliente_id, produto_id } },
+                    where: { produto_id_cliente_id : { cliente_id, produto_id } },
                     data: {
                         nome_para_cliente: data.nome_para_cliente,
                         preco_padrao: data.preco_padrao,
@@ -176,7 +179,7 @@ export class ClienteProdutoService {
                 if (!produto) {
                     throw new NotFoundException("Produto não encontrado.");
                 }
-                
+
                 const clienteProduto = await tx.clienteProduto.findUnique({
                     where: {
                         produto_id_cliente_id: {
