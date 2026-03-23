@@ -14,8 +14,10 @@ export class ClienteService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreateClienteDto) {
-        const cliente_existente = await this.prisma.cliente.findFirst({
-            where: { nome: data.nome, fabrico_id: Number(data.fabrico_id) },
+        const {endereco, ...dadosCliente} = data;
+
+    const cliente_existente = await this.prisma.cliente.findFirst({
+            where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id) },
         });
 
         if (cliente_existente) {
@@ -25,8 +27,20 @@ export class ClienteService {
         try {
             return await this.prisma.cliente.create({
                 data: {
-                    ...data,
+                    ...dadosCliente,
+                    fabrico_id: Number(dadosCliente.fabrico_id),
+                    endereco: endereco ? {
+                        create: {
+                            rua: endereco.rua,
+                            numero: endereco.numero,
+                            bairro: endereco.bairro,
+                            cidade: endereco.cidade,
+                            estado: endereco.estado,
+                            complemento: endereco.complemento,
+                        }
+                    } : undefined,
                 },
+                include: { endereco: true }
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -45,6 +59,7 @@ export class ClienteService {
         try {
             return this.prisma.cliente.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
+                include: { endereco: true }
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -61,7 +76,9 @@ export class ClienteService {
 
     async findAll() {
         try {
-            return this.prisma.cliente.findMany();
+            return this.prisma.cliente.findMany({
+                include: { endereco: true }
+            });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 throw new ConflictException("Erro ao buscar clientes");
@@ -73,6 +90,7 @@ export class ClienteService {
         try {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id },
+                include: { endereco: true }
             });
 
             if (!cliente) {
@@ -92,9 +110,11 @@ export class ClienteService {
     }
 
     async update(id: number, data: UpdateClienteDto) {
+        const { endereco, ...dadosCliente } = data;
+        
         try {
             const cliente_existente = await this.prisma.cliente.findFirst({
-                where: { nome: data.nome, fabrico_id: Number(data.fabrico_id), NOT: { id } },
+                where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id), NOT: { id } },
             });
 
             if (cliente_existente) {
@@ -102,8 +122,21 @@ export class ClienteService {
             }
 
             return this.prisma.cliente.update({
-                where: { id, fabrico_id: Number(data.fabrico_id) },
-                data,
+                where: { id, fabrico_id: Number(dadosCliente.fabrico_id) },
+                data: {
+                    ...dadosCliente,
+                    endereco: endereco ? {
+                        update: {
+                            rua: endereco.rua,
+                            numero: endereco.numero,
+                            bairro: endereco.bairro,
+                            cidade: endereco.cidade,
+                            estado: endereco.estado,
+                            complemento: endereco.complemento,
+                        }
+                    } : undefined,
+                },                
+                include: { endereco: true }
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
