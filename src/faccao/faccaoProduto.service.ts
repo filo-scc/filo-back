@@ -7,37 +7,35 @@ import { CreateFaccaoProdutoDto } from "./dto/create-faccaoproduto.dto";
 export class FaccaoProdutoService {
     constructor(private prisma: PrismaService) {}
 
-    async linkProdutos(faccao_id: number, produto_id: number, data: CreateFaccaoProdutoDto) {
-        return this.prisma.$transaction(async (tx) => {
-            const produto = await tx.produto.findUnique({ where: { id: produto_id } });
-            if (!produto) throw new NotFoundException("Produto não encontrado");
+    async createFaccaoProduto(faccao_id: number, produto_id: number, data: CreateFaccaoProdutoDto) {
+        const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
+        if (!produto) throw new NotFoundException("Produto não encontrado");
 
-            const faccao = await tx.faccao.findUnique({ where: { id: faccao_id } });
-            if (!faccao) throw new NotFoundException("Facção não encontrada");
+        const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
+        if (!faccao) throw new NotFoundException("Facção não encontrada");
 
-            if (produto.fabrico_id !== faccao.fabrico_id) {
-                throw new ConflictException(
-                    "O produto e a facção devem pertencer ao mesmo fabrico",
-                );
-            }
+        if (produto.fabrico_id !== faccao.fabrico_id) {
+            throw new ConflictException(
+                "O produto e a facção devem pertencer ao mesmo fabrico",
+            );
+        }
 
-            const vinculoExiste = await tx.faccaoProduto.findUnique({
-                where: { produto_id_faccao_id: { produto_id, faccao_id } },
-            });
-            if (vinculoExiste)
-                throw new ConflictException("Este produto já está vinculado a esta facção");
+        const vinculoExiste = await this.prisma.faccaoProduto.findUnique({
+            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+        });
+        if (vinculoExiste)
+            throw new ConflictException("Este produto já está vinculado a esta facção");
 
-            return await tx.faccaoProduto.create({
-                data: {
-                    produto_id: produto_id,
-                    faccao_id: faccao_id,
-                    preco: data.preco,
-                },
-            });
+        return await this.prisma.faccaoProduto.create({
+            data: {
+                produto_id: produto_id,
+                faccao_id: faccao_id,
+                preco: data.preco,
+            },
         });
     }
 
-    async unlinkProduto(faccao_id: number, produto_id: number) {
+    async deleteFaccaoProduto(faccao_id: number, produto_id: number) {
         const vinculo = await this.prisma.faccaoProduto.findUnique({
             where: { produto_id_faccao_id: { produto_id, faccao_id } },
         });
@@ -49,26 +47,22 @@ export class FaccaoProdutoService {
         });
     }
 
-    async getProdutosByFaccao(faccao_id: number, skip: number, take: number) {
+    async getProdutosByFaccao(faccao_id: number) {
         const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
         if (!faccao) throw new NotFoundException("Facção não encontrada");
 
         return await this.prisma.faccaoProduto.findMany({
             where: { faccao_id: faccao_id },
-            skip,
-            take,
             include: { produto: true },
         });
     }
 
-    async getFaccaoByProduto(produto_id: number, skip: number, take: number) {
+    async getFaccaoByProduto(produto_id: number) {
         const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
         if (!produto) throw new NotFoundException("Produto não encontrado");
 
         return await this.prisma.faccaoProduto.findMany({
             where: { produto_id: produto_id },
-            skip,
-            take,
             include: { faccao: true },
         });
     }

@@ -8,7 +8,6 @@ import {
     ParseIntPipe,
     UseGuards,
     Controller,
-    Query,
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -25,51 +24,35 @@ export class FaccaoProdutoController {
 
     @Roles("DONO", "ADMIN")
     @Post(":faccao_id/:produto_id")
-    linkProdutos(
+    createFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
         @Body() data: CreateFaccaoProdutoDto,
     ) {
-        return this.faccaoProdutoService.linkProdutos(idFaccao, idProduto, data);
+        return this.faccaoProdutoService.createFaccaoProduto(idFaccao, idProduto, data);
     }
 
     @Roles("DONO", "ADMIN")
     @Delete(":faccao_id/:produto_id")
-    desvProdutos(
+    deleteFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
     ) {
-        return this.faccaoProdutoService.unlinkProduto(idFaccao, idProduto);
+        return this.faccaoProdutoService.deleteFaccaoProduto(idFaccao, idProduto);
     }
 
     @Get("/faccao/:faccao_id")
-    getProdutosByFaccao(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
-        @Query("skip") skip?: string,
-        @Query("take") take?: string,
-    ) {
-        return this.faccaoProdutoService.getProdutosByFaccao(
-            idFaccao,
-            skip ? Number(skip) : 0,
-            take ? Number(take) : 10,
-        );
+    getProdutosByFaccao(@Param("faccao_id", ParseIntPipe) idFaccao: number) {
+        return this.faccaoProdutoService.getProdutosByFaccao(idFaccao);
     }
 
     @Get("produto/:produto_id")
-    getFaccaoByProduto(
-        @Param("produto_id", ParseIntPipe) idProduto: number,
-        @Query("skip") skip?: string,
-        @Query("take") take?: string,
-    ) {
-        return this.faccaoProdutoService.getFaccaoByProduto(
-            idProduto,
-            skip ? Number(skip) : 0,
-            take ? Number(take) : 10,
-        );
+    getFaccaoByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
+        return this.faccaoProdutoService.getFaccaoByProduto(idProduto);
     }
 
     @Roles("DONO", "ADMIN")
-    @Put(":faccao_id/produtos/:produto_id")
+    @Put(":faccao_id/:produto_id")
     updateFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
