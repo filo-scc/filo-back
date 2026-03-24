@@ -11,12 +11,9 @@ import { Prisma } from "@prisma/client";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { LoginDto } from "./dto/login-dto";
-import { CurrentUser } from "src/common/decorators/current-user.decorator";
 
-// const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
-// const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-// const JWT_ACCESS_EXPIRATION = process.env.JWT_ACCESS_EXPIRATION;
-// const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 @Injectable()
 export class AuthService {
     constructor(
@@ -135,12 +132,12 @@ export class AuthService {
         };
 
         const accessToken = this.jwtService.sign(payload, {
-            secret: process.env.JWT_ACCESS_SECRET,
+            secret: JWT_ACCESS_SECRET,
             expiresIn: 60 * 15, // 15 minutos
         });
 
         const refreshToken = this.jwtService.sign(payload, {
-            secret: process.env.JWT_REFRESH_SECRET,
+            secret: JWT_REFRESH_SECRET,
             expiresIn: 60 * 60 * 24 * 7, // 7 dias
         });
 
@@ -160,12 +157,14 @@ export class AuthService {
         return this.generateTokens(usuario);
     }
 
-    async refresh(@CurrentUser() usuario_id: number) {
+    async refresh(usuario_id: number) {
         const usuario = await this.prisma.usuario.findUnique({
             where: { id: usuario_id },
         });
 
-        if (!usuario) throw new UnauthorizedException();
+        if (!usuario) {
+            throw new UnauthorizedException();
+        }
 
         return this.generateTokens(usuario);
     }
