@@ -25,9 +25,11 @@ export class ProdutoService {
 
     async getById(id: number) {
         const produto = await this.prisma.produto.findUnique({ where: { id } });
+
         if (!produto) {
             throw new NotFoundException("Produto não encontrado");
         }
+
         return produto;
     }
 
