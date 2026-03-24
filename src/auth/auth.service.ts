@@ -160,7 +160,7 @@ export class AuthService {
         return this.generateTokens(usuario);
     }
 
-    async refresh(@CurrentUser() usuario_id: any) {
+    async refresh(@CurrentUser() usuario_id: number) {
         const usuario = await this.prisma.usuario.findUnique({
             where: { id: usuario_id },
         });

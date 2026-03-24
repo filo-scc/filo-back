@@ -52,7 +52,7 @@ export class FichaTecnicaService {
     async update(id: number, data: UpdateFichaTecnicaDto) {
         const ficha = await this.findOne(id);
 
-        if (data.produto_id && data.produto_id !== ficha.id) {
+        if (data.produto_id && data.produto_id !== ficha.produto_id) {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
 
