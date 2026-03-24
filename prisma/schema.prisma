@@ -69,6 +69,8 @@ model Faccao {
 
   endereco Endereco?
 
+  faccao_produto FaccaoProduto[]
+
   @@unique([fabrico_id, nome])
   @@map("faccoes")
 }
@@ -153,6 +155,7 @@ model Produto {
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
+  faccao_produto FaccaoProduto[]
 
   @@unique([fabrico_id, nome])
   @@map("produtos")
@@ -192,4 +195,17 @@ model ClienteProduto{
 
   @@id([produto_id, cliente_id])
   @@map("cliente_produto")
+}
+
+model FaccaoProduto {
+  produto_id Int
+  faccao_id Int
+
+  produto Produto @relation(fields: [produto_id], references: [id])
+  faccao  Faccao  @relation(fields: [faccao_id], references: [id])
+
+  preco Float
+
+  @@id([produto_id, faccao_id])
+  @@map("faccao_produto")
 }
