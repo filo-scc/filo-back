@@ -54,6 +54,10 @@ export class ClienteProdutoService {
         data: CreateClienteProdutoDto,
     ) {
         try {
+            if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
+                throw new BadRequestException("O preço não pode ser negativo.");
+            }
+            
             return await this.prisma.$transaction(async (tx) => {
                 const produto = await tx.produto.findUnique({
                     where: { id: produto_id },
@@ -155,6 +159,7 @@ export class ClienteProdutoService {
             throw error;
         }
     }
+
     async removeClienteProduto(cliente_id: number, product_id: number) {
         try {
             return await this.prisma.clienteProduto.delete({

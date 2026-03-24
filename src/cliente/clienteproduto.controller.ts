@@ -24,17 +24,17 @@ import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 export class ClienteProdutoController {
     constructor(private readonly clienteProdutoService: ClienteProdutoService) {}
 
-    @Get(":clienteId/produtos")
+    @Get("/cliente/:clienteId")
     getAllProdutoByCliente(@Param("clienteId", ParseIntPipe) cliente_id: number) {
         return this.clienteProdutoService.getAllProdutoByCliente(cliente_id);
     }
 
-    @Get("/produtos/:produtoId/clientes")
+    @Get("/produto/:produtoId")
     getAllClienteByProduto(@Param("produtoId", ParseIntPipe) produto_id: number) {
         return this.clienteProdutoService.getAllClienteByProduto(produto_id);
     }
 
-    @Post(":clienteId/produtos/:produtoId")
+    @Post("/:clienteId/:produtoId")
     vincularClienteToProduto(
         @Param("clienteId", ParseIntPipe) cliente_id: number,
         @Param("produtoId", ParseIntPipe) produto_id: number,
@@ -43,7 +43,7 @@ export class ClienteProdutoController {
         return this.clienteProdutoService.vincularClienteProduto(cliente_id, produto_id, dto);
     }
 
-    @Delete(":clienteId/produtos/:produtoId")
+    @Delete("/:clienteId/:produtoId")
     deleteVinculoClienteProduto(
         @Param("clienteId", ParseIntPipe) cliente_id: number,
         @Param("produtoId", ParseIntPipe) produto_id: number,
@@ -51,7 +51,7 @@ export class ClienteProdutoController {
         return this.clienteProdutoService.removeClienteProduto(cliente_id, produto_id);
     }
 
-    @Put(":clienteId/produtos/:produtoId")
+    @Put("/:clienteId/:produtoId")
     async atualizarInformacaoDoVinculo(
         @Param("clienteId", ParseIntPipe) cliente_id: number,
         @Param("produtoId", ParseIntPipe) produto_id: number,
