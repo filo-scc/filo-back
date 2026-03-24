@@ -81,9 +81,12 @@ model Cliente {
   telefone String?
   responsavel String?
   status Boolean @default(true)
+  
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
+  cliente_produto ClienteProduto[]
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
@@ -141,6 +144,8 @@ model Produto {
   nome String
   tipo String
 
+  cliente_produto ClienteProduto[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -169,4 +174,22 @@ model FichaTecnica {
   etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
 
   @@map("fichas-tecnicas")
+}
+
+model ClienteProduto{
+
+  nome_para_cliente String 
+  preco_padrao Float @default(0)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  produto_id Int
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade) 
+
+  cliente_id Int
+  cliente Cliente @relation(fields: [cliente_id], references: [id], onDelete: Cascade) 
+
+  @@id([produto_id, cliente_id])
+  @@map("cliente_produto")
 }

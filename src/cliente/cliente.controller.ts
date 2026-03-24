@@ -1,8 +1,23 @@
-import { Controller, Get, Post, Body, Param, Delete, Put } from "@nestjs/common";
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Param,
+    Delete,
+    Put,
+    UseGuards,
+    ParseIntPipe,
+} from "@nestjs/common";
 import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
+import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { Roles } from "src/common/decorators/roles.decorator";
+import { RolesGuard } from "src/common/guards/roles.guard";
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("DONO", "MEMBRO")
 @Controller("clientes")
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
@@ -13,8 +28,8 @@ export class ClienteController {
     }
 
     @Get("/fabrico/:fabrico_id")
-    findAllByFabricoID(@Param("fabrico_id") fabrico_id: number) {
-        return this.clienteService.findAllByFabricoID(Number(fabrico_id));
+    findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
+        return this.clienteService.findAllByFabricoID(fabrico_id);
     }
 
     @Get()
@@ -23,17 +38,17 @@ export class ClienteController {
     }
 
     @Get(":id")
-    findOne(@Param("id") id: number) {
+    findOne(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.findOne(id);
     }
 
     @Put(":id")
-    update(@Param("id") id: number, @Body() data: UpdateClienteDto) {
+    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateClienteDto) {
         return this.clienteService.update(id, data);
     }
 
     @Delete(":id")
-    remove(@Param("id") id: number) {
+    remove(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.remove(id);
     }
 }
