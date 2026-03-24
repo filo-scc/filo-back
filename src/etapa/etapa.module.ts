@@ -1,11 +1,12 @@
-import { Module } from '@nestjs/common';
-import { EtapaService } from './etapa.service';
-import { EtapaController } from './etapa.controller';
-import { PrismaModule } from '../prisma/prisma.module';
+import { Module } from "@nestjs/common";
+import { EtapaService } from "./etapa.service";
+import { EtapaController } from "./etapa.controller";
+import { PrismaModule } from "../prisma/prisma.module";
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [EtapaController],
-  providers: [EtapaService],
+    imports: [PrismaModule],
+    controllers: [EtapaController],
+    providers: [EtapaService],
+    exports: [EtapaService],
 })
 export class EtapaModule {}
