@@ -1,14 +1,4 @@
-import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Param,
-    Delete,
-    Put,
-    ParseIntPipe,
-    UseGuards,
-} from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
 import { FaccaoService } from "./faccao.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
@@ -53,44 +43,5 @@ export class FaccaoController {
     @Delete(":id")
     remove(@Param("id") id: string) {
         return this.faccaoService.delete(+id);
-    }
-
-    @Roles("DONO", "ADMIN")
-    @Post(":faccao_id/produtos/:produto_id")
-    linkProdutos(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
-        @Param("produto_id", ParseIntPipe) idProduto: number,
-        @Body("preco") preco: number,
-    ) {
-        return this.faccaoService.linkProdutos(idFaccao, idProduto, preco);
-    }
-
-    @Roles("DONO", "ADMIN")
-    @Delete(":faccao_id/produto/:produto_id")
-    desvProdutos(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
-        @Param("produto_id", ParseIntPipe) idProduto: number,
-    ) {
-        return this.faccaoService.desvProdutos(idFaccao, idProduto);
-    }
-
-    @Get(":faccao_id/produtos")
-    getProdutosByFaccao(@Param("faccao_id", ParseIntPipe) idFaccao: number) {
-        return this.faccaoService.getProdutosByFaccao(idFaccao);
-    }
-
-    @Get("produtos/:produto_id")
-    getFaccaoByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
-        return this.faccaoService.getFaccaoByProduto(idProduto);
-    }
-
-    @Roles("DONO", "ADMIN")
-    @Put(":faccao_id/produtos/:produto_id")
-    updateFaccaoProduto(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
-        @Param("produto_id", ParseIntPipe) idProduto: number,
-        @Body("preco") novoPreco: number,
-    ) {
-        return this.faccaoService.updateFaccaoProduto(novoPreco, idFaccao, idProduto);
     }
 }
