@@ -8,11 +8,8 @@ import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
-import { UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 
 @Injectable()
-@UseGuards(JwtAuthGuard)
 export class ClienteService {
     constructor(private prisma: PrismaService) {}
 
@@ -119,16 +116,6 @@ export class ClienteService {
     async remove(id: number) {
         try {
             await this.findOne(id);
-
-            const totalVinculos = await this.prisma.clienteProduto.count({
-                where: { cliente_id: id },
-            });
-
-            if (totalVinculos > 0) {
-                throw new BadRequestException(
-                    "Não é possível excluir um cliente que possui produtos vinculados.",
-                );
-            }
 
             return this.prisma.cliente.delete({
                 where: { id },

@@ -3,26 +3,17 @@ import {
     ConflictException,
     Injectable,
     NotFoundException,
-    UseGuards,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
-import { ClienteService } from "./cliente.service";
-import { ProdutoService } from "src/produto/produto.service";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 
 @Injectable()
-@UseGuards(JwtAuthGuard)
 export class ClienteProdutoService {
-    constructor(
-        private prisma: PrismaService,
-        private readonly clienteService: ClienteService,
-        private readonly produtoService: ProdutoService,
-    ) {}
+    constructor(private prisma: PrismaService) {}
 
-    async updateClienteProtudo(
+    async updateClienteProduto(
         cliente_id: number,
         produto_id: number,
         data: UpdateClienteProdutoDto,
@@ -40,7 +31,7 @@ export class ClienteProdutoService {
                 if (!produto) throw new NotFoundException("Produto não encontrado");
 
                 return tx.clienteProduto.update({
-                    where: { produto_id_cliente_id : { cliente_id, produto_id } },
+                    where: { produto_id_cliente_id: { cliente_id, produto_id } },
                     data: {
                         nome_para_cliente: data.nome_para_cliente,
                         preco_padrao: data.preco_padrao,
@@ -72,7 +63,9 @@ export class ClienteProdutoService {
                     throw new NotFoundException("Esse produto não existe");
                 }
 
-                const cliente = await this.clienteService.findOne(cliente_id);
+                const cliente = await tx.cliente.findUnique({
+                    where: { id: cliente_id },
+                });
 
                 if (!cliente) {
                     throw new NotFoundException("Esse cliente não existe");
@@ -162,45 +155,15 @@ export class ClienteProdutoService {
             throw error;
         }
     }
-    async removeClienteProtudo(cliente_id: number, product_id: number) {
+    async removeClienteProduto(cliente_id: number, product_id: number) {
         try {
-            return await this.prisma.$transaction(async (tx) => {
-                const cliente = await tx.cliente.findUnique({
-                    where: { id: cliente_id },
-                });
-                if (!cliente) {
-                    throw new NotFoundException("Cliente não encontrado.");
-                }
-
-                const produto = await tx.produto.findUnique({
-                    where: { id: product_id },
-                });
-
-                if (!produto) {
-                    throw new NotFoundException("Produto não encontrado.");
-                }
-
-                const clienteProduto = await tx.clienteProduto.findUnique({
-                    where: {
-                        produto_id_cliente_id: {
-                            produto_id: product_id,
-                            cliente_id: cliente_id,
-                        },
+            return await this.prisma.clienteProduto.delete({
+                where: {
+                    produto_id_cliente_id: {
+                        produto_id: product_id,
+                        cliente_id: cliente_id,
                     },
-                });
-
-                if (!clienteProduto) {
-                    throw new NotFoundException("Este vínculo não existe.");
-                }
-
-                return await tx.clienteProduto.delete({
-                    where: {
-                        produto_id_cliente_id: {
-                            produto_id: product_id,
-                            cliente_id: cliente_id,
-                        },
-                    },
-                });
+                },
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -208,9 +171,7 @@ export class ClienteProdutoService {
                     throw new NotFoundException("Este vínculo não existe ou já foi removido.");
                 }
             }
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
+            throw error;
         }
     }
 }

@@ -13,8 +13,11 @@ import { ClienteService } from "./cliente.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
+import { Roles } from "src/common/decorators/roles.decorator";
+import { RolesGuard } from "src/common/guards/roles.guard";
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("DONO", "MEMBRO")
 @Controller("clientes")
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
@@ -48,5 +51,4 @@ export class ClienteController {
     remove(@Param("id", ParseIntPipe) id: number) {
         return this.clienteService.remove(id);
     }
-
 }
