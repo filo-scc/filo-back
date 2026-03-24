@@ -25,10 +25,12 @@ export class AuthService {
     ) {}
 
     async create(data: CreateUserDto) {
+        const { endereco, ...dadosUsuario } = data;
+
         const existente = await this.prisma.usuario.findFirst({
             where: {
-                nome: data.nome,
-                fabrico_id: data.fabrico_id,
+                nome: dadosUsuario.nome,
+                fabrico_id: dadosUsuario.fabrico_id,
             },
         });
 
@@ -36,28 +38,46 @@ export class AuthService {
             throw new ConflictException("Já existe um usuário com esse nome no seu fabrico!");
         }
 
-        const hash = await this.hashData(data.senha);
+        const hash = await this.hashData(dadosUsuario.senha);
+        dadosUsuario.senha = hash;
 
-        data.senha = hash;
+        try {
+            await this.prisma.usuario.create({
+                data: {
+                    ...dadosUsuario,
+                    endereco: endereco ? {
+                        create: {
+                            rua: endereco.rua,
+                            numero: endereco.numero,
+                            bairro: endereco.bairro,
+                            cidade: endereco.cidade,
+                            estado: endereco.estado,
+                            complemento: endereco.complemento,
+                        }
+                    } : undefined,
+                },
+            });
 
-        await this.prisma.usuario.create({
-            data: {
-                ...data,
-            },
-        });
-
-        return { message: "Usuário criado com sucesso!" };
+            return { message: "Usuário criado com sucesso!" };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                throw new ConflictException("Este e-mail já está em uso!");
+            }
+            throw error;
+        }
     }
 
     async getAllByFabricoId(fabrico_id: number) {
         return this.prisma.usuario.findMany({
             where: { fabrico_id },
+            include: { endereco: true },
         });
     }
 
     async getById(id: number) {
         const usuario = await this.prisma.usuario.findUnique({
             where: { id },
+            include: { endereco: true },
         });
 
         if (!usuario) {
@@ -68,11 +88,13 @@ export class AuthService {
     }
 
     async update(id: number, data: UpdateUserDto) {
+        const { endereco, ...dadosUsuario } = data;
+
         try {
             const existente = await this.prisma.usuario.findFirst({
                 where: {
-                    nome: data.nome,
-                    fabrico_id: data.fabrico_id,
+                    nome: dadosUsuario.nome,
+                    fabrico_id: dadosUsuario.fabrico_id,
                     id: { not: id },
                 },
             });
@@ -86,7 +108,13 @@ export class AuthService {
             await this.prisma.usuario.update({
                 where: { id },
                 data: {
-                    ...data,
+                    ...dadosUsuario,
+                    endereco: endereco ? {
+                        upsert: {
+                            create: { ...endereco },
+                            update: { ...endereco }
+                        }
+                    } : undefined,
                 },
             });
 

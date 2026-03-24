@@ -1,7 +1,9 @@
-import { IsEnum, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Cargo, Prisma } from "@prisma/client";
+import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
+import { Type } from "class-transformer";
 
-export class CreateUserDto implements Prisma.UsuarioUncheckedCreateInput {
+export class CreateUserDto {
     @IsString()
     email: string;
 
@@ -24,4 +26,9 @@ export class CreateUserDto implements Prisma.UsuarioUncheckedCreateInput {
     @IsOptional()
     @IsString()
     refresh_token_hash?: string;
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => CreateEnderecoDto)
+    endereco?: CreateEnderecoDto;
 }
