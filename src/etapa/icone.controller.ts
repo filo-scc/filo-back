@@ -10,7 +10,7 @@ import {
   ParseIntPipe
 } from '@nestjs/common';
 import { IconeService } from './icone.service';
-import { CreateIconeDto } from './dto/create-icone.dto';
+import { CreateIconeDto } from '../etapa/dto/create-icone.dto';
 import { UpdateIconeDto } from './dto/update-icone.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';

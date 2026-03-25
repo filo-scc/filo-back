@@ -8,7 +8,6 @@ import { AuthModule } from "./auth/auth.module";
 import { EnderecoModule } from "./endereco/endereco.module";
 import { ProdutoModule } from "./produto/produto.module";
 import { EtapaModule } from "./etapa/etapa.module";
-import { IconeModule } from './icone/icone.module';
 
 @Module({
     imports: [
@@ -19,7 +18,6 @@ import { IconeModule } from './icone/icone.module';
         EnderecoModule,
         ProdutoModule,
         AuthModule,
-        IconeModule,
     ],
     controllers: [AppController],
     providers: [AppService],

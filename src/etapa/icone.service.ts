@@ -1,5 +1,5 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
-import { CreateIconeDto } from './dto/create-icone.dto';
+import { CreateIconeDto } from '../etapa/dto/create-icone.dto';
 import { UpdateIconeDto } from './dto/update-icone.dto';
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
