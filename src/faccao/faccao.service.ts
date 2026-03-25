@@ -2,7 +2,6 @@ import { Injectable, ConflictException, NotFoundException } from "@nestjs/common
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
-import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FaccaoService {
@@ -10,19 +9,22 @@ export class FaccaoService {
 
     async getAll() {
         try {
-            return await this.prisma.faccao.findMany();
+            return await this.prisma.faccao.findMany({
+                include: {
+                    endereco: true,
+                    faccao_produto: { include: { produto: true } },
+                },
+            });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                console.error("Erro conhecido pelo Prisma:", error.code);
-            }
-
-            throw error;
+            console.error("Erro ao buscar facções:", error);
+            throw new NotFoundException("Nenhuma facção encontrada");
         }
     }
 
     async getAllFaccaoByFabrico(id: number) {
         const faccoes = await this.prisma.faccao.findMany({
             where: { fabrico_id: id },
+            include: { endereco: true },
         });
 
         return faccoes;
@@ -31,6 +33,10 @@ export class FaccaoService {
     async getById(id: number) {
         const faccao = await this.prisma.faccao.findUnique({
             where: { id },
+            include: {
+                endereco: true,
+                faccao_produto: { include: { produto: true } },
+            },
         });
 
         if (!faccao) {
@@ -41,64 +47,92 @@ export class FaccaoService {
     }
 
     async create(data: CreateFaccaoDto) {
+        const { endereco, ...dadosFaccao } = data;
         const existente = await this.prisma.faccao.findFirst({
             where: {
-                nome: data.nome,
-                fabrico_id: data.fabrico_id,
+                nome: dadosFaccao.nome,
+                fabrico_id: dadosFaccao.fabrico_id,
             },
         });
 
         if (existente) {
-            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
         }
 
         await this.prisma.faccao.create({
             data: {
-                nome: data.nome,
-                telefone: data.telefone ?? null,
-                fabrico_id: data.fabrico_id,
+                ...dadosFaccao,
+                telefone: dadosFaccao.telefone ?? null,
+
+                endereco: endereco
+                    ? {
+                          create: {
+                              rua: endereco.rua,
+                              numero: endereco.numero,
+                              bairro: endereco.bairro,
+                              cidade: endereco.cidade,
+                              estado: endereco.estado,
+                              complemento: endereco.complemento,
+                          },
+                      }
+                    : undefined,
             },
+            include: { endereco: true },
         });
 
-        return { message: "Facção criada com sucesso!" };
+        return { message: "Facção criada com sucesso" };
     }
 
     async update(id: number, data: UpdateFaccaoDto) {
-        const existente = await this.prisma.faccao.findMany({
-            where: {
-                nome: data.nome,
-                fabrico_id: data.fabrico_id,
-                id: { not: id },
-            },
-        });
+        const { endereco, ...dadosFaccao } = data;
 
-        if (existente) {
-            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico!");
+        const faccaoAtual = await this.getById(id);
+        const fabricoChecar = dadosFaccao.fabrico_id || faccaoAtual.fabrico_id;
+
+        if (dadosFaccao.nome || dadosFaccao.fabrico_id) {
+            const nomeChecar = dadosFaccao.nome || faccaoAtual.nome;
+            const existente = await this.prisma.faccao.findFirst({
+                where: {
+                    nome: nomeChecar,
+                    fabrico_id: fabricoChecar,
+                    id: { not: id },
+                },
+            });
+
+            if (existente) {
+                throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
+            }
         }
-
-        await this.getById(id);
 
         await this.prisma.faccao.update({
             where: { id },
             data: {
-                ...data,
+                ...dadosFaccao,
+                endereco: endereco
+                    ? {
+                          upsert: {
+                              create: { ...endereco },
+                              update: { ...endereco },
+                          },
+                      }
+                    : undefined,
             },
         });
 
-        return { message: "Facção atualizada com sucesso!" };
+        return { message: "Facção atualizada com sucesso" };
     }
 
     async delete(id: number) {
         const faccao = await this.getById(id);
 
         if (!faccao) {
-            throw new NotFoundException("Facção não encontrada!");
+            throw new NotFoundException("Facção não encontrada");
         }
 
         await this.prisma.faccao.delete({
             where: { id },
         });
 
-        return { message: "Facção deletada com sucesso!" };
+        return { message: "Facção foi removida com sucesso" };
     }
 }

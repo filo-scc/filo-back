@@ -1,12 +1,18 @@
-import { Controller, Get, Post, Body, Param, Delete, Put } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
 import { FaccaoService } from "./faccao.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
 
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
+
 @Controller("faccoes")
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class FaccaoController {
     constructor(private readonly faccaoService: FaccaoService) {}
 
+    @Roles("DONO", "ADMIN")
     @Post()
     create(@Body() data: CreateFaccaoDto) {
         return this.faccaoService.create(data);
@@ -27,12 +33,13 @@ export class FaccaoController {
         return this.faccaoService.getById(+id);
     }
 
+    @Roles("DONO", "ADMIN")
     @Put(":id")
     update(@Param("id") id: string, @Body() data: UpdateFaccaoDto) {
-        // Caso queira alterar qualquer info que não seja o nome remover o nome do body
         return this.faccaoService.update(+id, data);
     }
 
+    @Roles("DONO", "ADMIN")
     @Delete(":id")
     remove(@Param("id") id: string) {
         return this.faccaoService.delete(+id);
