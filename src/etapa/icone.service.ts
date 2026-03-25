@@ -67,11 +67,32 @@ export class IconeService {
     }
   }
 
-  async delete(id: number) {
-    await this.getById(id);
+ async delete(id: number) {
+    const icone = await this.prisma.icone.findUnique({
+        where: { id },
+    });
 
-        return this.prisma.icone.delete({
+    if (!icone) {
+        throw new NotFoundException("Ícone não encontrado");
+    }
+
+    try {
+        return await this.prisma.icone.delete({
             where: { id },
         });
-  }
+    } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === "P2003") {
+                const count = await this.prisma.etapa.count({
+                    where: { icone_id: id },
+                });
+
+                throw new ConflictException(
+                    `Não é possível excluir: ícone está vinculado a ${count} etapa(s)`
+                );
+            }
+        }
+        throw error;
+    }
+}
 }
