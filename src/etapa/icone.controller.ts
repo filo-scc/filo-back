@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator'
 
-@Controller('icone')
+@Controller('icones')
 export class IconeController {
   constructor(private readonly iconeService: IconeService) {}
 
