@@ -1,5 +1,6 @@
-import { IsBoolean, IsOptional, IsString, Length } from "class-validator";
+import { IsBoolean, IsOptional, IsString, IsUrl, Length } from "class-validator";
 export class CreateIconeDto {
+    @IsUrl()
     @IsString()
     link: string;
 }
