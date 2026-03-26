@@ -6,12 +6,14 @@ import {
     ValidateNested,
     IsNumber,
     Length,
+    Min,
 } from "class-validator";
 
 class ProdutoLinkDto {
     @IsInt()
     produto_id: number;
 
+    @Min(0, { message: "O preço não pode ser menor que 0" })
     @IsNumber()
     preco: number;
 }
