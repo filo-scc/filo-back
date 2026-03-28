@@ -11,14 +11,17 @@ import { Prisma } from "@prisma/client";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { LoginDto } from "./dto/login-dto";
+import { EnderecoService } from "src/endereco/endereco.service"; 
 
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
 @Injectable()
 export class AuthService {
     constructor(
         private prisma: PrismaService,
         private jwtService: JwtService,
+        private enderecoService: EnderecoService, 
     ) {}
 
     async create(data: CreateUserDto) {
@@ -39,25 +42,21 @@ export class AuthService {
         dadosUsuario.senha = hash;
 
         try {
-            await this.prisma.usuario.create({
-                data: {
-                    ...dadosUsuario,
-                    endereco: endereco ? {
-                        create: {
-                            rua: endereco.rua,
-                            numero: endereco.numero,
-                            bairro: endereco.bairro,
-                            cidade: endereco.cidade,
-                            estado: endereco.estado,
-                            complemento: endereco.complemento,
-                        }
-                    } : undefined,
-                },
+            const usuario = await this.prisma.usuario.create({
+                data: { ...dadosUsuario },
             });
+
+            if (endereco) {
+                const enderecoCriado = await this.enderecoService.create(endereco);
+                await this.prisma.usuario.update({
+                    where: { id: usuario.id },
+                    data: { endereco: { connect: { id: enderecoCriado.id } } },
+                });
+            }
 
             return { message: "Usuário criado com sucesso!" };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
                 throw new ConflictException("Este e-mail já está em uso!");
             }
             throw error;
@@ -100,19 +99,23 @@ export class AuthService {
                 throw new ConflictException("Já existe um usuário com esse nome no seu fabrico!");
             }
 
-            await this.getById(id);
+            const usuarioAtual = await this.getById(id);
+
+            if (endereco) {
+                if (usuarioAtual.endereco) {
+                    await this.enderecoService.update(usuarioAtual.endereco.id, endereco);
+                } else {
+                    const enderecoCriado = await this.enderecoService.create(endereco);
+                    await this.prisma.usuario.update({
+                        where: { id },
+                        data: { endereco: { connect: { id: enderecoCriado.id } } },
+                    });
+                }
+            }
 
             await this.prisma.usuario.update({
                 where: { id },
-                data: {
-                    ...dadosUsuario,
-                    endereco: endereco ? {
-                        upsert: {
-                            create: { ...endereco },
-                            update: { ...endereco }
-                        }
-                    } : undefined,
-                },
+                data: { ...dadosUsuario },
             });
 
             return { message: "Usuário atualizado com sucesso!" };
@@ -122,7 +125,6 @@ export class AuthService {
                     throw new ConflictException("Email já cadastrado");
                 }
             }
-
             throw error;
         }
     }
@@ -161,12 +163,12 @@ export class AuthService {
 
         const accessToken = this.jwtService.sign(payload, {
             secret: JWT_ACCESS_SECRET,
-            expiresIn: 60 * 15, // 15 minutos
+            expiresIn: 60 * 15,
         });
 
         const refreshToken = this.jwtService.sign(payload, {
             secret: JWT_REFRESH_SECRET,
-            expiresIn: 60 * 60 * 24 * 7, // 7 dias
+            expiresIn: 60 * 60 * 24 * 7,
         });
 
         const refreshHash = await this.hashData(refreshToken);
@@ -181,7 +183,6 @@ export class AuthService {
 
     async login(dto: LoginDto) {
         const usuario = await this.validateUser(dto.email, dto.senha);
-
         return this.generateTokens(usuario);
     }
 
@@ -190,9 +191,7 @@ export class AuthService {
             where: { id: usuario_id },
         });
 
-        if (!usuario) {
-            throw new UnauthorizedException();
-        }
+        if (!usuario) throw new UnauthorizedException();
 
         return this.generateTokens(usuario);
     }
@@ -208,7 +207,6 @@ export class AuthService {
 
     async hashData(data: string) {
         const rounds = 10;
-
         return bcrypt.hash(data, rounds);
     }
 }
