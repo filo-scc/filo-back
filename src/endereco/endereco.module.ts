@@ -5,5 +5,6 @@ import { PrismaModule } from "../prisma/prisma.module";
 @Module({
   imports: [PrismaModule],
   providers: [EnderecoService],
+  exports: [EnderecoService]
 })
 export class EnderecoModule {}
