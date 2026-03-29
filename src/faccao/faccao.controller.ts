@@ -33,13 +33,13 @@ export class FaccaoController {
         return this.faccaoService.getById(+id);
     }
 
-    // @Roles("DONO", "ADMIN")
+    @Roles("DONO", "ADMIN")
     @Put(":id")
     update(@Param("id") id: string, @Body() data: UpdateFaccaoDto) {
         return this.faccaoService.update(+id, data);
     }
 
-    // @Roles("DONO", "ADMIN")
+    @Roles("DONO", "ADMIN")
     @Delete(":id")
     remove(@Param("id") id: string) {
         return this.faccaoService.delete(+id);
