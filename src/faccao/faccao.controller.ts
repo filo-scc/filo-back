@@ -8,11 +8,11 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 
 @Controller("faccoes")
-// @UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class FaccaoController {
     constructor(private readonly faccaoService: FaccaoService) {}
 
-    // @Roles("DONO", "ADMIN")
+    @Roles("DONO", "ADMIN")
     @Post()
     create(@Body() data: CreateFaccaoDto) {
         return this.faccaoService.create(data);

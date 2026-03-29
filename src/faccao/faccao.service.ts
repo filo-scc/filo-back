@@ -61,17 +61,13 @@ export class FaccaoService {
             throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
         }
 
-        let enderecoCriadoId: number | undefined = undefined;
-        if (endereco) {
-            const enderecoCriado = await this.enderecoService.create(endereco);
-            enderecoCriadoId = enderecoCriado.id;
-        }
+        const enderecoCriado = await this.enderecoService.create(endereco ?? {});
 
         await this.prisma.faccao.create({
             data: {
                 ...dadosFaccao,
                 telefone: dadosFaccao.telefone ?? null,
-                endereco: enderecoCriadoId ? { connect: { id: enderecoCriadoId } } : undefined,
+                endereco: { connect: { id: enderecoCriado.id } },
             },
             include: { endereco: true },
         });
@@ -101,15 +97,10 @@ export class FaccaoService {
         }
 
         if (endereco) {
-            if (faccaoAtual.endereco) {
-                await this.enderecoService.update(faccaoAtual.endereco.id, endereco);
-            } else {
-                const enderecoCriado = await this.enderecoService.create(endereco);
-                await this.prisma.faccao.update({
-                    where: { id },
-                    data: { endereco: { connect: { id: enderecoCriado.id } } },
-                });
+            if (!faccaoAtual.endereco) {
+                throw new NotFoundException("Endereço da facção não encontrado");
             }
+            await this.enderecoService.update(faccaoAtual.endereco.id, endereco);
         }
 
         await this.prisma.faccao.update({
