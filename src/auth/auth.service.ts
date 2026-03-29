@@ -46,13 +46,12 @@ export class AuthService {
                 data: { ...dadosUsuario },
             });
 
-            if (endereco) {
-                const enderecoCriado = await this.enderecoService.create(endereco);
-                await this.prisma.usuario.update({
-                    where: { id: usuario.id },
-                    data: { endereco: { connect: { id: enderecoCriado.id } } },
-                });
-            }
+            const enderecoCriado = await this.enderecoService.create(endereco ?? {}); 
+
+            await this.prisma.usuario.update({
+                where: { id: usuario.id },
+                data: { endereco: { connect: { id: enderecoCriado.id } } },
+            });
 
             return { message: "Usuário criado com sucesso!" };
         } catch (error) {
@@ -102,15 +101,10 @@ export class AuthService {
             const usuarioAtual = await this.getById(id);
 
             if (endereco) {
-                if (usuarioAtual.endereco) {
-                    await this.enderecoService.update(usuarioAtual.endereco.id, endereco);
-                } else {
-                    const enderecoCriado = await this.enderecoService.create(endereco);
-                    await this.prisma.usuario.update({
-                        where: { id },
-                        data: { endereco: { connect: { id: enderecoCriado.id } } },
-                    });
+                if (!usuarioAtual.endereco) {
+                    throw new NotFoundException("Endereço do usuário não encontrado");
                 }
+                await this.enderecoService.update(usuarioAtual.endereco.id, endereco);
             }
 
             await this.prisma.usuario.update({
