@@ -36,13 +36,13 @@ export class ClienteService {
                 },
             });
 
-            if (endereco) {
-                const enderecoCriado = await this.enderecoService.create(endereco);
-                await this.prisma.cliente.update({
-                    where: { id: cliente.id },
-                    data: { endereco: { connect: { id: enderecoCriado.id } } },
-                });
-            }
+            
+            const enderecoCriado = await this.enderecoService.create(endereco ?? {}); 
+            await this.prisma.cliente.update({
+                where: { id: cliente.id },
+                data: { endereco: { connect: { id: enderecoCriado.id } } },
+            });
+            
 
             return { message: "Cliente criado com sucesso" };
         } catch (error) {
@@ -125,15 +125,10 @@ export class ClienteService {
             const clienteAtual = await this.findOne(id);
 
             if (endereco) {
-                if (clienteAtual.endereco) {
-                    await this.enderecoService.update(clienteAtual.endereco.id, endereco);
-                } else {
-                    const enderecoCriado = await this.enderecoService.create(endereco);
-                    await this.prisma.cliente.update({
-                        where: { id },
-                        data: { endereco: { connect: { id: enderecoCriado.id } } },
-                    });
+                if (!clienteAtual.endereco) {
+                    throw new NotFoundException("Endereço do cliente não encontrado");
                 }
+                await this.enderecoService.update(clienteAtual.endereco.id, endereco);
             }
 
             await this.prisma.cliente.update({
