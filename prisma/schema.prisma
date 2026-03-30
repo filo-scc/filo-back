@@ -93,6 +93,8 @@ model Cliente {
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  endereco Endereco?
+
   @@unique([fabrico_id, nome])
   @@map("clientes")
 }
@@ -135,6 +137,9 @@ model Endereco {
 
   faccao_id   Int?     @unique 
   faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+
+  cliente_id   Int?     @unique 
+  cliente      Cliente?  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
 
   @@map("enderecos")
 }

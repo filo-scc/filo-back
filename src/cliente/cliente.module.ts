@@ -5,9 +5,10 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { ClienteProdutoController } from "./clienteproduto.controller";
 import { ClienteProdutoService } from "./clienteproduto.service";
 import { ProdutoModule } from "src/produto/produto.module";
+import { EnderecoModule } from "src/endereco/endereco.module"; 
 
 @Module({
-    imports: [ProdutoModule, PrismaModule],
+    imports: [ProdutoModule, PrismaModule, EnderecoModule], 
     controllers: [ClienteController, ClienteProdutoController],
     providers: [ClienteService, ClienteProdutoService],
     exports: [ClienteProdutoService],

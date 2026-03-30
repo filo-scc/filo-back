@@ -1,11 +1,12 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { EnderecoService } from "../endereco/endereco.service";
 import { CreateFaccaoDto } from "./dto/create-faccao.dto";
 import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
 
 @Injectable()
 export class FaccaoService {
-    constructor(private prisma: PrismaService) {}
+    constructor(private prisma: PrismaService, private enderecoService: EnderecoService) {}
 
     async getAll() {
         try {
@@ -48,6 +49,7 @@ export class FaccaoService {
 
     async create(data: CreateFaccaoDto) {
         const { endereco, ...dadosFaccao } = data;
+
         const existente = await this.prisma.faccao.findFirst({
             where: {
                 nome: dadosFaccao.nome,
@@ -59,23 +61,13 @@ export class FaccaoService {
             throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
         }
 
+        const enderecoCriado = await this.enderecoService.create(endereco ?? {});
+
         await this.prisma.faccao.create({
             data: {
                 ...dadosFaccao,
                 telefone: dadosFaccao.telefone ?? null,
-
-                endereco: endereco
-                    ? {
-                          create: {
-                              rua: endereco.rua,
-                              numero: endereco.numero,
-                              bairro: endereco.bairro,
-                              cidade: endereco.cidade,
-                              estado: endereco.estado,
-                              complemento: endereco.complemento,
-                          },
-                      }
-                    : undefined,
+                endereco: { connect: { id: enderecoCriado.id } },
             },
             include: { endereco: true },
         });
@@ -104,19 +96,16 @@ export class FaccaoService {
             }
         }
 
+        if (endereco) {
+            if (!faccaoAtual.endereco) {
+                throw new NotFoundException("Endereço da facção não encontrado");
+            }
+            await this.enderecoService.update(faccaoAtual.endereco.id, endereco);
+        }
+
         await this.prisma.faccao.update({
             where: { id },
-            data: {
-                ...dadosFaccao,
-                endereco: endereco
-                    ? {
-                          upsert: {
-                              create: { ...endereco },
-                              update: { ...endereco },
-                          },
-                      }
-                    : undefined,
-            },
+            data: { ...dadosFaccao },
         });
 
         return { message: "Facção atualizada com sucesso" };
