@@ -8,5 +8,7 @@ import { IconeModule } from './icone.module';
   imports: [PrismaModule, IconeModule],
   controllers: [EtapaController],
   providers: [EtapaService],
+  exports: [EtapaService],
+
 })
 export class EtapaModule {}
