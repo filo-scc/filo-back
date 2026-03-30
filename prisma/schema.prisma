@@ -241,5 +241,6 @@ model FichaEtapa {
   etapa_id Int
   etapa Etapa @relation(fields: [etapa_id], references: [id])
 
+  @@unique([ficha_tecnica_id, etapa_id])
   @@map("fichas-etapas")
 }
