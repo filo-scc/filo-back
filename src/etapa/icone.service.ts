@@ -42,10 +42,6 @@ export class IconeService {
       return icone;
   }
 
-  async findOne(id: number) {
-    return `This action returns a #${id} icone`;
-  }
-
   async update(id: number, data: UpdateIconeDto) {
     await this.getById(id);
     

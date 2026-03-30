@@ -16,12 +16,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator'
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('icones')
 export class IconeController {
   constructor(private readonly iconeService: IconeService) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DONO')
+  @Roles('ADMIN')
   @Post()
   create(@Body() data: CreateIconeDto) {
     return this.iconeService.create(data);
@@ -37,14 +37,13 @@ export class IconeController {
         return this.iconeService.getById(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'DONO')
+  @Roles('ADMIN')
   @Put(':id')
   update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateIconeDto) {
     return this.iconeService.update(id, data);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+
   @Roles('ADMIN')
   @Delete(':id')
   remove(@Param("id", ParseIntPipe) id: number) {

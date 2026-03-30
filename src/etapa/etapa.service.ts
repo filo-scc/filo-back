@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
+import { UpdateEtapaDto } from "./dto/update-etapa.dto";
 import { Prisma } from "@prisma/client";
 
 @Injectable()
@@ -73,7 +74,7 @@ export class EtapaService {
         return etapa;
     }
 
-    async update(id: number, data: CreateEtapaDto) {
+    async update(id: number, data: UpdateEtapaDto) {
     await this.getById(id);
 
     if (data.icone_id !== undefined && data.icone_id !== null) {
