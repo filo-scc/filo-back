@@ -165,7 +165,7 @@ model Produto {
 
 model Icone {
   id    Int    @id @default(autoincrement())
-  link  String 
+  link  String?
 
   etapas Etapa[]
 

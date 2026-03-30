@@ -3,5 +3,5 @@ export class CreateIconeDto {
     @IsOptional()
     @IsUrl()
     @IsString()
-    link: string;
+    link?: string;
 }
