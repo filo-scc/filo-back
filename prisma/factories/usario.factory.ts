@@ -8,7 +8,9 @@ export const UsuarioFactory = {
         const senhaHash = await bcrypt.hash(senhaPlana, 10);
 
         // Separamos senha, fabrico_id e endereco para não dar conflito no spread
-        const { senha , fabrico_id, endereco, ...restOverrides } = overrides;
+        const { fabrico_id, endereco, ...restOverrides } = overrides;
+
+        delete restOverrides.senha;
 
         return {
             nome: faker.person.fullName(),

@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
+import { FaccaoFactory } from "./factories/faccao.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -23,7 +24,7 @@ async function main() {
         fabricos.push(fabrico);
     }
 
-    console.log("🎉 Seed de Fabricos concluído com sucesso!");
+    console.log(" Seed de Fabricos concluído com sucesso!");
     
 
     for (let i = 0; i < 30; i++) {
@@ -37,17 +38,24 @@ async function main() {
             cargoDefinido = "ADMIN";
         }
 
-        const usuario = await UsuarioFactory.create(prisma, {
+        await UsuarioFactory.create(prisma, {
             fabrico_id: fabricoAtual.id,
             cargo: cargoDefinido,
             senha: "senha123" // O hash continuará sendo feito na Factory
         });
 
-        console.log(`✅ [User ${i + 1}/30] ${usuario.nome} | Cargo: ${usuario.cargo.padEnd(6)} | Fabrico: ${fabricoAtual.nome_fantasia}`);
     }
+    console.log('\n Seed do usuario finalizado com sucesso!');
 
-    console.log('\n✨ Seed finalizado com sucesso!');
-    console.log('📊 Resumo: 5 Fabricos criados. Cada fabrico recebeu 6 usuários (1 DONO e 5 entre ADMIN/MEMBRO).');
+    for (const fabricoAtual of fabricos) {
+        for (let j = 1; j <= 2; j++) {
+            await FaccaoFactory.create(prisma, {
+                fabrico_id: fabricoAtual.id
+            });
+        }
+    }
+    console.log('\n Seed de faccao finalizada com sucesso!');
+
 }
 
 
