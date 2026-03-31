@@ -5,6 +5,7 @@ import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
 import { FaccaoFactory } from "./factories/faccao.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
+import { EtapaFactory } from "./factories/etapa.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -15,7 +16,6 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-    console.log("🌱 Iniciando o seed de Fabricos...");
 
     const quantidadeDeFabricos = 5;
     const fabricos: any[] = [];
@@ -26,14 +26,19 @@ async function main() {
     }
 
     for (const fabricoAtual of fabricos) {
+        //faccao
         for (let j = 1; j <= 2; j++) {
             await FaccaoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
             });
         }
+
+        //cliente
         for (let k = 1; k <= 3; k++) {
             await ClienteFactory.create(prisma, { fabrico_id: fabricoAtual.id });
         }
+
+        //usuario
         for (let l = 1; l <= 4; l++) {
             let cargoDefinido = "MEMBRO";
 
@@ -49,8 +54,24 @@ async function main() {
                 senha: "senha123", // O hash continuará sendo feito na Factory
             });
         }
-        console.log("\n Seed finalizada com sucesso!");
+        const nomesEtapas = [
+            "Modelagem",
+            "Corte",
+            "Estamparia/Bordado",
+            "Costura",
+            "Acabamento",
+            "Embalagem",
+        ];
+
+        for (let m = 0; m < nomesEtapas.length; m++) {
+            await EtapaFactory.create(prisma, {
+                fabrico_id: fabricoAtual.id,
+                nome: nomesEtapas[m], // Pega o nome real da etapa
+                ordem: m + 1, // A ordem vai de 1 a 6
+            });
+        }
     }
+    console.log("\n Seed finalizada com sucesso!");
 }
 
 main()
