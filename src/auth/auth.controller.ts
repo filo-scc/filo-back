@@ -23,8 +23,8 @@ import { Roles } from "src/common/decorators/roles.decorator";
 export class AuthController {
     constructor(private authService: AuthService) {}
 
-    // @UseGuards(JwtAuthGuard, RolesGuard)
-    // @Roles("DONO", "ADMIN")
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles("DONO", "ADMIN")
     @Post()
     create(@Body() data: CreateUserDto) {
         return this.authService.create(data);
