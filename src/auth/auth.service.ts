@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { LoginDto } from "./dto/login-dto";
-import { EnderecoService } from "src/endereco/endereco.service"; 
+import { EnderecoService } from "src/endereco/endereco.service";
 
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -21,7 +21,7 @@ export class AuthService {
     constructor(
         private prisma: PrismaService,
         private jwtService: JwtService,
-        private enderecoService: EnderecoService, 
+        private enderecoService: EnderecoService,
     ) {}
 
     async create(data: CreateUserDto) {
@@ -46,7 +46,7 @@ export class AuthService {
                 data: { ...dadosUsuario },
             });
 
-            const enderecoCriado = await this.enderecoService.create(endereco ?? {}); 
+            const enderecoCriado = await this.enderecoService.create(endereco ?? {});
 
             await this.prisma.usuario.update({
                 where: { id: usuario.id },
@@ -149,7 +149,7 @@ export class AuthService {
 
     async generateTokens(usuario: any) {
         const payload = {
-            sub: usuario.id,
+            id: usuario.id,
             email: usuario.email,
             cargo: usuario.cargo,
             fabrico_id: usuario.fabrico_id,
@@ -172,7 +172,7 @@ export class AuthService {
             data: { refresh_token_hash: refreshHash },
         });
 
-        return { accessToken, refreshToken };
+        return { accessToken, refreshToken, user: payload };
     }
 
     async login(dto: LoginDto) {
