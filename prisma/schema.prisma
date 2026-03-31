@@ -231,8 +231,8 @@ model FaccaoProduto {
 model FichaEtapa {
   id Int @id @default(autoincrement())
 
-  data_inicio DateTime
-  data_fim    DateTime
+  data_inicio DateTime?
+  data_fim    DateTime?
   observacoes String?
 
   ficha_tecnica_id Int

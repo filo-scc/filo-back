@@ -4,6 +4,7 @@ import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
 import { CreateFichaEtapaDto } from "./dto/create-ficha-etapa.dto";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { EtapaService } from "src/etapa/etapa.service";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FichaEtapaService {
@@ -42,9 +43,16 @@ export class FichaEtapaService {
                 },
             });
         } catch (error) {
-            if (error.code === "P2003") {
-                throw new NotFoundException("Relacionamento inválido");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Ficha Etapa já cadastrada");
+                }
+
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Ficha Etapa não encontrado");
+                }
             }
+
             throw error;
         }
     }
@@ -63,7 +71,7 @@ export class FichaEtapaService {
         });
     }
 
-    async getFichaTecnicaByFichaEtapa(ficha_tecnica_id: number) {
+    async getByFichaTecnica(ficha_tecnica_id: number) {
         await this.fichaTecnicaService.findOne(ficha_tecnica_id);
 
         const fichasEtapas = await this.prisma.fichaEtapa.findMany({
@@ -76,7 +84,7 @@ export class FichaEtapaService {
         return fichasEtapas;
     }
 
-    async getEtapaByFichaEtapa(etapa_id: number) {
+    async getByEtapa(etapa_id: number) {
         await this.etapaService.getById(etapa_id);
 
         const fichasEtapas = await this.prisma.fichaEtapa.findMany({
@@ -123,12 +131,27 @@ export class FichaEtapaService {
             );
         }
 
-        return this.prisma.fichaEtapa.update({
-            where: { id },
-            data: {
-                ...data,
-            },
-        });
+        try {
+            return this.prisma.fichaEtapa.update({
+                where: { id },
+                data: {
+                    ...data,
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Ficha Etapa já cadastrada");
+                }
+
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Ficha Etapa não encontrado");
+                }
+            }
+
+            throw error;
+        }
+        
     }
 
 }
