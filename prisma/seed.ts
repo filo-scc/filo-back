@@ -4,6 +4,7 @@ import "dotenv/config";
 import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
 import { FaccaoFactory } from "./factories/faccao.factory";
+import { ClienteFactory } from "./factories/cliente.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -24,42 +25,33 @@ async function main() {
         fabricos.push(fabrico);
     }
 
-    console.log(" Seed de Fabricos concluído com sucesso!");
-    
-
-    for (let i = 0; i < 30; i++) {
-        const indiceFabrico = i % 5;
-        const fabricoAtual = fabricos[indiceFabrico];
-
-        let cargoDefinido = "MEMBRO";
-        if (i < 5) {
-            cargoDefinido = "DONO";
-        } else if (i % 3 === 0) {
-            cargoDefinido = "ADMIN";
-        }
-
-        await UsuarioFactory.create(prisma, {
-            fabrico_id: fabricoAtual.id,
-            cargo: cargoDefinido,
-            senha: "senha123" // O hash continuará sendo feito na Factory
-        });
-
-    }
-    console.log('\n Seed do usuario finalizado com sucesso!');
-
     for (const fabricoAtual of fabricos) {
         for (let j = 1; j <= 2; j++) {
             await FaccaoFactory.create(prisma, {
-                fabrico_id: fabricoAtual.id
+                fabrico_id: fabricoAtual.id,
             });
         }
+        for (let k = 1; k <= 3; k++) {
+            await ClienteFactory.create(prisma, { fabrico_id: fabricoAtual.id });
+        }
+        for (let l = 1; l <= 4; l++) {
+            let cargoDefinido = "MEMBRO";
+
+            if (l === 1) {
+                cargoDefinido = "DONO"; // Apenas o 1º do loop vira DONO
+            } else if (l === 2) {
+                cargoDefinido = "ADMIN"; // Apenas o 2º do loop vira ADMIN
+            }
+
+            await UsuarioFactory.create(prisma, {
+                fabrico_id: fabricoAtual.id,
+                cargo: cargoDefinido,
+                senha: "senha123", // O hash continuará sendo feito na Factory
+            });
+        }
+        console.log("\n Seed finalizada com sucesso!");
     }
-    console.log('\n Seed de faccao finalizada com sucesso!');
-
 }
-
-
-
 
 main()
     .then(async () => {
