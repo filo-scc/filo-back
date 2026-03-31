@@ -23,8 +23,8 @@ import { Roles } from "src/common/decorators/roles.decorator";
 export class AuthController {
     constructor(private authService: AuthService) {}
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    // @UseGuards(JwtAuthGuard, RolesGuard)
+    // @Roles("DONO", "ADMIN")
     @Post()
     create(@Body() data: CreateUserDto) {
         return this.authService.create(data);
@@ -35,13 +35,6 @@ export class AuthController {
     @Get("/fabrico/:fabrico_id")
     getAllByFabricoId(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
         return this.authService.getAllByFabricoId(fabrico_id);
-    }
-
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
-    @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.authService.getById(id);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -73,5 +66,12 @@ export class AuthController {
     @Post("/logout")
     logout(@Req() req: any) {
         return this.authService.logout(req.user.id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles("DONO", "ADMIN")
+    @Get(":id")
+    getById(@Param("id", ParseIntPipe) id: number) {
+        return this.authService.getById(id);
     }
 }

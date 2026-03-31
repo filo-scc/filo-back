@@ -55,6 +55,12 @@ model Usuario {
   @@map("usuarios")
 }
 
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  TED
+}
+
 model Faccao {
   id Int @id @default(autoincrement())
 
@@ -63,6 +69,12 @@ model Faccao {
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
+  forma_pagamento FormaPagamento?
+  chave_pix String?
+  banco String?
+  agencia String?
+  conta String?
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])

@@ -5,9 +5,10 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { PrismaService } from "src/prisma/prisma.service";
 import { FaccaoProdutoController } from "./faccaoProduto.controller";
 import { FaccaoProdutoService } from "./faccaoProduto.service";
+import { ProdutoModule } from '../produto/produto.module';
 
 @Module({
-    imports: [PrismaModule],
+    imports: [PrismaModule, ProdutoModule],
     controllers: [FaccaoController, FaccaoProdutoController],
     providers: [FaccaoService, FaccaoProdutoService, PrismaService],
 })
