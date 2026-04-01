@@ -6,6 +6,7 @@ import { UsuarioFactory } from "./factories/usario.factory";
 import { FaccaoFactory } from "./factories/faccao.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
+import { ProdutoFactory } from "./factories/produto.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -16,7 +17,6 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-
     const quantidadeDeFabricos = 5;
     const fabricos: any[] = [];
     // 3. Loop para criar 5 Fabricos usando a Factory
@@ -54,6 +54,9 @@ async function main() {
                 senha: "senha123", // O hash continuará sendo feito na Factory
             });
         }
+
+        const etapasCriadas: any[] = [];
+
         const nomesEtapas = [
             "Modelagem",
             "Corte",
@@ -64,10 +67,18 @@ async function main() {
         ];
 
         for (let m = 0; m < nomesEtapas.length; m++) {
-            await EtapaFactory.create(prisma, {
+            const etapa = await EtapaFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
                 nome: nomesEtapas[m], // Pega o nome real da etapa
                 ordem: m + 1, // A ordem vai de 1 a 6
+            });
+            etapasCriadas.push(etapa);
+        }
+
+        //Produto
+        for (let p = 1; p <= 5; p++) {
+            await ProdutoFactory.create(prisma, {
+                fabrico_id: fabricoAtual.id,
             });
         }
     }
