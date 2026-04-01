@@ -10,6 +10,7 @@ import { ProdutoFactory } from "./factories/produto.factory";
 import { FichaTecnicaFactory } from "./factories/ficha-tecnica.factory";
 import { ClienteProdutoFactory } from "./factories/cliente-produto.factory";
 import { fakerPT_BR as faker } from "@faker-js/faker";
+import { FaccaoProdutoFactory } from "./factories/faccao-produto.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -29,11 +30,13 @@ async function main() {
     }
 
     for (const fabricoAtual of fabricos) {
+        const faccoesCriadas: any[] = [];
         //faccao
         for (let j = 1; j <= 2; j++) {
-            await FaccaoFactory.create(prisma, {
+            const faccao = await FaccaoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
             });
+            faccoesCriadas.push(faccao);
         }
 
         //cliente
@@ -95,6 +98,12 @@ async function main() {
             await ClienteProdutoFactory.create(prisma, {
                 produto_id: produto.id,
                 cliente_id: clienteSorteado.id,
+            });
+            const faccaoSorteada = faker.helpers.arrayElement(faccoesCriadas);
+
+            await FaccaoProdutoFactory.create(prisma, {
+                produto_id: produto.id,
+                faccao_id: faccaoSorteada.id,
             });
         }
     }
