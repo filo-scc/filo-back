@@ -116,6 +116,7 @@ model Etapa {
   icone   Icone?   @relation(fields: [icone_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
+  fichas_etapas FichaEtapa[]
 
   @@unique([fabrico_id, nome])
   @@map("etapas")
@@ -191,6 +192,8 @@ model FichaTecnica {
   etapa_atual_id Int?
   etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
 
+  fichas_etapas FichaEtapa[]
+
   @@map("fichas-tecnicas")
 }
 
@@ -223,4 +226,21 @@ model FaccaoProduto {
 
   @@id([produto_id, faccao_id])
   @@map("faccao_produto")
+}
+
+model FichaEtapa {
+  id Int @id @default(autoincrement())
+
+  data_inicio DateTime?
+  data_fim    DateTime?
+  observacoes String?
+
+  ficha_tecnica_id Int
+  ficha_tecnica FichaTecnica @relation(fields: [ficha_tecnica_id], references: [id])
+
+  etapa_id Int
+  etapa Etapa @relation(fields: [etapa_id], references: [id])
+
+  @@unique([ficha_tecnica_id, etapa_id])
+  @@map("fichas-etapas")
 }
