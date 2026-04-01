@@ -6,56 +6,73 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Cargo {
+  ADMIN
+  DONO
+  MEMBRO
+}
+
 model Fabrico {
-  id             Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
   foto_de_perfil String?
   cnpj String? @unique @db.VarChar(14)
   razao_social String?
   nome_fantasia String?
   ativo Boolean @default(true)
 
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   usuarios Usuario[]
   clientes Cliente[]
   faccoes Faccao[]
-  
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  etapas Etapa[]
+  produtos Produto[]
+  fichas_tecnicas FichaTecnica[]
 
   @@map("fabricos")
 }
 
 model Usuario {
-  id         Int      @id @default(autoincrement())
-  email      String?  @unique
-  nome       String?
-  senha      String?
-  fabrico_id Int
+  id Int @id @default(autoincrement())
+
+  email String @unique
+  nome String?
+  senha String
+  foto_de_perfil String?
+  cargo Cargo @default(MEMBRO)
+  refresh_token_hash String?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  cargo      Cargo    @default(GERENTE)
-  fabrico    Fabrico  @relation(fields: [fabrico_id], references: [id])
+
+  fabrico_id Int?
+  fabrico Fabrico? @relation(fields: [fabrico_id], references: [id])
+
+  endereco   Endereco?
 
   @@map("usuarios")
 }
 
 model Faccao {
-  id         Int     @id @default(autoincrement())
-  nome       String
-  telefone   String?
+  id Int @id @default(autoincrement())
+
+  nome String
+  telefone String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   fabrico_id Int
-  fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  endereco Endereco?
+
+  faccao_produto FaccaoProduto[]
+
+  @@unique([fabrico_id, nome])
   @@map("faccoes")
-}
-
-enum Cargo {
-  ADMIN
-  DONO
-  GERENTE
 }
 
 model Cliente {
@@ -67,11 +84,143 @@ model Cliente {
   responsavel String?
   status Boolean @default(true)
   
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  cliente_produto ClienteProduto[]
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  endereco Endereco?
+
+  @@unique([fabrico_id, nome])
+  @@map("clientes")
+}
+
+model Etapa {
+  id          Int     @id @default(autoincrement())
+
+  nome        String  
+  descricao   String? 
+  ordem       Int
+  ativa       Boolean @default(true)
+  icone_id    Int? 
+
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  fabrico_id  Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  icone   Icone?   @relation(fields: [icone_id], references: [id])
+
+  fichas_tecnicas FichaTecnica[]
+
+  @@unique([fabrico_id, nome])
+  @@map("etapas")
+}
+
+model Endereco {
+  id Int @id @default(autoincrement())
+
+  rua String?
+  numero String?
+  bairro String?
+  complemento String?
+  cidade String?
+  estado String?
+
+  created_at DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  
+  usuario_id  Int?     @unique 
+  usuario     Usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  faccao_id   Int?     @unique 
+  faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+
+  cliente_id   Int?     @unique 
+  cliente      Cliente?  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+
+  @@map("enderecos")
+}
+
+model Produto {
+  id   Int     @id @default(autoincrement())
+
+  foto String?
+  nome String
+  tipo String
+
+  cliente_produto ClienteProduto[]
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
-  @@map("clientes")
+  fichas_tecnicas FichaTecnica[]
+  faccao_produto FaccaoProduto[]
+
+  @@unique([fabrico_id, nome])
+  @@map("produtos")
+}
+
+model Icone {
+  id    Int    @id @default(autoincrement())
+  link  String?
+
+  etapas Etapa[]
+
+  @@map("icones")
+}
+model FichaTecnica {
+  id Int @id @default(autoincrement())
+
+  observacoes String?
+  concluida Boolean
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  produto_id Int
+  produto Produto @relation(fields: [produto_id], references: [id])
+
+  etapa_atual_id Int?
+  etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
+
+  @@map("fichas-tecnicas")
+}
+
+model ClienteProduto{
+
+  nome_para_cliente String 
+  preco_padrao Float @default(0)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  produto_id Int
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade) 
+
+  cliente_id Int
+  cliente Cliente @relation(fields: [cliente_id], references: [id], onDelete: Cascade) 
+
+  @@id([produto_id, cliente_id])
+  @@map("cliente_produto")
+}
+
+model FaccaoProduto {
+  produto_id Int
+  faccao_id Int
+
+  produto Produto @relation(fields: [produto_id], references: [id])
+  faccao  Faccao  @relation(fields: [faccao_id], references: [id])
+
+  preco Float
+
+  @@id([produto_id, faccao_id])
+  @@map("faccao_produto")
 }
