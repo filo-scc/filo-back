@@ -4,11 +4,11 @@ export class CreateFichaEtapaDto {
     
     @IsOptional()
     @IsDateString()
-    data_inicio: string;
+    data_inicio?: string;
 
     @IsOptional()
     @IsDateString()
-    data_fim: string;
+    data_fim?: string;
 
     @IsOptional()
     @IsString()

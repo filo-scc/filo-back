@@ -17,7 +17,7 @@ import { FichaEtapaService } from "./ficha-etapa.service";
 import { CreateFichaEtapaDto } from "./dto/create-ficha-etapa.dto";
 import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
 
-@Controller("ficha-etapas")
+@Controller("fichas-etapas")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class FichaEtapaController {
     constructor(private readonly fichaEtapaService: FichaEtapaService) {}
