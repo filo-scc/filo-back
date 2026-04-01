@@ -7,6 +7,7 @@ import { FaccaoFactory } from "./factories/faccao.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
 import { ProdutoFactory } from "./factories/produto.factory";
+import { FichaTecnicaFactory } from "./factories/ficha-tecnica.factory";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -77,13 +78,19 @@ async function main() {
 
         //Produto
         for (let p = 1; p <= 5; p++) {
-            await ProdutoFactory.create(prisma, {
+            const produto = await ProdutoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
+            });
+            await FichaTecnicaFactory.create(prisma, {
+                fabrico_id: fabricoAtual.id,
+                produto_id: produto.id,
+                etapa_atual_id: etapasCriadas[0].id, // Pega o ID da etapa "Modelagem"
+                concluida: false,
             });
         }
     }
-    console.log("\n Seed finalizada com sucesso!");
 }
+console.log("\n Seed finalizada com sucesso!");
 
 main()
     .then(async () => {
