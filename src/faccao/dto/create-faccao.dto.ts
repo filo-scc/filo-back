@@ -20,7 +20,6 @@ class ProdutoLinkDto {
 }
 
 export enum FormaPagamentoEnum {
-    DINHEIRO = "DINHEIRO",
     PIX = "PIX",
     TED = "TED",
 }
@@ -41,7 +40,7 @@ export class CreateFaccaoDto {
 
     @IsOptional()
     @IsEnum(FormaPagamentoEnum, {
-        message: "A forma de pagamento deve ser: PIX ou DINHEIRO ou TED",
+        message: "A forma de pagamento deve ser: PIX ou TED",
     })
     forma_pagamento?: FormaPagamentoEnum;
 

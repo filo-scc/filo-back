@@ -37,6 +37,12 @@ export class AuthController {
         return this.authService.getAllByFabricoId(fabrico_id);
     }
 
+    @UseGuards(JwtAuthGuard)
+    @Get("/me")
+    getMe(@Req() req: any) {
+        return req.user;
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("DONO", "ADMIN")
     @Put(":id")

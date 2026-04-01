@@ -1,7 +1,8 @@
-import { Prisma } from ".prisma/client/edge";
-import { IsBoolean, IsNumber, IsOptional, IsString, Length } from "class-validator";
+import { Type } from "class-transformer";
+import { IsBoolean, IsNumber, IsOptional, IsString, Length, ValidateNested } from "class-validator";
+import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
 
-export class CreateClienteDto implements Prisma.ClienteUncheckedCreateInput {
+export class CreateClienteDto {
     @IsString()
     nome: string;
 
@@ -24,4 +25,9 @@ export class CreateClienteDto implements Prisma.ClienteUncheckedCreateInput {
 
     @IsNumber()
     fabrico_id: number;
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => CreateEnderecoDto)
+    endereco?: CreateEnderecoDto;
 }

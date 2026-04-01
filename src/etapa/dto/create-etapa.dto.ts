@@ -17,4 +17,9 @@ export class CreateEtapaDto {
   @IsOptional()
   @IsBoolean()
   ativa?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  icone_id?: number;
+
 }

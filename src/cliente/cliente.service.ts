@@ -8,14 +8,20 @@ import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+import { EnderecoService } from "src/endereco/endereco.service"; // <- adicionar
 
 @Injectable()
 export class ClienteService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private enderecoService: EnderecoService, // <- adicionar
+    ) {}
 
     async create(data: CreateClienteDto) {
+        const { endereco, ...dadosCliente } = data;
+
         const cliente_existente = await this.prisma.cliente.findFirst({
-            where: { nome: data.nome, fabrico_id: Number(data.fabrico_id) },
+            where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id) },
         });
 
         if (cliente_existente) {
@@ -23,11 +29,22 @@ export class ClienteService {
         }
 
         try {
-            return await this.prisma.cliente.create({
+            const cliente = await this.prisma.cliente.create({
                 data: {
-                    ...data,
+                    ...dadosCliente,
+                    fabrico_id: Number(dadosCliente.fabrico_id),
                 },
             });
+
+            
+            const enderecoCriado = await this.enderecoService.create(endereco ?? {}); 
+            await this.prisma.cliente.update({
+                where: { id: cliente.id },
+                data: { endereco: { connect: { id: enderecoCriado.id } } },
+            });
+            
+
+            return { message: "Cliente criado com sucesso" };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
@@ -45,23 +62,24 @@ export class ClienteService {
         try {
             return this.prisma.cliente.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
+                include: { endereco: true },
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 throw new ConflictException("Erro ao buscar clientes");
             }
-
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Parâmetros de consulta inválidos");
             }
-
             throw error;
         }
     }
 
     async findAll() {
         try {
-            return this.prisma.cliente.findMany();
+            return this.prisma.cliente.findMany({
+                include: { endereco: true },
+            });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 throw new ConflictException("Erro ao buscar clientes");
@@ -73,6 +91,7 @@ export class ClienteService {
         try {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id },
+                include: { endereco: true },
             });
 
             if (!cliente) {
@@ -92,19 +111,32 @@ export class ClienteService {
     }
 
     async update(id: number, data: UpdateClienteDto) {
+        const { endereco, ...dadosCliente } = data;
+
         try {
             const cliente_existente = await this.prisma.cliente.findFirst({
-                where: { nome: data.nome, fabrico_id: Number(data.fabrico_id), NOT: { id } },
+                where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id), NOT: { id } },
             });
 
             if (cliente_existente) {
-                throw new ConflictException("Nome ja existente ");
+                throw new ConflictException("Nome ja existente");
             }
 
-            return this.prisma.cliente.update({
-                where: { id, fabrico_id: Number(data.fabrico_id) },
-                data,
+            const clienteAtual = await this.findOne(id);
+
+            if (endereco) {
+                if (!clienteAtual.endereco) {
+                    throw new NotFoundException("Endereço do cliente não encontrado");
+                }
+                await this.enderecoService.update(clienteAtual.endereco.id, endereco);
+            }
+
+            await this.prisma.cliente.update({
+                where: { id },
+                data: { ...dadosCliente },
             });
+
+            return { message: "Cliente atualizado com sucesso" };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 throw new ConflictException("Não foi possível atualizar o cliente");

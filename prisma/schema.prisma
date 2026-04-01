@@ -56,7 +56,6 @@ model Usuario {
 }
 
 enum FormaPagamento {
-  DINHEIRO
   PIX
   TED
 }
@@ -105,6 +104,8 @@ model Cliente {
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  endereco Endereco?
+
   @@unique([fabrico_id, nome])
   @@map("clientes")
 }
@@ -116,12 +117,14 @@ model Etapa {
   descricao   String? 
   ordem       Int
   ativa       Boolean @default(true)
+  icone_id    Int? 
 
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
   fabrico_id  Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  icone   Icone?   @relation(fields: [icone_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
 
@@ -148,6 +151,9 @@ model Endereco {
   faccao_id   Int?     @unique 
   faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
 
+  cliente_id   Int?     @unique 
+  cliente      Cliente?  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+
   @@map("enderecos")
 }
 
@@ -173,6 +179,14 @@ model Produto {
   @@map("produtos")
 }
 
+model Icone {
+  id    Int    @id @default(autoincrement())
+  link  String?
+
+  etapas Etapa[]
+
+  @@map("icones")
+}
 model FichaTecnica {
   id Int @id @default(autoincrement())
 
