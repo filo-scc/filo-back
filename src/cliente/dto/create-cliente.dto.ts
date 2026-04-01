@@ -1,6 +1,5 @@
-import { Prisma } from ".prisma/client/edge";
 import { Type } from "class-transformer";
-import { IsBoolean, IsNumber, IsOptional, IsString, Length, Validate, ValidateNested } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, IsString, Length, ValidateNested } from "class-validator";
 import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
 
 export class CreateClienteDto {

@@ -100,3 +100,9 @@ $ npm run test:cov
 $ npx prisma studio
 
 ```
+
+## 6. Popular o banco de dados 
+
+```bash
+$ npx prisma db seed
+```
