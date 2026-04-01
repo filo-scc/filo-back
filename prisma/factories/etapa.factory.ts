@@ -7,17 +7,16 @@ export const EtapaFactory = {
         const { fabrico_id, icone, ...restOverrides } = overrides;
 
         return {
-            nome: "Etapa Genérica", 
+            nome: "Etapa Genérica",
             descricao: faker.lorem.sentence(),
             ordem: 1, // Será substituído no seed.ts
             ativa: true,
 
             ...(fabrico_id ? { fabrico: { connect: { id: fabrico_id } } } : {}),
 
-    
             icone: {
                 create: icone || {
-                    link: faker.image.avatar(), // Gera o link falso do avatar
+                    link: faker.image.url(),
                 },
             },
 

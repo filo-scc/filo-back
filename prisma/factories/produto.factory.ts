@@ -20,7 +20,7 @@ export const ProdutoFactory = {
         return {
             nome: `${tipoSorteado} ${faker.commerce.productAdjective()} ${faker.color.human()}`, // Ex: "Camiseta Elegante Azul"
             tipo: tipoSorteado,
-            foto: faker.image.urlLoremFlickr({ category: "fashion" }), // Traz uma imagem de moda/roupas
+            foto: faker.image.url(), // Traz uma imagem de moda/roupas
 
             // Conecta ao Fabrico (Obrigatório)
             ...(fabrico_id ? { fabrico: { connect: { id: fabrico_id } } } : {}),
