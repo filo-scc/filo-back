@@ -8,6 +8,8 @@ import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
 import { ProdutoFactory } from "./factories/produto.factory";
 import { FichaTecnicaFactory } from "./factories/ficha-tecnica.factory";
+import { ClienteProdutoFactory } from "./factories/cliente-produto.factory";
+import { fakerPT_BR as faker } from "@faker-js/faker";
 
 // 1. Instanciando o adaptador do Prisma 7.6 com a URL do seu .env
 const adapter = new PrismaPg({
@@ -35,8 +37,10 @@ async function main() {
         }
 
         //cliente
+        const clientesCriados: any[] = [];
         for (let k = 1; k <= 3; k++) {
-            await ClienteFactory.create(prisma, { fabrico_id: fabricoAtual.id });
+            const cliente = await ClienteFactory.create(prisma, { fabrico_id: fabricoAtual.id });
+            clientesCriados.push(cliente);
         }
 
         //usuario
@@ -77,6 +81,7 @@ async function main() {
         }
 
         //Produto
+        const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
         for (let p = 1; p <= 5; p++) {
             const produto = await ProdutoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
@@ -86,6 +91,10 @@ async function main() {
                 produto_id: produto.id,
                 etapa_atual_id: etapasCriadas[0].id, // Pega o ID da etapa "Modelagem"
                 concluida: false,
+            });
+            await ClienteProdutoFactory.create(prisma, {
+                produto_id: produto.id,
+                cliente_id: clienteSorteado.id,
             });
         }
     }
