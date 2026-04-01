@@ -7,6 +7,7 @@ import {
     IsNumber,
     Length,
     Min,
+    IsEnum,
 } from "class-validator";
 
 class ProdutoLinkDto {
@@ -16,6 +17,11 @@ class ProdutoLinkDto {
     @Min(0, { message: "O preço não pode ser menor que 0" })
     @IsNumber()
     preco: number;
+}
+
+export enum FormaPagamentoEnum {
+    PIX = "PIX",
+    TED = "TED",
 }
 
 import { Type } from "class-transformer";
@@ -31,6 +37,28 @@ export class CreateFaccaoDto {
 
     @IsNumber()
     fabrico_id: number;
+
+    @IsOptional()
+    @IsEnum(FormaPagamentoEnum, {
+        message: "A forma de pagamento deve ser: PIX ou TED",
+    })
+    forma_pagamento?: FormaPagamentoEnum;
+
+    @IsOptional()
+    @IsString()
+    chave_pix?: string;
+
+    @IsOptional()
+    @IsString()
+    banco?: string;
+
+    @IsOptional()
+    @IsString()
+    agencia?: string;
+
+    @IsOptional()
+    @IsString()
+    conta?: string;
 
     @IsOptional()
     @IsArray()

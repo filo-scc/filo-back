@@ -45,13 +45,6 @@ export class AuthController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("DONO", "ADMIN")
-    @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.authService.getById(id);
-    }
-
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
     @Put(":id")
     update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateUserDto) {
         return this.authService.update(id, data);
@@ -79,5 +72,12 @@ export class AuthController {
     @Post("/logout")
     logout(@Req() req: any) {
         return this.authService.logout(req.user.id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles("DONO", "ADMIN")
+    @Get(":id")
+    getById(@Param("id", ParseIntPipe) id: number) {
+        return this.authService.getById(id);
     }
 }
