@@ -73,3 +73,5 @@ jobs:
 
             - name: Rodar migrations no Supabase
               run: pnpm prisma migrate deploy
+              env:
+                  DATABASE_URL: ${{ secrets.DIRECT_URL }}
