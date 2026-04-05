@@ -7,5 +7,6 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [PrismaModule],
   controllers: [FabricoController],
   providers: [FabricoService],
+  exports: [FabricoService],
 })
 export class FabricoModule {}

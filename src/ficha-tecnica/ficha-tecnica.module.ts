@@ -6,9 +6,10 @@ import { ProdutoModule } from "src/produto/produto.module";
 import { EtapaModule } from "src/etapa/etapa.module";
 import { FichaEtapaController } from "./ficha-etapa.controller";
 import { FichaEtapaService } from "./ficha-etapa.service";
+import { FabricoModule } from "src/fabrico/fabrico.module";
 
 @Module({
-    imports: [PrismaModule, ProdutoModule, EtapaModule],
+    imports: [PrismaModule, ProdutoModule, EtapaModule, FabricoModule],
     controllers: [FichaTecnicaController, FichaEtapaController],
     providers: [FichaTecnicaService, FichaEtapaService],
 })

@@ -4,18 +4,23 @@ import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { EtapaService } from "src/etapa/etapa.service";
+import { FabricoService } from "src/fabrico/fabrico.service";
 
 @Injectable()
 export class FichaTecnicaService {
     constructor(
         private prisma: PrismaService,
         private readonly produtoService: ProdutoService,
+        private readonly fabricoService: FabricoService,
         private readonly etapaService: EtapaService,
     ) {}
 
     async create(data: CreateFichaTecnicaDto) {
-        // Valida se o produto existe
-        await this.produtoService.getById(data.produto_id);
+        // Valida se o produto e fabrico existem
+        await Promise.all([
+            this.produtoService.getById(data.produto_id),
+            this.fabricoService.getById(data.fabrico_id),
+        ]);
 
         if (data.etapa_atual_id) {
             // Valida se a etapa existe
