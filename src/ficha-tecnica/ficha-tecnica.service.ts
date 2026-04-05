@@ -24,10 +24,16 @@ export class FichaTecnicaService {
 
         if (data.etapa_atual_id) {
             // Valida se a etapa existe
-            await this.etapaService.getById(data.etapa_atual_id);
+            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+
+            if (etapa.fabrico_id !== data.fabrico_id) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                );
+            }
         }
 
-        return await this.prisma.fichaTecnica.create({ data });
+        return this.prisma.fichaTecnica.create({ data });
     }
 
     async findAllByFabricoId(id: number) {
