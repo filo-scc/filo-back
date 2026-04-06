@@ -67,9 +67,23 @@ export class FichaTecnicaService {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
 
+        // Define qual fabrico será usado (novo ou atual)
+        const fabricoId = data.fabrico_id ?? ficha.fabrico_id;
+
+        // Se estiver alterando fabrico, valida existência
+        if (data.fabrico_id) {
+            await this.fabricoService.getById(data.fabrico_id);
+        }
+
         if (data.etapa_atual_id) {
             // Valida se a etapa existe
-            await this.etapaService.getById(data.etapa_atual_id);
+            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+
+            if (etapa.fabrico_id !== fabricoId) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                );
+            }
         }
 
         return await this.prisma.fichaTecnica.update({
