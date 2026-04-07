@@ -4,25 +4,36 @@ import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { EtapaService } from "src/etapa/etapa.service";
+import { FabricoService } from "src/fabrico/fabrico.service";
 
 @Injectable()
 export class FichaTecnicaService {
     constructor(
         private prisma: PrismaService,
         private readonly produtoService: ProdutoService,
+        private readonly fabricoService: FabricoService,
         private readonly etapaService: EtapaService,
     ) {}
 
     async create(data: CreateFichaTecnicaDto) {
-        // Valida se o produto existe
-        await this.produtoService.getById(data.produto_id);
+        // Valida se o produto e fabrico existem
+        await Promise.all([
+            this.produtoService.getById(data.produto_id),
+            this.fabricoService.getById(data.fabrico_id),
+        ]);
 
         if (data.etapa_atual_id) {
             // Valida se a etapa existe
-            await this.etapaService.getById(data.etapa_atual_id);
+            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+
+            if (etapa.fabrico_id !== data.fabrico_id) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                );
+            }
         }
 
-        return await this.prisma.fichaTecnica.create({ data });
+        return this.prisma.fichaTecnica.create({ data });
     }
 
     async findAllByFabricoId(id: number) {
@@ -56,9 +67,23 @@ export class FichaTecnicaService {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
 
+        // Define qual fabrico será usado (novo ou atual)
+        const fabricoId = data.fabrico_id ?? ficha.fabrico_id;
+
+        // Se estiver alterando fabrico, valida existência
+        if (data.fabrico_id) {
+            await this.fabricoService.getById(data.fabrico_id);
+        }
+
         if (data.etapa_atual_id) {
             // Valida se a etapa existe
-            await this.etapaService.getById(data.etapa_atual_id);
+            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+
+            if (etapa.fabrico_id !== fabricoId) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                );
+            }
         }
 
         return await this.prisma.fichaTecnica.update({
