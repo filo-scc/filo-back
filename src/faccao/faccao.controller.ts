@@ -9,7 +9,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 
 @Controller("faccoes")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("PROPRIETARIO", "MEMBRO")
+@Roles("PROPRIETARIO", "GERENTE")
 export class FaccaoController {
     constructor(private readonly faccaoService: FaccaoService) {}
 
