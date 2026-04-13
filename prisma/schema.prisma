@@ -8,8 +8,8 @@ datasource db {
 
 enum Cargo {
   ADMIN
-  DONO
-  MEMBRO
+  PROPRIETARIO
+  GERENTE
 }
 
 model Fabrico {
@@ -41,7 +41,7 @@ model Usuario {
   nome String?
   senha String
   foto_de_perfil String?
-  cargo Cargo @default(MEMBRO)
+  cargo Cargo @default(GERENTE)
   refresh_token_hash String?
 
   created_at DateTime @default(now())
