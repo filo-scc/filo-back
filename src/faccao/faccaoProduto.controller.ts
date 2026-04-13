@@ -22,7 +22,7 @@ import { UpdateFaccaoProdutoDto } from "./dto/update-faccaoproduto.dto";
 export class FaccaoProdutoController {
     constructor(private readonly faccaoProdutoService: FaccaoProdutoService) {}
 
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Post(":faccao_id/:produto_id")
     createFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,
@@ -32,7 +32,7 @@ export class FaccaoProdutoController {
         return this.faccaoProdutoService.createFaccaoProduto(idFaccao, idProduto, data);
     }
 
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Delete(":faccao_id/:produto_id")
     deleteFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,
@@ -51,7 +51,7 @@ export class FaccaoProdutoController {
         return this.faccaoProdutoService.getFaccaoByProduto(idProduto);
     }
 
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Put(":faccao_id/:produto_id")
     updateFaccaoProduto(
         @Param("faccao_id", ParseIntPipe) idFaccao: number,

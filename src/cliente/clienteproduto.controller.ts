@@ -19,7 +19,7 @@ import { Roles } from "src/common/decorators/roles.decorator";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("DONO", "MEMBRO")
+@Roles("PROPRIETARIO", "MEMBRO")
 @Controller("clientes-produtos")
 export class ClienteProdutoController {
     constructor(private readonly clienteProdutoService: ClienteProdutoService) {}

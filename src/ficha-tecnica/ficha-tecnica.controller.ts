@@ -17,7 +17,7 @@ import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("DONO", "MEMBRO")
+@Roles("PROPRIETARIO", "MEMBRO")
 @Controller("fichas-tecnicas")
 export class FichaTecnicaController {
     constructor(private readonly fichaTecnicaService: FichaTecnicaService) {}

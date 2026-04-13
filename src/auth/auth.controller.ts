@@ -24,14 +24,14 @@ export class AuthController {
     constructor(private authService: AuthService) {}
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Post()
     create(@Body() data: CreateUserDto) {
         return this.authService.create(data);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Get("/fabrico/:fabrico_id")
     getAllByFabricoId(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
         return this.authService.getAllByFabricoId(fabrico_id);
@@ -44,14 +44,14 @@ export class AuthController {
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Put(":id")
     update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateUserDto) {
         return this.authService.update(id, data);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number) {
         return this.authService.delete(id);
@@ -75,7 +75,7 @@ export class AuthController {
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles("DONO", "ADMIN")
+    @Roles("PROPRIETARIO", "ADMIN")
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number) {
         return this.authService.getById(id);

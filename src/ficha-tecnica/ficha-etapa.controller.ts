@@ -22,13 +22,13 @@ import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
 export class FichaEtapaController {
     constructor(private readonly fichaEtapaService: FichaEtapaService) {}
 
-    @Roles("DONO", "MEMBRO")
+    @Roles("PROPRIETARIO", "MEMBRO")
     @Post()
     createFichaEtapa(@Body() data: CreateFichaEtapaDto,) {
         return this.fichaEtapaService.createFichaEtapa(data);
     }
 
-    @Roles("DONO", "MEMBRO")
+    @Roles("PROPRIETARIO", "MEMBRO")
     @Delete(":ficha_etapa_id")
     deleteFichaEtapa(
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
@@ -36,19 +36,19 @@ export class FichaEtapaController {
         return this.fichaEtapaService.deleteFichaEtapa(idFichaEtapa);
     }
 
-    @Roles("DONO", "MEMBRO")
+    @Roles("PROPRIETARIO", "MEMBRO")
     @Get("/ficha-tecnica/:ficha_tecnica_id")
     getFichaTecnicaByFichaEtapa(@Param("ficha_tecnica_id", ParseIntPipe) idFichaTecnica: number) {
         return this.fichaEtapaService.getByFichaTecnica(idFichaTecnica);
     }
 
-    @Roles("DONO", "MEMBRO")
+    @Roles("PROPRIETARIO", "MEMBRO")
     @Get("/etapa/:etapa_id")
     getEtapaByFichaEtapa(@Param("etapa_id", ParseIntPipe) idEtapa: number) {
         return this.fichaEtapaService.getByEtapa(idEtapa);
     }
 
-    @Roles("DONO", "MEMBRO")
+    @Roles("PROPRIETARIO", "MEMBRO")
     @Put(":ficha_etapa_id")
     updateFichaEtapa( 
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,

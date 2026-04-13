@@ -53,10 +53,10 @@ async function main() {
 
         // --- USUÁRIOS ---
         for (let l = 1; l <= 4; l++) {
-            let cargoDefinido = "MEMBRO";
+            let cargoDefinido = "GERENTE";
 
             if (l === 1) {
-                cargoDefinido = "DONO";
+                cargoDefinido = "PROPRIETARIO";
             } else if (l === 2) {
                 cargoDefinido = "ADMIN";
             }
