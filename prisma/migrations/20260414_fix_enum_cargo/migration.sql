@@ -1,11 +1,10 @@
 /*
-  Fix seguro do enum Cargo com migração de dados
+  Fix definitivo do enum Cargo com migração segura de dados
 */
 
--- NÃO usar transação (evita problema com ENUM no Postgres)
 -- prisma:nonTransactional
 
--- 1. Criar novo enum se não existir
+-- 1. Criar novo enum (idempotente)
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -15,11 +14,15 @@ BEGIN
     END IF;
 END$$;
 
--- 2. Remover default temporariamente (se existir)
+-- 2. Remover default (evita conflito)
 ALTER TABLE "public"."usuarios"
 ALTER COLUMN "cargo" DROP DEFAULT;
 
--- 3. Atualizar dados antes de trocar tipo (ESSENCIAL)
+-- 3. 🔥 CONVERTER PRA TEXT (PASSO CRÍTICO)
+ALTER TABLE "public"."usuarios"
+ALTER COLUMN "cargo" TYPE TEXT USING "cargo"::text;
+
+-- 4. Corrigir dados (agora SEM erro de enum)
 UPDATE "public"."usuarios"
 SET "cargo" = 
   CASE
@@ -30,13 +33,13 @@ SET "cargo" =
     ELSE "cargo"
   END;
 
--- 4. Alterar tipo com cast seguro
+-- 5. Converter para novo enum (agora seguro)
 ALTER TABLE "public"."usuarios"
 ALTER COLUMN "cargo"
 TYPE "cargo_new_fix"
 USING ("cargo"::text::"cargo_new_fix");
 
--- 5. Renomear enums com proteção
+-- 6. Renomear enum antigo (se existir)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'Cargo') THEN
@@ -44,9 +47,10 @@ BEGIN
     END IF;
 END$$;
 
+-- 7. Renomear novo enum
 ALTER TYPE "cargo_new_fix" RENAME TO "Cargo";
 
--- 6. Remover enum antigo se existir
+-- 8. Remover enum antigo (se existir)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'Cargo_old_fix') THEN
@@ -54,6 +58,6 @@ BEGIN
     END IF;
 END$$;
 
--- 7. Restaurar default
+-- 9. Restaurar default
 ALTER TABLE "public"."usuarios"
 ALTER COLUMN "cargo" SET DEFAULT 'GERENTE';
