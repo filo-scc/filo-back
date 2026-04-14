@@ -17,7 +17,7 @@ import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("DONO", "MEMBRO")
+@Roles("PROPRIETARIO", "GERENTE")
 @Controller("clientes")
 export class ClienteController {
     constructor(private readonly clienteService: ClienteService) {}
