@@ -6,12 +6,12 @@
 */
 -- AlterEnum
 BEGIN;
-CREATE TYPE "Cargo_new" AS ENUM ('ADMIN', 'DONO', 'GERENTE');
+CREATE TYPE "Cargo_new_1" AS ENUM ('ADMIN', 'DONO', 'GERENTE');
 ALTER TABLE "public"."usuarios" ALTER COLUMN "cargo" DROP DEFAULT;
-ALTER TABLE "usuarios" ALTER COLUMN "cargo" TYPE "Cargo_new" USING ("cargo"::text::"Cargo_new");
-ALTER TYPE "Cargo" RENAME TO "Cargo_old";
-ALTER TYPE "Cargo_new" RENAME TO "Cargo";
-DROP TYPE "public"."Cargo_old";
+ALTER TABLE "usuarios" ALTER COLUMN "cargo" TYPE "Cargo_new_1" USING ("cargo"::text::"Cargo_new_1");
+ALTER TYPE "Cargo" RENAME TO "Cargo_old_1";
+ALTER TYPE "Cargo_new_1" RENAME TO "Cargo";
+DROP TYPE "public"."Cargo_old_1";
 ALTER TABLE "usuarios" ALTER COLUMN "cargo" SET DEFAULT 'GERENTE';
 COMMIT;
 
