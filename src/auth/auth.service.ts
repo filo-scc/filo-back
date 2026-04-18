@@ -153,6 +153,7 @@ export class AuthService {
             email: usuario.email,
             cargo: usuario.cargo,
             fabrico_id: usuario.fabrico_id,
+            nome_usuario: usuario.nome,
         };
 
         const accessToken = this.jwtService.sign(payload, {
