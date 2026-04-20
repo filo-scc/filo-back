@@ -4,14 +4,44 @@ on:
     push:
         branches:
             - master
+            - develop
     pull_request:
         branches:
             - master
+            - develop
 
 jobs:
+    lint:
+        name: Lint & Format Check
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout código
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+
+            - name: Instalar pnpm
+              uses: pnpm/action-setup@v3
+              with:
+                  version: latest
+
+            - name: Instalar dependências
+              run: pnpm install --frozen-lockfile
+
+            - name: Verificar formatação (Prettier)
+              run: pnpm exec prettier --check .
+
+            - name: Rodar Linter (ESLint)
+              run: pnpm lint
+
     build:
         name: Install, Generate & Build
         runs-on: ubuntu-latest
+        needs: lint
 
         env:
             DATABASE_URL: ${{ secrets.DATABASE_URL }}
