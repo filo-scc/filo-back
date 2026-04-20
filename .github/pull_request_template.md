@@ -22,6 +22,7 @@ Remova as opções que não forem relevantes.
 
 ## Checklist
 - [ ] Eu rodei `pnpm exec prettier --check .` e meu código segue os padrões de Prettier
+- [ ] Eu rodei `pnpm exec eslint .` e meu código segue sem nenhum error ou warning pendentes
 - [ ] Realizei uma autorrevisão do meu próprio código
 - [ ] Adicionei ou atualizei testes relacionados às alterações
 - [ ] Não há `console.log`, comentários temporários ou código morto
