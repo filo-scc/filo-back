@@ -13,6 +13,7 @@ prisma/migrations
 *.md
 *.yml
 *.yaml
+*.mjs
 
 # GitHub e Configurações
 .github
