@@ -9,7 +9,7 @@ import { EnderecoModule } from "src/endereco/endereco.module";
 import { ProdutoModule } from "src/produto/produto.module";
 
 @Module({
-    imports: [PrismaModule, ProdutoModule, EnderecoModule, ProdutoModule], 
+    imports: [PrismaModule, ProdutoModule, EnderecoModule, ProdutoModule],
     controllers: [FaccaoController, FaccaoProdutoController],
     providers: [FaccaoService, FaccaoProdutoService, PrismaService],
 })

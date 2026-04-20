@@ -7,7 +7,7 @@ export class CreateEnderecoDto {
     @IsOptional()
     @IsString()
     numero?: string;
-    
+
     @IsOptional()
     @IsString()
     bairro?: string;
@@ -15,19 +15,19 @@ export class CreateEnderecoDto {
     @IsOptional()
     @IsString()
     complemento?: string;
-    
+
     @IsOptional()
     @IsString()
     cidade?: string;
-    
+
     @IsOptional()
     @IsString()
     estado?: string;
-    
+
     @IsOptional()
     @IsNumber()
     usuario_id?: number;
-    
+
     @IsOptional()
     @IsNumber()
     faccao_id?: number;
@@ -36,4 +36,3 @@ export class CreateEnderecoDto {
     @IsNumber()
     cliente_id?: number;
 }
-

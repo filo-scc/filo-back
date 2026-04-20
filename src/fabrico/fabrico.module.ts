@@ -1,12 +1,12 @@
-import { Module } from '@nestjs/common';
-import { FabricoService } from './fabrico.service';
-import { FabricoController } from './fabrico.controller';
-import { PrismaModule } from '../prisma/prisma.module';
+import { Module } from "@nestjs/common";
+import { FabricoService } from "./fabrico.service";
+import { FabricoController } from "./fabrico.controller";
+import { PrismaModule } from "../prisma/prisma.module";
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [FabricoController],
-  providers: [FabricoService],
-  exports: [FabricoService],
+    imports: [PrismaModule],
+    controllers: [FabricoController],
+    providers: [FabricoService],
+    exports: [FabricoService],
 })
 export class FabricoModule {}

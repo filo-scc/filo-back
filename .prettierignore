@@ -1,5 +1,25 @@
+# Dependências e Build
 node_modules
 dist
 coverage
+
+# Prisma e Bancos de dados
 generated
 .prisma
+prisma/migrations
+
+# Ignorar extensões específicas (Configurações e Documentação)
+*.json
+*.md
+*.yml
+*.yaml
+
+# GitHub e Configurações
+.github
+.vscode
+nest-cli.json
+tsconfig.json
+tsconfig.build.json
+package.json
+package-lock.json
+pnpm-lock.yaml

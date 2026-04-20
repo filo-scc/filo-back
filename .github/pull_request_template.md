@@ -21,7 +21,7 @@ Remova as opções que não forem relevantes.
 - [ ]
 
 ## Checklist
-- [ ] Meu código segue os padrões de estilo deste projeto
+- [ ] Eu rodei `pnpm exec prettier --check .` e meu código segue os padrões de Prettier
 - [ ] Realizei uma autorrevisão do meu próprio código
 - [ ] Adicionei ou atualizei testes relacionados às alterações
 - [ ] Não há `console.log`, comentários temporários ou código morto

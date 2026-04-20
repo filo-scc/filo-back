@@ -6,7 +6,10 @@ import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
 
 @Injectable()
 export class FaccaoService {
-    constructor(private prisma: PrismaService, private enderecoService: EnderecoService) {}
+    constructor(
+        private prisma: PrismaService,
+        private enderecoService: EnderecoService,
+    ) {}
 
     async getAll() {
         try {
