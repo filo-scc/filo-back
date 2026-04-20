@@ -117,6 +117,7 @@ export class ClienteProdutoService {
                     preco_padrao: true,
                     produto: {
                         select: {
+                            id: true,
                             foto: true,
                             nome: true,
                             tipo: true,
