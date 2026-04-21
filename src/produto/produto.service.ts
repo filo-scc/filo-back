@@ -6,9 +6,7 @@ import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class ProdutoService {
-    constructor(
-        private prisma: PrismaService
-    ) {}
+    constructor(private prisma: PrismaService) {}
 
     async create(data: CreateProdutoDto) {
         try {
@@ -72,15 +70,15 @@ export class ProdutoService {
 
     async getUnassociatedProductsForClient(cliente_id: number, fabrico_id: number) {
         return this.prisma.produto.findMany({
-        where: {
-        fabrico_id: fabrico_id,
-        // Filtra produtos que NÃO estão na tabela clienteProduto para este cliente
-        cliente_produto: {
-            none: {
-            cliente_id: cliente_id,
+            where: {
+                fabrico_id: fabrico_id,
+                // Filtra produtos que NÃO estão na tabela clienteProduto para este cliente
+                cliente_produto: {
+                    none: {
+                        cliente_id: cliente_id,
+                    },
+                },
             },
-        },
-        },
-    });
+        });
     }
 }
