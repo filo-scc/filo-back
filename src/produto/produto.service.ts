@@ -67,4 +67,18 @@ export class ProdutoService {
         const produtos = await this.prisma.produto.findMany({ where: { fabrico_id: fabrico_id } });
         return produtos;
     }
+
+    async getUnassociatedProductsForClient(cliente_id: number, fabrico_id: number) {
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: fabrico_id,
+                // Filtra produtos que NÃO estão na tabela clienteProduto para este cliente
+                cliente_produto: {
+                    none: {
+                        cliente_id: cliente_id,
+                    },
+                },
+            },
+        });
+    }
 }
