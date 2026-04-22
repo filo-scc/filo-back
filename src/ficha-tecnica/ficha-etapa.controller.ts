@@ -24,15 +24,13 @@ export class FichaEtapaController {
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Post()
-    createFichaEtapa(@Body() data: CreateFichaEtapaDto,) {
+    createFichaEtapa(@Body() data: CreateFichaEtapaDto) {
         return this.fichaEtapaService.createFichaEtapa(data);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":ficha_etapa_id")
-    deleteFichaEtapa(
-        @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
-    ) {
+    deleteFichaEtapa(@Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number) {
         return this.fichaEtapaService.deleteFichaEtapa(idFichaEtapa);
     }
 
@@ -50,9 +48,10 @@ export class FichaEtapaController {
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Put(":ficha_etapa_id")
-    updateFichaEtapa( 
+    updateFichaEtapa(
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
-        @Body() data: UpdateFichaEtapaDto,) {
+        @Body() data: UpdateFichaEtapaDto,
+    ) {
         return this.fichaEtapaService.updateFichaEtapa(idFichaEtapa, data);
     }
 }

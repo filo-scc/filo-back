@@ -1,7 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 
-
 export const FabricoFactory = {
     build(overrides = {}) {
         const companyName = faker.company.name();

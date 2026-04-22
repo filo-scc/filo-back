@@ -15,25 +15,22 @@ export class FichaEtapaService {
     ) {}
 
     async createFichaEtapa(data: CreateFichaEtapaDto) {
+        await Promise.all([
+            this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
+            this.etapaService.getById(data.etapa_id),
+        ]);
 
-    await Promise.all([
-        this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
-        this.etapaService.getById(data.etapa_id),
-    ]);
-
-    const vinculoExiste = await this.prisma.fichaEtapa.findUnique({
-        where: {
-            ficha_tecnica_id_etapa_id: {
-                ficha_tecnica_id: data.ficha_tecnica_id,
-                etapa_id: data.etapa_id,
+        const vinculoExiste = await this.prisma.fichaEtapa.findUnique({
+            where: {
+                ficha_tecnica_id_etapa_id: {
+                    ficha_tecnica_id: data.ficha_tecnica_id,
+                    etapa_id: data.etapa_id,
+                },
             },
-        },
-    });
+        });
 
         if (vinculoExiste) {
-            throw new ConflictException(
-                "Esta etapa já está vinculada a esta ficha técnica"
-            );
+            throw new ConflictException("Esta etapa já está vinculada a esta ficha técnica");
         }
 
         try {
@@ -126,9 +123,7 @@ export class FichaEtapaService {
         });
 
         if (vinculoExiste) {
-            throw new ConflictException(
-                "Esta etapa já está vinculada a esta ficha técnica"
-            );
+            throw new ConflictException("Esta etapa já está vinculada a esta ficha técnica");
         }
 
         try {
@@ -151,7 +146,5 @@ export class FichaEtapaService {
 
             throw error;
         }
-        
     }
-
 }

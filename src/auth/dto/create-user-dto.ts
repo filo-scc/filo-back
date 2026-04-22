@@ -1,5 +1,5 @@
 import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
-import { Cargo, Prisma } from "@prisma/client";
+import { Cargo } from "@prisma/client";
 import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
 import { Type } from "class-transformer";
 

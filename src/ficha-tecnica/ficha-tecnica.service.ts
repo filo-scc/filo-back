@@ -28,7 +28,7 @@ export class FichaTecnicaService {
 
             if (etapa.fabrico_id !== data.fabrico_id) {
                 throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
                 );
             }
         }
@@ -81,7 +81,7 @@ export class FichaTecnicaService {
 
             if (etapa.fabrico_id !== fabricoId) {
                 throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica"
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
                 );
             }
         }

@@ -36,13 +36,11 @@ export class ClienteService {
                 },
             });
 
-            
-            const enderecoCriado = await this.enderecoService.create(endereco ?? {}); 
+            const enderecoCriado = await this.enderecoService.create(endereco ?? {});
             await this.prisma.cliente.update({
                 where: { id: cliente.id },
                 data: { endereco: { connect: { id: enderecoCriado.id } } },
             });
-            
 
             return { message: "Cliente criado com sucesso" };
         } catch (error) {
@@ -115,7 +113,11 @@ export class ClienteService {
 
         try {
             const cliente_existente = await this.prisma.cliente.findFirst({
-                where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id), NOT: { id } },
+                where: {
+                    nome: dadosCliente.nome,
+                    fabrico_id: Number(dadosCliente.fabrico_id),
+                    NOT: { id },
+                },
             });
 
             if (cliente_existente) {

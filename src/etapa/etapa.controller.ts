@@ -1,27 +1,27 @@
 import {
-  Controller,
-  Post,
-  Body,
-  Get,
-  Param,
-  Put,
-  Delete,
-  UseGuards,
-  ParseIntPipe
-} from '@nestjs/common';
+    Controller,
+    Post,
+    Body,
+    Get,
+    Param,
+    Put,
+    Delete,
+    UseGuards,
+    ParseIntPipe,
+} from "@nestjs/common";
 import { EtapaService } from "./etapa.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
-import { UpdateEtapaDto } from './dto/update-etapa.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator'
+import { UpdateEtapaDto } from "./dto/update-etapa.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("etapas")
 export class EtapaController {
     constructor(private readonly etapaService: EtapaService) {}
 
-    @Roles('ADMIN')
+    @Roles("ADMIN")
     @Post()
     create(@Body() data: CreateEtapaDto) {
         return this.etapaService.create(data);

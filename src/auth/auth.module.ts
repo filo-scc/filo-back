@@ -6,10 +6,10 @@ import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { JwtRefreshStrategy } from "./strategies/jwt-refresh.strategy";
-import { EnderecoModule } from "src/endereco/endereco.module"; 
+import { EnderecoModule } from "src/endereco/endereco.module";
 
 @Module({
-    imports: [PrismaModule, PassportModule, JwtModule.register({}), EnderecoModule], 
+    imports: [PrismaModule, PassportModule, JwtModule.register({}), EnderecoModule],
     providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
     controllers: [AuthController],
 })
