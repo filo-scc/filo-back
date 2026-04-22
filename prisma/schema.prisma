@@ -64,6 +64,7 @@ model Faccao {
   id Int @id @default(autoincrement())
 
   nome String
+  responsavel String?
   telefone String?
 
   created_at DateTime @default(now())
@@ -142,6 +143,7 @@ model Endereco {
   complemento String?
   cidade String?
   estado String?
+  cep String?
 
   created_at DateTime @default(now())
   updated_at  DateTime @updatedAt
