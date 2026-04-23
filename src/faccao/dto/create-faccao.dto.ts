@@ -32,6 +32,10 @@ export class CreateFaccaoDto {
 
     @IsOptional()
     @IsString()
+    responsavel?: string;
+
+    @IsOptional()
+    @IsString()
     @Length(9, 11)
     telefone?: string;
 

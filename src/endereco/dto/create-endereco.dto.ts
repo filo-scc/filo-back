@@ -35,4 +35,8 @@ export class CreateEnderecoDto {
     @IsOptional()
     @IsNumber()
     cliente_id?: number;
+
+    @IsOptional()
+    @IsString()
+    cep?: string;
 }
