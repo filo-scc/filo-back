@@ -38,7 +38,10 @@ export class ProdutoController {
     }
 
     @Get("/cliente/:cliente_id/produtos-nao-associados/:fabrico_id")
-    getUnassociatedProductsForClient(@Param("cliente_id", ParseIntPipe) cliente_id: number, @Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
+    getUnassociatedProductsForClient(
+        @Param("cliente_id", ParseIntPipe) cliente_id: number,
+        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
+    ) {
         return this.service.getUnassociatedProductsForClient(cliente_id, fabrico_id);
     }
 }
