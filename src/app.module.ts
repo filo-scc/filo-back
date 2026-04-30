@@ -12,6 +12,7 @@ import { FichaTecnicaModule } from "./ficha-tecnica/ficha-tecnica.module";
 import { TamanhoModule } from './tamanho/tamanho.module';
 import { CorModule } from './cor/cor.module';
 import { FabricoGradeModule } from './fabrico-grade/fabrico-grade.module';
+import { GradeModule } from './grade/grade.module';
 
 @Module({
     imports: [
@@ -26,6 +27,7 @@ import { FabricoGradeModule } from './fabrico-grade/fabrico-grade.module';
         TamanhoModule,
         CorModule,
         FabricoGradeModule,
+        GradeModule,
     ],
     controllers: [AppController],
     providers: [AppService],
