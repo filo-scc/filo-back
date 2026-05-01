@@ -22,6 +22,8 @@ services:
       retries: 10
       # Dá tempo ao Postgres de inicializar antes de começar a contar as retries
       start_period: 10s
+    networks:
+      - filo-network
 
   # ── Backend NestJS ───────────────────────────────────────────────────────────
   api:
@@ -58,6 +60,13 @@ services:
       - /usr/src/app/node_modules
       # Preserva o Prisma Client gerado no build
       - /usr/src/app/node_modules/.prisma
+    networks:
+      - filo-network
+
+networks:
+  filo-network:
+    name: filo-network
+    driver: bridge
 
 volumes:
   postgres_data:
