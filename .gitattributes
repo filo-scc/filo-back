@@ -1,0 +1,3 @@
+*.sh text eof=lf
+*.yml text eof=lf
+Dockerfile text eof=lf
