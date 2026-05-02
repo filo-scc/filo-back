@@ -37,12 +37,27 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
 2. **Configure as variáveis de ambiente:**
    ```bash
    cp .env.example .env
+
    ```
-   *Edite o arquivo `.env` e preencha as chaves JWT (instruções no arquivo).*
+
+    *Edite o arquivo `.env` e preencha suas senha do database e as chaves JWT (instruções no arquivo).*
+
+   ```bash
+   # Rode o comando 2x, uma para cada chave JWT
+   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+   ```
+
+
 
 3. **Suba o ambiente com Seed (primeira vez):**
    ```bash
+   # Para terminal bash
    RUN_SEED=true docker compose up --build
+   ```
+   
+   ```Powershell
+   # Powershell
+   $env:RUN_SEED="true"; docker compose up --build
    ```
    *Isso irá construir a imagem, subir o banco, rodar as migrações e popular os dados iniciais.*
 
