@@ -32,9 +32,6 @@ services:
       dockerfile: Dockerfile
     container_name: filo-backend
     restart: unless-stopped
-    # Entrypoint personalizado para dev, que aplica migrações antes de iniciar o servidor, 
-    # por fim executa `pnpm run start:dev` para hot-reload 
-    entrypoint: ./docker/entrypoint.dev.sh
     command: ["pnpm", "run", "start:dev"]
     depends_on:
       db:

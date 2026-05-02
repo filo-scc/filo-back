@@ -27,8 +27,8 @@ RUN pnpm exec prisma generate
 
 # ── 3. Entrypoint ─────────────────────────────────────────────────────────────
 # Copiado antes do COPY . . para camada própria de cache.
-COPY docker/entrypoint.dev.sh ./entrypoint.dev.sh
-RUN chmod +x ./entrypoint.dev.sh
+COPY docker/entrypoint.dev.sh /entrypoint.dev.sh
+RUN chmod +x /entrypoint.dev.sh
 
 # ── 4. Código-fonte ───────────────────────────────────────────────────────────
 # Em dev, o volume do compose sobrescreve este COPY com o código do host
@@ -37,5 +37,5 @@ COPY . .
 
 EXPOSE 3000
 
-ENTRYPOINT ["./entrypoint.dev.sh"]
+ENTRYPOINT ["/entrypoint.dev.sh"]
 CMD ["pnpm", "run", "start:dev"]
