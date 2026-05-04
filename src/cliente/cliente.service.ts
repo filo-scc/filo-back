@@ -17,18 +17,17 @@ export class ClienteService {
         private enderecoService: EnderecoService, // <- adicionar
     ) {}
 
-    
     async create(data: CreateClienteDto) {
         const { endereco, ...dadosCliente } = data;
 
         const clienteExistente = await this.prisma.cliente.findFirst({
             where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id) },
         });
-    
+
         if (clienteExistente) {
             throw new ConflictException("Já existe um cliente com esse nome neste fabrico");
         }
-    
+
         try {
             const cliente = await this.prisma.cliente.create({
                 data: {
@@ -48,23 +47,23 @@ export class ClienteService {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
                     const fields = error.meta?.target as string[] | undefined;
-                
+
                     if (fields?.includes("cnpj")) {
                         throw new ConflictException("CNPJ já cadastrado");
                     }
-                
+
                     if (fields?.includes("nome")) {
                         throw new ConflictException("Nome já existe neste fabrico");
                     }
-                
+
                     throw new ConflictException("Registro duplicado");
                 }
             }
-    
+
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }
-    
+
             throw error;
         }
     }
