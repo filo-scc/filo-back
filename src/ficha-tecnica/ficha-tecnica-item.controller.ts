@@ -10,12 +10,15 @@ import {
     ParseIntPipe,
 } from "@nestjs/common";
 import { FichaTecnicaItemService } from "./ficha-tecnica-item.service";
-import { CreateFichaTecnicaItemDto } from "./dto/create-ficha-tecnica-item.dto";
 import { UpdateFichaTecnicaItemDto } from "./dto/update-ficha-tecnica-item.dto";
 import { ReplaceFichaTecnicaItensDto } from "./dto/replace-ficha-tecnica-itens.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
+import { CreateFichaTecnicaCorDto } from "./dto/create-ficha-tecnica-cor.dto";
+import { AddCoresBatchDto } from "./dto/add-cores-batch.dto";
+import { RemoveCoresBatchDto } from "./dto/remove-cores-batch.dto";
+import { SyncCoresBatchDto } from "./dto/sync-cores-batch.dto";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
@@ -52,5 +55,42 @@ export class FichaTecnicaItemController {
     @Delete(":ficha_tecnica_id/itens")
     clearByFichaTecnicaID(@Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number) {
         return this.fichaTecnicaItemService.clearByFichaTecnicaID(ficha_tecnica_id);
+    }
+
+    @Post(":ficha_tecnica_id/cores")
+    gerarItensPorCor(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Body() data: CreateFichaTecnicaCorDto,
+    ) {
+        return this.fichaTecnicaItemService.gerarItensPorCor(ficha_tecnica_id, data.cor_id);
+    }
+
+    @Post(":ficha_tecnica_id/cores/batch")
+    gerarItensPorCoresBatch(
+        @Param("ficha_tecnica_id", ParseIntPipe)
+        ficha_tecnica_id: number,
+        @Body() dto: AddCoresBatchDto,
+    ) {
+        return this.fichaTecnicaItemService.gerarItensPorCoresBatch(
+            ficha_tecnica_id,
+            dto.cores_ids,
+        );
+    }
+
+    @Delete(":ficha_tecnica_id/cores")
+    removerCoresBatch(
+        @Param("ficha_tecnica_id", ParseIntPipe)
+        ficha_tecnica_id: number,
+        @Body() dto: RemoveCoresBatchDto,
+    ) {
+        return this.fichaTecnicaItemService.removerCoresBatch(ficha_tecnica_id, dto.cores_ids);
+    }
+
+    @Post(":ficha_tecnica_id/cores/sync")
+    syncCoresBatch(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Body() dto: SyncCoresBatchDto,
+    ) {
+        return this.fichaTecnicaItemService.syncCoresBatch(ficha_tecnica_id, dto.cores_ids);
     }
 }

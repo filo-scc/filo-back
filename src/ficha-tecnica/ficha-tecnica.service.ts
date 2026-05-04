@@ -31,8 +31,6 @@ export class FichaTecnicaService {
                 fabrico_id,
             },
             select: {
-                id: true,
-                fabrico_id: true,
                 grade_versao_id: true,
             },
         });
@@ -42,56 +40,47 @@ export class FichaTecnicaService {
         }
 
         if (!produto.grade_versao_id) {
-            throw new BadRequestException("O produto não possui uma grade vinculada");
+            throw new BadRequestException("Produto não possui grade definida");
         }
 
-        const grade_versao_id = Number(
-            (data as CreateFichaTecnicaDto & { grade_versao_id?: number }).grade_versao_id ??
-                produto.grade_versao_id,
-        );
+        const grade_versao_id = produto.grade_versao_id;
 
-        const gradeVersao = await this.prisma.gradeVersao.findFirst({
+        const gradeItens = await this.prisma.gradeVersaoItem.findMany({
             where: {
-                id: grade_versao_id,
-                ativo: true,
+                grade_versao_id,
             },
             select: {
                 id: true,
-                grade_id: true,
-                ativo: true,
             },
         });
 
-        if (!gradeVersao) {
-            throw new BadRequestException("A versão de grade informada é inválida ou está inativa");
+        if (gradeItens.length === 0) {
+            throw new BadRequestException("Grade sem tamanhos configurados");
         }
 
-        if (data.etapa_atual_id) {
-            const etapa = await this.etapaService.getById(Number(data.etapa_atual_id));
-
-            if (etapa.fabrico_id !== fabrico_id) {
-                throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
-                );
-            }
-        }
-
-        try {
-            return this.prisma.fichaTecnica.create({
+        return this.prisma.$transaction(async (tx) => {
+            // 1. cria ficha
+            const ficha = await tx.fichaTecnica.create({
                 data: {
                     ...data,
+                    grade_versao_id,
                     produto_id,
                     fabrico_id,
-                    grade_versao_id,
-                    etapa_atual_id: data.etapa_atual_id ? Number(data.etapa_atual_id) : null,
                 },
             });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Dados inválidos");
-            }
-            throw error;
-        }
+
+            // ⚠️ IMPORTANTE:
+            // não cria cores automaticamente (usuário define depois)
+
+            // 2. cria estrutura base (sem cor ainda)
+            // 👉 aqui você pode decidir:
+            // opção A: criar vazio (recomendado)
+            // opção B: criar placeholder
+
+            // vou seguir opção A (melhor UX e menos lixo no banco)
+
+            return ficha;
+        });
     }
 
     async findAllByFabricoId(id: number) {
