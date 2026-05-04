@@ -37,6 +37,7 @@ export class ClienteService {
             });
 
             const enderecoCriado = await this.enderecoService.create(endereco ?? {});
+
             await this.prisma.cliente.update({
                 where: { id: cliente.id },
                 data: { endereco: { connect: { id: enderecoCriado.id } } },
