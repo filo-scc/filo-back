@@ -9,7 +9,6 @@ import {
 } from "@prisma/client-runtime-utils";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
 import { NotFoundException } from "@nestjs/common/exceptions/not-found.exception";
-import { Prisma } from "@prisma/client/scripts/default-index.js";
 
 const mockPrismaService = {
     cliente: {
@@ -138,7 +137,7 @@ describe("ClienteService", () => {
             prisma.cliente.findFirst.mockResolvedValue({ id: 2, ...clienteData });
 
             await expect(service.create(clienteData)).rejects.toThrow(
-                new ConflictException("Nome ja existe troque nesse fabrico"),
+                new ConflictException("Já existe um cliente com esse nome neste fabrico"),
             );
 
             expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
@@ -157,7 +156,7 @@ describe("ClienteService", () => {
             prisma.cliente.create.mockRejectedValue(prismaError);
 
             await expect(service.create(clienteData)).rejects.toThrow(
-                new ConflictException("Cliente CNPJ Ja existe"),
+                new ConflictException("CNPJ já cadastrado"),
             );
 
             expect(prisma.cliente.create).toHaveBeenCalledWith({
@@ -181,7 +180,7 @@ describe("ClienteService", () => {
             prisma.cliente.create.mockRejectedValue(erroValidacao);
 
             await expect(service.create(clienteData)).rejects.toThrow(
-                new BadRequestException("Dados invalidos"),
+                new BadRequestException("Dados inválidos"),
             );
         });
         /* TODO: Criar este teste quando a trava de segurança de fabrico for implementada no Service.
