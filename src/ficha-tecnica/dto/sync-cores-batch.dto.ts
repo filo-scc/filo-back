@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, ArrayNotEmpty, IsInt } from "class-validator";
+import { IsArray, IsInt } from "class-validator";
 
 export class SyncCoresBatchDto {
     @IsArray()
