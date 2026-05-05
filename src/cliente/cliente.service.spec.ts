@@ -75,7 +75,6 @@ describe("ClienteService", () => {
     });
 
     describe("create", () => {
-        // Happy paths
         it("Criar um cliente com sucesso", async () => {
             const clienteSalvo = {
                 id: 1,
@@ -93,12 +92,15 @@ describe("ClienteService", () => {
 
             expect(prisma.cliente.create).toHaveBeenCalledTimes(1);
 
-            const { endereco, ...dadosDoCliente } = clienteData;
+            const { ...dadosDoCliente } = clienteData;
+            
+            delete dadosDoCliente.endereco;
 
             expect(prisma.cliente.create).toHaveBeenCalledWith({
                 data: dadosDoCliente,
             });
         });
+
         it("Deve criar um cliente com sucesso sem endereço (usando fallback)", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -132,7 +134,7 @@ describe("ClienteService", () => {
                 data: { endereco: { connect: { id: 99 } } },
             });
         });
-        // Unhappy paths
+
         it("Criar um cliente com Nome existente deve lançar ConflictException", async () => {
             prisma.cliente.findFirst.mockResolvedValue({ id: 2, ...clienteData });
 
@@ -144,6 +146,7 @@ describe("ClienteService", () => {
                 where: { nome: clienteData.nome, fabrico_id: Number(clienteData.fabrico_id) },
             });
         });
+        
         it("Criar um cliente com CNPJ existente deve lançar ConflictException", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -170,6 +173,7 @@ describe("ClienteService", () => {
                 },
             });
         });
+
         it("Deve lançar BadRequestException se o Prisma apontar falha de validação nos dados", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -183,12 +187,9 @@ describe("ClienteService", () => {
                 new BadRequestException("Dados inválidos"),
             );
         });
-        /* TODO: Criar este teste quando a trava de segurança de fabrico for implementada no Service.
-        it("Deve lançar ForbiddenException ao tentar criar cliente em um fabrico diferente", async () => { ... });
-        */
     });
+
     describe("remove", () => {
-        // happy path
         it("Deletar um cliente com sucesso", async () => {
             const clienteSalvo = {
                 id: 1,
@@ -213,8 +214,6 @@ describe("ClienteService", () => {
             });
         });
 
-        // unhappy path
-
         it("Deve lançar NotFoundException ao tentar deletar um cliente inexistente", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -224,6 +223,7 @@ describe("ClienteService", () => {
 
             expect(prisma.cliente.delete).not.toHaveBeenCalled();
         });
+
         it("Deve lançar ConflictException se o cliente tiver dependências que impedem a deleção", async () => {
             prisma.cliente.findFirst.mockResolvedValue({ id: 1 });
 
@@ -236,8 +236,8 @@ describe("ClienteService", () => {
             await expect(service.remove(1)).rejects.toThrow(ConflictException);
         });
     });
+
     describe("findOne", () => {
-        // Happy path
         it("Encontrar um cliente por ID com sucesso", async () => {
             const clienteSalvo = {
                 id: 1,
@@ -255,7 +255,7 @@ describe("ClienteService", () => {
                 include: { endereco: true },
             });
         });
-        // Unhappy path
+
         it("Tentar encontrar um cliente inexistente deve lançar NotFoundException", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -267,6 +267,7 @@ describe("ClienteService", () => {
                 include: { endereco: true },
             });
         });
+
         it("Deve lançar BadRequestException se o ID for inválido para o Prisma", async () => {
             const erroValidacao = new PrismaClientValidationError("Tipos incompativeis", {
                 clientVersion: "5.0.0",
@@ -278,6 +279,7 @@ describe("ClienteService", () => {
             );
         });
     });
+
     describe("findAllByFabricoID", () => {
         it("Encontrar clientes por fabrico_id com sucesso", async () => {
             const clienteSalvo = {
@@ -296,6 +298,7 @@ describe("ClienteService", () => {
                 include: { endereco: true },
             });
         });
+
         it("Deve retornar um array vazio se o fabrico não tiver clientes cadastrados", async () => {
             prisma.cliente.findMany.mockResolvedValue([]);
 
@@ -308,7 +311,6 @@ describe("ClienteService", () => {
             });
         });
 
-        // Unhappy path
         it("Deve lançar BadRequestException se o ID do fabrico for inválido (Erro do Prisma)", async () => {
             const erroValidacao = new PrismaClientValidationError(
                 "Parâmetros de consulta inválidos",
@@ -324,8 +326,8 @@ describe("ClienteService", () => {
             );
         });
     });
+    
     describe("update", () => {
-        // Happy path
         it("Atualizar um cliente com sucesso", async () => {
             const clienteSalvo = {
                 id: 1,
@@ -366,7 +368,7 @@ describe("ClienteService", () => {
                 data: updateData,
             });
         });
-        // Unhappy path
+
         it("Deve lançar ConflictException se o novo nome já estiver em uso por outro cliente no mesmo fabrico", async () => {
             const updateData = { nome: "Nome Duplicado", fabrico_id: 1 };
 
@@ -378,6 +380,7 @@ describe("ClienteService", () => {
 
             expect(prisma.cliente.update).not.toHaveBeenCalled();
         });
+
         it("Deve lançar NotFoundException ao tentar atualizar um cliente que não existe", async () => {
             prisma.cliente.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
@@ -385,6 +388,7 @@ describe("ClienteService", () => {
                 new NotFoundException("Cliente não encontrado"),
             );
         });
+
         it("Deve lançar BadRequestException quando o Prisma reportar erro de validação", async () => {
             prisma.cliente.findFirst.mockResolvedValueOnce(null);
 
@@ -400,8 +404,8 @@ describe("ClienteService", () => {
             );
         });
     });
+
     describe("findAll", () => {
-        //Happy path
         it("Encontrar todos os clientes com sucesso", async () => {
             const clienteSalvo = {
                 id: 1,
@@ -418,6 +422,7 @@ describe("ClienteService", () => {
                 include: { endereco: true },
             });
         });
+
         it("Deve retornar um array vazio se não houver clientes", async () => {
             prisma.cliente.findMany.mockResolvedValue([]);
 
@@ -427,5 +432,4 @@ describe("ClienteService", () => {
             expect(prisma.cliente.findMany).toHaveBeenCalledTimes(1);
         });
     });
-    //unhappy path
 });
