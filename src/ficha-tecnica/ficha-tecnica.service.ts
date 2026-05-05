@@ -5,6 +5,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { EtapaService } from "src/etapa/etapa.service";
 import { FabricoService } from "src/fabrico/fabrico.service";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -16,41 +17,165 @@ export class FichaTecnicaService {
     ) {}
 
     async create(data: CreateFichaTecnicaDto) {
-        // Valida se o produto e fabrico existem
+        const produto_id = Number(data.produto_id);
+        const fabrico_id = Number(data.fabrico_id);
+
         await Promise.all([
-            this.produtoService.getById(data.produto_id),
-            this.fabricoService.getById(data.fabrico_id),
+            this.produtoService.getById(produto_id),
+            this.fabricoService.getById(fabrico_id),
         ]);
 
-        if (data.etapa_atual_id) {
-            // Valida se a etapa existe
-            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+        const produto = await this.prisma.produto.findFirst({
+            where: {
+                id: produto_id,
+                fabrico_id,
+            },
+            select: {
+                grade_versao_id: true,
+            },
+        });
 
-            if (etapa.fabrico_id !== data.fabrico_id) {
-                throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
-                );
-            }
+        if (!produto) {
+            throw new NotFoundException("Produto não encontrado para este fabrico");
         }
 
-        return this.prisma.fichaTecnica.create({ data });
+        if (!produto.grade_versao_id) {
+            throw new BadRequestException("Produto não possui grade definida");
+        }
+
+        const grade_versao_id = produto.grade_versao_id;
+
+        const gradeItens = await this.prisma.gradeVersaoItem.findMany({
+            where: {
+                grade_versao_id,
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        if (gradeItens.length === 0) {
+            throw new BadRequestException("Grade sem tamanhos configurados");
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. cria ficha
+            const ficha = await tx.fichaTecnica.create({
+                data: {
+                    ...data,
+                    grade_versao_id,
+                    produto_id,
+                    fabrico_id,
+                },
+            });
+
+            // ⚠️ IMPORTANTE:
+            // não cria cores automaticamente (usuário define depois)
+
+            // 2. cria estrutura base (sem cor ainda)
+            // 👉 aqui você pode decidir:
+            // opção A: criar vazio (recomendado)
+            // opção B: criar placeholder
+
+            // vou seguir opção A (melhor UX e menos lixo no banco)
+
+            return ficha;
+        });
     }
 
     async findAllByFabricoId(id: number) {
-        return this.prisma.fichaTecnica.findMany({
-            where: { fabrico_id: id },
-        });
+        try {
+            return this.prisma.fichaTecnica.findMany({
+                where: { fabrico_id: Number(id) },
+                include: {
+                    produto: true,
+                    etapa_atual: true,
+                    grade_versao: {
+                        include: {
+                            itens: {
+                                include: {
+                                    tamanho: true,
+                                },
+                                orderBy: { posicao: "asc" },
+                            },
+                        },
+                    },
+                    ficha_tecnica_itens: {
+                        include: {
+                            cor: true,
+                            grade_versao_item: {
+                                include: {
+                                    tamanho: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Parâmetros inválidos");
+            }
+            throw error;
+        }
     }
 
     async findAllByEtapaId(id: number) {
-        return this.prisma.fichaTecnica.findMany({
-            where: { etapa_atual_id: id },
-        });
+        try {
+            return this.prisma.fichaTecnica.findMany({
+                where: { etapa_atual_id: Number(id) },
+                include: {
+                    produto: true,
+                    etapa_atual: true,
+                    grade_versao: {
+                        include: {
+                            itens: {
+                                include: {
+                                    tamanho: true,
+                                },
+                                orderBy: { posicao: "asc" },
+                            },
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Parâmetros inválidos");
+            }
+            throw error;
+        }
     }
 
     async findOne(id: number) {
         const ficha = await this.prisma.fichaTecnica.findUnique({
             where: { id },
+            include: {
+                produto: true,
+                etapa_atual: true,
+                grade_versao: {
+                    include: {
+                        itens: {
+                            include: {
+                                tamanho: true,
+                            },
+                            orderBy: { posicao: "asc" },
+                        },
+                    },
+                },
+                fichas_etapas: true,
+                ficha_tecnica_itens: {
+                    include: {
+                        cor: true,
+                        grade_versao_item: {
+                            include: {
+                                tamanho: true,
+                            },
+                        },
+                    },
+                    orderBy: [{ cor_id: "asc" }, { grade_versao_item: { posicao: "asc" } }],
+                },
+            },
         });
 
         if (!ficha) {
@@ -67,17 +192,29 @@ export class FichaTecnicaService {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
 
-        // Define qual fabrico será usado (novo ou atual)
-        const fabricoId = data.fabrico_id ?? ficha.fabrico_id;
+        const fabricoId = Number(data.fabrico_id ?? ficha.fabrico_id);
 
-        // Se estiver alterando fabrico, valida existência
         if (data.fabrico_id) {
-            await this.fabricoService.getById(data.fabrico_id);
+            await this.fabricoService.getById(fabricoId);
+        }
+
+        const produto = await this.prisma.produto.findFirst({
+            where: {
+                id: ficha.produto_id,
+                fabrico_id: fabricoId,
+            },
+            select: {
+                id: true,
+                grade_versao_id: true,
+            },
+        });
+
+        if (!produto) {
+            throw new BadRequestException("O produto da ficha não pertence ao fabrico informado");
         }
 
         if (data.etapa_atual_id) {
-            // Valida se a etapa existe
-            const etapa = await this.etapaService.getById(data.etapa_atual_id);
+            const etapa = await this.etapaService.getById(Number(data.etapa_atual_id));
 
             if (etapa.fabrico_id !== fabricoId) {
                 throw new BadRequestException(
@@ -86,10 +223,72 @@ export class FichaTecnicaService {
             }
         }
 
-        return await this.prisma.fichaTecnica.update({
-            where: { id },
-            data,
-        });
+        const payload = data as UpdateFichaTecnicaDto & { grade_versao_id?: number };
+        const novaGradeVersaoId = payload.grade_versao_id
+            ? Number(payload.grade_versao_id)
+            : undefined;
+
+        if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
+            const gradeVersao = await this.prisma.gradeVersao.findFirst({
+                where: {
+                    id: novaGradeVersaoId,
+                    ativo: true,
+                },
+                select: {
+                    id: true,
+                    grade_id: true,
+                },
+            });
+
+            if (!gradeVersao) {
+                throw new BadRequestException(
+                    "A nova versão de grade informada é inválida ou está inativa",
+                );
+            }
+        }
+
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+                if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
+                    await tx.fichaTecnicaItem.deleteMany({
+                        where: { ficha_tecnica_id: id },
+                    });
+                }
+
+                return tx.fichaTecnica.update({
+                    where: { id },
+                    data: {
+                        ...data,
+                        fabrico_id: fabricoId,
+                        grade_versao_id: novaGradeVersaoId ?? ficha.grade_versao_id,
+                        etapa_atual_id: data.etapa_atual_id
+                            ? Number(data.etapa_atual_id)
+                            : data.etapa_atual_id === null
+                              ? null
+                              : ficha.etapa_atual_id,
+                    },
+                    include: {
+                        produto: true,
+                        etapa_atual: true,
+                        grade_versao: {
+                            include: {
+                                itens: {
+                                    include: {
+                                        tamanho: true,
+                                    },
+                                    orderBy: { posicao: "asc" },
+                                },
+                            },
+                        },
+                    },
+                });
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados inválidos");
+            }
+            throw error;
+        }
     }
 
     async remove(id: number) {

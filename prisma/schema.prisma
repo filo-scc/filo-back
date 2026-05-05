@@ -12,6 +12,11 @@ enum Cargo {
   GERENTE
 }
 
+enum FormaPagamento {
+  PIX
+  TED
+}
+
 model Fabrico {
   id Int @id @default(autoincrement())
 
@@ -30,6 +35,8 @@ model Fabrico {
   etapas Etapa[]
   produtos Produto[]
   fichas_tecnicas FichaTecnica[]
+  cores Cor[]
+  fabrico_grades FabricoGrade[]
 
   @@map("fabricos")
 }
@@ -50,14 +57,9 @@ model Usuario {
   fabrico_id Int?
   fabrico Fabrico? @relation(fields: [fabrico_id], references: [id])
 
-  endereco   Endereco?
+  endereco Endereco?
 
   @@map("usuarios")
-}
-
-enum FormaPagamento {
-  PIX
-  TED
 }
 
 model Faccao {
@@ -95,7 +97,6 @@ model Cliente {
   telefone String?
   responsavel String?
   status Boolean @default(true)
-  
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -112,20 +113,20 @@ model Cliente {
 }
 
 model Etapa {
-  id          Int     @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  nome        String  
-  descricao   String? 
-  ordem       Int
-  ativa       Boolean @default(true)
-  icone_id    Int? 
+  nome String
+  descricao String?
+  ordem Int
+  ativa Boolean @default(true)
+  icone_id Int?
 
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  fabrico_id  Int
+  fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
-  icone   Icone?   @relation(fields: [icone_id], references: [id])
+  icone Icone? @relation(fields: [icone_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
   fichas_etapas FichaEtapa[]
@@ -146,22 +147,22 @@ model Endereco {
   cep String?
 
   created_at DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  
-  usuario_id  Int?     @unique 
-  usuario     Usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  updated_at DateTime @updatedAt
 
-  faccao_id   Int?     @unique 
-  faccao      Faccao?  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+  usuario_id Int? @unique
+  usuario Usuario? @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
-  cliente_id   Int?     @unique 
-  cliente      Cliente?  @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
+  faccao_id Int? @unique
+  faccao Faccao? @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+
+  cliente_id Int? @unique
+  cliente Cliente? @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
 
   @@map("enderecos")
 }
 
 model Produto {
-  id   Int     @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   foto String?
   nome String
@@ -175,21 +176,27 @@ model Produto {
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
+  grade_versao_id Int?
+  grade_versao GradeVersao? @relation(fields: [grade_versao_id], references: [id])
+
   fichas_tecnicas FichaTecnica[]
   faccao_produto FaccaoProduto[]
 
   @@unique([fabrico_id, nome])
+  @@index([fabrico_id])
+  @@index([grade_versao_id])
   @@map("produtos")
 }
 
 model Icone {
-  id    Int    @id @default(autoincrement())
-  link  String?
+  id Int @id @default(autoincrement())
+  link String?
 
   etapas Etapa[]
 
   @@map("icones")
 }
+
 model FichaTecnica {
   id Int @id @default(autoincrement())
 
@@ -202,27 +209,30 @@ model FichaTecnica {
   produto_id Int
   produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
 
+  grade_versao_id Int
+  grade_versao GradeVersao @relation(fields: [grade_versao_id], references: [id])
+
   etapa_atual_id Int?
   etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
 
   fichas_etapas FichaEtapa[]
+  ficha_tecnica_itens FichaTecnicaItem[]
 
   @@map("fichas-tecnicas")
 }
 
-model ClienteProduto{
-
-  nome_para_cliente String 
+model ClienteProduto {
+  nome_para_cliente String
   preco_padrao Float @default(0)
-  
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   produto_id Int
-  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade) 
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
 
   cliente_id Int
-  cliente Cliente @relation(fields: [cliente_id], references: [id], onDelete: Cascade) 
+  cliente Cliente @relation(fields: [cliente_id], references: [id], onDelete: Cascade)
 
   @@id([produto_id, cliente_id])
   @@map("cliente_produto")
@@ -233,7 +243,7 @@ model FaccaoProduto {
   faccao_id Int
 
   produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
-  faccao  Faccao  @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
+  faccao Faccao @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
 
   preco Float
 
@@ -245,7 +255,7 @@ model FichaEtapa {
   id Int @id @default(autoincrement())
 
   data_inicio DateTime?
-  data_fim    DateTime?
+  data_fim DateTime?
   observacoes String?
 
   ficha_tecnica_id Int
@@ -256,4 +266,147 @@ model FichaEtapa {
 
   @@unique([ficha_tecnica_id, etapa_id])
   @@map("fichas-etapas")
+}
+
+model Tamanho {
+  id Int @id @default(autoincrement())
+
+  codigo String @unique
+  ordem_global Int @unique
+
+  grade_items GradeItem[]
+  grade_versao_items GradeVersaoItem[]
+
+  @@map("tamanhos")
+}
+
+model Grade {
+  id Int @id @default(autoincrement())
+
+  nome String @unique
+  ativo Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  items GradeItem[]
+  versoes GradeVersao[]
+  fabrico_grades FabricoGrade[]
+
+  @@map("grades")
+}
+
+model GradeItem {
+  id Int @id @default(autoincrement())
+
+  grade_id Int
+  tamanho_id Int
+  posicao Int
+
+  grade Grade @relation(fields: [grade_id], references: [id], onDelete: Cascade)
+  tamanho Tamanho @relation(fields: [tamanho_id], references: [id], onDelete: Restrict)
+
+  @@unique([grade_id, tamanho_id])
+  @@unique([grade_id, posicao])
+  @@index([grade_id])
+  @@index([tamanho_id])
+  @@map("grade_itens")
+}
+
+model GradeVersao {
+  id Int @id @default(autoincrement())
+
+  grade_id Int
+  versao Int
+  ativo Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  grade Grade @relation(fields: [grade_id], references: [id], onDelete: Cascade)
+  itens GradeVersaoItem[]
+  produtos Produto[]
+  fichas_tecnicas FichaTecnica[]
+
+  @@unique([grade_id, versao])
+  @@index([grade_id])
+  @@map("grade_versoes")
+}
+
+model GradeVersaoItem {
+  id Int @id @default(autoincrement())
+
+  grade_versao_id Int
+  tamanho_id Int
+  posicao Int
+
+  grade_versao GradeVersao @relation(fields: [grade_versao_id], references: [id], onDelete: Cascade)
+  tamanho Tamanho @relation(fields: [tamanho_id], references: [id], onDelete: Restrict)
+
+  ficha_tecnica_itens FichaTecnicaItem[]
+
+  @@unique([grade_versao_id, tamanho_id])
+  @@unique([grade_versao_id, posicao])
+  @@index([grade_versao_id])
+  @@index([tamanho_id])
+  @@map("grade_versao_itens")
+}
+
+model FabricoGrade {
+  id Int @id @default(autoincrement())
+
+  fabrico_id Int
+  grade_id Int
+  ativo Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
+  grade Grade @relation(fields: [grade_id], references: [id], onDelete: Restrict)
+
+  @@unique([fabrico_id, grade_id])
+  @@index([fabrico_id])
+  @@index([grade_id])
+  @@map("fabrico_grades")
+}
+
+model Cor {
+  id Int @id @default(autoincrement())
+
+  fabrico_id Int
+  nome String
+  codigo_hex String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
+
+  ficha_tecnica_itens FichaTecnicaItem[]
+
+  @@unique([fabrico_id, nome])
+  @@index([fabrico_id])
+  @@map("cores")
+}
+
+model FichaTecnicaItem {
+  id Int @id @default(autoincrement())
+
+  ficha_tecnica_id Int
+  ficha_tecnica FichaTecnica @relation(fields: [ficha_tecnica_id], references: [id], onDelete: Cascade)
+
+  cor_id Int
+  cor Cor @relation(fields: [cor_id], references: [id], onDelete: Restrict)
+
+  grade_versao_item_id Int
+  grade_versao_item GradeVersaoItem @relation(fields: [grade_versao_item_id], references: [id], onDelete: Restrict)
+
+  quantidade Int @default(0)
+
+  @@unique([ficha_tecnica_id, cor_id, grade_versao_item_id])
+  @@index([ficha_tecnica_id])
+  @@index([cor_id])
+  @@index([grade_versao_item_id])
+  @@map("ficha_tecnica_itens")
 }
