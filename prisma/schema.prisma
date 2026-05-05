@@ -204,10 +204,10 @@ model FichaTecnica {
   concluida Boolean
 
   fabrico_id Int
-  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
 
   produto_id Int
-  produto Produto @relation(fields: [produto_id], references: [id])
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
 
   grade_versao_id Int
   grade_versao GradeVersao @relation(fields: [grade_versao_id], references: [id])
@@ -242,8 +242,8 @@ model FaccaoProduto {
   produto_id Int
   faccao_id Int
 
-  produto Produto @relation(fields: [produto_id], references: [id])
-  faccao Faccao @relation(fields: [faccao_id], references: [id])
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
+  faccao Faccao @relation(fields: [faccao_id], references: [id], onDelete: Cascade)
 
   preco Float
 
