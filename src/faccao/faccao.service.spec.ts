@@ -10,7 +10,6 @@ describe("FaccaoService", () => {
     let prisma: PrismaService;
     let enderecoService: EnderecoService;
 
-    // --- MOCKS ---
     const mockPrismaService = {
         faccao: {
             findMany: jest.fn<any>(),
@@ -56,7 +55,6 @@ describe("FaccaoService", () => {
         expect(service).toBeDefined();
     });
 
-    // TESTES DE BUSCAR FACÇÕES
     describe("getAll()", () => {
         it("deve retornar todos as facções incluindo os seus respectivos endereços", async () => {
             mockPrismaService.faccao.findMany.mockResolvedValue([mockFaccao]);
@@ -105,7 +103,6 @@ describe("FaccaoService", () => {
         });
     });
 
-    //TESTES DO CREATE DE UMA FACÇÃO
     describe("create()", () => {
         const createDto: any = {
             nome: "Nova Facção",
@@ -141,7 +138,6 @@ describe("FaccaoService", () => {
         });
     });
 
-    // TESTES DE UPDATE DE FACÇÃO
     describe("update()", () => {
         const updateDto: any = {
             nome: "Facção Atualizada",
@@ -213,7 +209,6 @@ describe("FaccaoService", () => {
         });
     });
 
-    // TESTES DE DELETE DE FACÇÃO
     describe("delete", () => {
         it("deve excluir a facção com sucesso quandoo o ID for válido", async () => {
             mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
