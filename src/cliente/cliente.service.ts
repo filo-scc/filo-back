@@ -8,13 +8,17 @@ import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
-import { EnderecoService } from "src/endereco/endereco.service"; // <- adicionar
+import { EnderecoService } from "../endereco/endereco.service";
+
+/* TODO: 
+- Implementar segurança de fabrico em criar e atualizar cliente, garantindo que o usuário só possa criar/atualizar clientes para o fabrico ao qual ele pertence. 
+*/
 
 @Injectable()
 export class ClienteService {
     constructor(
         private prisma: PrismaService,
-        private enderecoService: EnderecoService, // <- adicionar
+        private enderecoService: EnderecoService,
     ) {}
 
     async create(data: CreateClienteDto) {
@@ -71,7 +75,7 @@ export class ClienteService {
 
     async findAllByFabricoID(fabrico_id: number) {
         try {
-            return this.prisma.cliente.findMany({
+            return await this.prisma.cliente.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
                 include: { endereco: true },
             });
@@ -88,7 +92,7 @@ export class ClienteService {
 
     async findAll() {
         try {
-            return this.prisma.cliente.findMany({
+            return await this.prisma.cliente.findMany({
                 include: { endereco: true },
             });
         } catch (error) {
@@ -156,6 +160,9 @@ export class ClienteService {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 throw new ConflictException("Não foi possível atualizar o cliente");
             }
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados invalidos");
+            }
             throw error;
         }
     }
@@ -164,7 +171,7 @@ export class ClienteService {
         try {
             await this.findOne(id);
 
-            return this.prisma.cliente.delete({
+            return await this.prisma.cliente.delete({
                 where: { id },
             });
         } catch (error) {

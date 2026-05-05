@@ -1,0 +1,33 @@
+# Dependências (instaladas dentro do container)
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+build
+
+# Ambiente — NUNCA entra na imagem
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+
+# Testes
+coverage
+
+# Docker (evita referência circular)
+Dockerfile*
+docker-compose*.yml
+docker/
+!docker/entrypoint.dev.sh
+
+# Editor / OS
+.DS_Store
+.vscode
+.idea

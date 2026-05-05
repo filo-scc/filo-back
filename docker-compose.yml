@@ -1,0 +1,69 @@
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: filo-postgres
+    # "unless-stopped" é mais adequado para dev que "always":
+    # não tenta reiniciar se você parou manualmente com `docker compose stop`
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432" # Mapeia a porta 5433 Do host, a fim de evitar conflitos com um Postgres local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # Dá tempo ao Postgres de inicializar antes de começar a contar as retries
+      start_period: 10s
+    networks:
+      - filo-network
+
+  # ── Backend NestJS ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: filo-backend
+    restart: unless-stopped
+    command: ["pnpm", "run", "start:dev"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: 
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: ${PORT:-3000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION}
+      # Controla o seed: RUN_SEED=true docker compose up
+      RUN_SEED: ${RUN_SEED:-false}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      # Monta o código-fonte para hot-reload
+      - .:/usr/src/app
+      # Preserva os node_modules instalados na imagem (Alpine).
+      # Sem esta linha, o volume acima sobrescreveria com os do host
+      # (que podem ter binários incompatíveis com Linux/Alpine).
+      - /usr/src/app/node_modules
+      # Preserva o Prisma Client gerado no build
+      - /usr/src/app/node_modules/.prisma
+    networks:
+      - filo-network
+
+networks:
+  filo-network:
+    name: filo-network
+    driver: bridge
+
+volumes:
+  postgres_data:
