@@ -93,7 +93,7 @@ describe("ClienteService", () => {
             expect(prisma.cliente.create).toHaveBeenCalledTimes(1);
 
             const { ...dadosDoCliente } = clienteData;
-            
+
             delete dadosDoCliente.endereco;
 
             expect(prisma.cliente.create).toHaveBeenCalledWith({
@@ -146,7 +146,7 @@ describe("ClienteService", () => {
                 where: { nome: clienteData.nome, fabrico_id: Number(clienteData.fabrico_id) },
             });
         });
-        
+
         it("Criar um cliente com CNPJ existente deve lançar ConflictException", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
@@ -326,7 +326,7 @@ describe("ClienteService", () => {
             );
         });
     });
-    
+
     describe("update", () => {
         it("Atualizar um cliente com sucesso", async () => {
             const clienteSalvo = {
