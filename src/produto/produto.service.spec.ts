@@ -4,7 +4,6 @@ import { ProdutoService } from "./produto.service";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
 import { PrismaClientKnownRequestError } from "@prisma/client-runtime-utils";
 import { ConflictException, NotFoundException } from "@nestjs/common";
-import e from "express";
 
 const mockPrismaService = {
     produto: {
