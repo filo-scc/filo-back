@@ -7,6 +7,8 @@
     "license": "UNLICENSED",
     "pnpm": {
   "onlyBuiltDependencies": [
+            "sharp",
+            "esbuild",
             "bcrypt",
             "prisma",
             "@prisma/engines",
