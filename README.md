@@ -45,7 +45,7 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
    node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
    ```
 
-   > O `DATABASE_URL` já vem configurado com `@db` como host. **Não mudar para `localhost`** dentro do Docker o banco é acessado pelo nome do serviço `db`.
+   > O `DATABASE_URL` já vem configurado com `@db` como host. **Não mude para `localhost`** — dentro do Docker o banco é acessado pelo nome do serviço `db`.
 
 3. **Suba o ambiente com Seed (primeira vez):**
    ```bash
@@ -56,17 +56,14 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
    # PowerShell
    $env:RUN_SEED="true"; docker compose up --build
    ```
-   **Ou pelo script do package.json:**
-   
-   > **Windows:** antes de usar este script pela primeira vez, instale o `cross-env`:
-   > ```bash
-   > pnpm add -D cross-env
-   > ```
-   > Ele garante que a variável `RUN_SEED=true` seja injetada corretamente no PowerShell.
-   
+   Ou pelo script do package.json:
    ```bash
    pnpm docker:seed
    ```
+   > **Windows:** antes de usar scripts `pnpm docker:*` pela primeira vez, instale o `cross-env`:
+   > ```bash
+   > pnpm add -D cross-env
+   > ```
 
 4. **Uso diário:**
    ```bash
@@ -76,78 +73,43 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
    ```
 
 
-## Quando fazer rebuild (`--build`)
+## Quando fazer rebuild e quando resetar o banco
 
-O rebuild reconstrói a imagem Docker do zero. Ele é necessário em situações específicas fora delas, o hot-reload cuida das mudanças automaticamente.
+### Mudanças no código TypeScript (controller, service, dto)
+Hot-reload cuida sozinho — nenhuma ação necessária.
 
-| Situação | Precisa de rebuild? |
-|---|---|
-| Alterar código `.ts` (controllers, services, etc.) | ❌ Hot-reload cuida |
-| Alterar `.env` | ❌ Reinicie com `docker compose up` |
-| Instalar nova dependência (`pnpm add X`) | ✅ |
-| Alterar `package.json` ou `pnpm-lock.yaml` | ✅ |
-| Alterar `schema.prisma` | ✅ (ver seção Migrations) |
-| Alterar `Dockerfile` ou `docker-compose.yml` | ✅ |
-| Primeira vez subindo | ✅ |
+### Mudanças no `schema.prisma`
+Sempre que o schema for alterado, o fluxo padrão é **resetar o banco e rebuildar**. Isso garante que as migrations sejam aplicadas de forma limpa e o Prisma Client seja regenerado corretamente.
 
 ```bash
-# Rebuild manual
-docker compose up --build
-
-# Ou pelo script
-pnpm docker:up:build
+pnpm docker:reset:seed
 ```
 
+> Este comando apaga todos os dados do banco (`down -v`) e repopula via seed. É o fluxo esperado durante o desenvolvimento.
 
-## Fluxo de Migrations (schema.prisma)
-
-**Alterar o `schema.prisma` é a operação que mais exige atenção** ela envolve duas etapas obrigatórias.
-
-### Por que duas etapas?
-
-- `migrate dev` → **cria** o arquivo de migração (`.sql`) e atualiza o banco
-- `prisma generate` → **regenera** o Prisma Client com os novos tipos TypeScript
-- O rebuild da imagem é necessário porque o Prisma Client fica dentro do `node_modules` da imagem
-
-### Passo a passo ao alterar o schema
-
-**1. Altere o `prisma/schema.prisma` normalmente no editor**
-
-**2. Crie a migration dentro do container:**
-```bash
-# Substitua "nome_descritivo" por algo que descreva a mudança
-docker exec -it filo-backend pnpm exec prisma migrate dev --name nome_descritivo
-
-# Ou pelo script
-pnpm docker:migrate
-```
-> O comando vai pedir o nome da migration interativamente se você não passar `--name`.
-
-**3. Rebuilde a imagem para regenerar o Prisma Client:**
-```bash
-docker compose up --build
-
-# Ou pelo script
-pnpm docker:up:build
-```
-
-> Sem o rebuild, o NestJS continuará usando o Prisma Client antigo e pode apresentar erros de tipo ou runtime.
+| Situação | Comando | Perde dados? |
+|---|---|---|
+| Mudança em `.ts` | Nenhum (hot-reload) | ❌ |
+| Mudança no `schema.prisma` | `pnpm docker:reset:seed` | ✅ (repopula com seed) |
+| Resetar banco sem seed | `pnpm docker:reset` | ✅ |
+| Primeira vez subindo | `pnpm docker:seed` | — |
 
 
 ## Scripts disponíveis
 
 Atalhos configurados no `package.json` para abstrair os comandos Docker mais comuns:
 
-| Script | Comando equivalente | Descrição |
-|---|---|---|
-| `pnpm docker:up` | `docker compose up` | Sobe o ambiente |
-| `pnpm docker:up:build` | `docker compose up --build` | Sobe com rebuild |
-| `pnpm docker:down` | `docker compose down` | Para e remove containers |
-| `pnpm docker:reset` | `docker compose down -v && up --build` | Apaga banco e recomeça |
-| `pnpm docker:seed` | `RUN_SEED=true docker compose up --build` | Sobe com seed |
-| `pnpm docker:logs` | `docker compose logs -f api` | Acompanha logs da API |
-| `pnpm docker:migrate` | `docker exec ... prisma migrate dev` | Cria nova migration |
-| `pnpm docker:studio` | `docker exec ... prisma studio` | Abre o Prisma Studio |
+| Script | Descrição |
+|---|---|
+| `pnpm docker:up` | Sobe o ambiente |
+| `pnpm docker:up:build` | Sobe com rebuild (sem resetar banco) |
+| `pnpm docker:down` | Para e remove containers |
+| `pnpm docker:reset` | Apaga banco e rebuilda (sem seed) |
+| `pnpm docker:reset:seed` | Apaga banco, rebuilda e popula com seed |
+| `pnpm docker:seed` | Sobe com seed (sem apagar banco) |
+| `pnpm docker:logs` | Acompanha logs da API |
+| `pnpm docker:migrate` | Cria nova migration dentro do container |
+| `pnpm docker:studio` | Abre o Prisma Studio |
 
 
 ## Gerenciamento do Banco (Prisma)
@@ -163,11 +125,9 @@ Atalhos configurados no `package.json` para abstrair os comandos Docker mais com
   pnpm docker:migrate
   ```
 
-- **Resetar banco e repopular do zero:**
+- **Resetar banco e repopular (fluxo padrão ao mudar schema):**
   ```bash
-  pnpm docker:reset
-  # Depois suba com seed:
-  pnpm docker:seed
+  pnpm docker:reset:seed
   ```
 
 
@@ -199,5 +159,41 @@ pnpm run test:cov
 
 - **CORS:** O backend está configurado por padrão para aceitar requisições do frontend em `http://localhost:5173`.
 - **DATABASE_URL:** Dentro do Docker, o host do banco é sempre `db` (nome do serviço no compose), nunca `localhost`.
-- **Massa de Dados:** O seed gera automaticamente fabricos, facções, clientes, usuários (Admin/Proprietário) e fluxos de Kanban completos para testes.
+- **Massa de Dados:** O seed gera automaticamente fabricos, facções, clientes, usuários (Admin/Proprietário), grades, tamanhos e fluxos de Kanban completos para testes.
 - **Segurança:** Nunca comite o arquivo `.env` com chaves reais. Use sempre o `.env.example` como base.
+
+
+## IntelliSense e Erros do VS Code após mudança no Schema
+
+Após alterar o `schema.prisma` e rodar o `pnpm docker:reset:seed`, a aplicação funciona corretamente no container, mas o VS Code pode continuar exibindo erros como:
+
+```
+Property 'fabricoGrade' does not exist on type 'PrismaClient'
+Property 'tamanho' does not exist on type 'PrismaService'
+```
+
+**Isso não é um erro real.** O IntelliSense do VS Code usa o Prisma Client gerado localmente no host, que ainda está desatualizado. O container usa o client correto, por isso a aplicação roda normalmente.
+
+### Solução
+
+Regenere o Prisma Client no host:
+
+```bash
+pnpm exec prisma generate
+```
+
+Se os erros persistirem após alguns segundos, reinicie o servidor TypeScript do VS Code:
+
+```
+Ctrl+Shift+P → TypeScript: Restart TS Server
+```
+
+### Regra geral
+
+Sempre que rodar `pnpm docker:reset:seed` ou qualquer comando que altere o schema, rode também `pnpm exec prisma generate` no terminal do host para manter o IntelliSense sincronizado.
+
+Você pode criar um hábito com a sequência:
+
+```bash
+pnpm docker:reset:seed && pnpm exec prisma generate
+```

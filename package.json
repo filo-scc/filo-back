@@ -23,6 +23,7 @@
         "docker:down": "docker compose down",
         "docker:reset": "docker compose down -v && docker compose up --build",
         "docker:seed": "cross-env RUN_SEED=true docker compose up --build",
+        "docker:reset:seed": "docker compose down -v && cross-env RUN_SEED=true docker compose up --build",
         "docker:logs": "docker compose logs -f api",
         "docker:migrate": "docker exec filo-backend pnpm exec prisma migrate dev",
         "docker:studio": "docker exec -it filo-backend pnpm exec prisma studio"
