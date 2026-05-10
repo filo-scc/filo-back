@@ -155,7 +155,6 @@ async function criarLinksFabricoGrades(fabricoId: number, grades: any[]) {
 }
 
 async function main() {
-
     // Verifica se já existem dados para evitar duplicação
     const fabricosExistentes = await prisma.fabrico.count();
     if (fabricosExistentes > 0) {
