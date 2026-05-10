@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
-      - run: pnpm install --frozen-lockfile 
+      - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
       - name: Lint & Format
         run: |
           pnpm exec prettier --check .
@@ -45,7 +45,7 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
       - run: pnpm prisma generate
       
       - name: Executar Testes
@@ -74,5 +74,5 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
       - run: pnpm prisma migrate deploy
