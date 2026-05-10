@@ -12,16 +12,37 @@ O **Filo Backend** é o motor central do projeto Filo, desenvolvido para gerenci
 - **Autenticação:** JWT (Access & Refresh Tokens)
 
 
+## Instalando o pnpm
+
+Este projeto utiliza o `pnpm` como gerenciador de pacotes. Caso não tenha instalado:
+
+
+**Alternativa (Linux e Windows), via npm:**
+```bash
+npm install -g pnpm
+```
+
+Verifique a instalação:
+```bash
+pnpm --version
+```
+
+
 ## Pré-requisitos
 
-Antes de começar, você precisará ter instalado em sua máquina:
-- [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) (**Recomendado**)
-- Ou [Node.js](https://nodejs.org/) (v18+) e [pnpm](https://pnpm.io/) (para execução local)
+Escolha **um** dos modos abaixo e instale o que for necessário:
+
+| | 🐳 Docker (recomendado) | 💻 Local |
+|---|---|---|
+| Instalar | [Docker Desktop](https://www.docker.com/) | [Node.js](https://nodejs.org/) v18+ e [pnpm](https://pnpm.io/) e [PostgreSQL](https://www.postgresql.org/) |
+| Banco | Automático | Manual |
 
 
-## Quick Start (Docker)
+## Quickstart Docker (recomendado)
 
-Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados).
+Sobe a API e o banco juntos, sem instalar nada além do Docker.
+
+### Setup inicial
 
 1. **Clone o repositório:**
    ```bash
@@ -45,8 +66,6 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
    node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
    ```
 
-   > O `DATABASE_URL` já vem configurado com `@db` como host. **Não mude para `localhost`** — dentro do Docker o banco é acessado pelo nome do serviço `db`.
-
 3. **Suba o ambiente com Seed (primeira vez):**
    ```bash
    # Linux / macOS
@@ -56,48 +75,42 @@ Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados)
    # PowerShell
    $env:RUN_SEED="true"; docker compose up --build
    ```
-   Ou pelo script do package.json:
+   Ou pelo script:
    ```bash
    pnpm docker:seed
    ```
-   > **Windows:** antes de usar scripts `pnpm docker:*` pela primeira vez, instale o `cross-env`:
+   > **Windows:** antes de usar scripts `pnpm docker:*` pela primeira vez:
    > ```bash
    > pnpm add -D cross-env
    > ```
 
-4. **Uso diário:**
-   ```bash
-   docker compose up
-   # ou
-   pnpm docker:up
-   ```
+### Uso diário
 
+```bash
+docker compose up
+# ou
+pnpm docker:up
+```
 
-## Quando fazer rebuild e quando resetar o banco
+### Quando fazer rebuild e quando resetar o banco
 
-### Mudanças no código TypeScript (controller, service, dto)
+#### 1. Mudanças no código TypeScript (controller, service, dto):
 Hot-reload cuida sozinho — nenhuma ação necessária.
 
-### Mudanças no `schema.prisma`
-Sempre que o schema for alterado, o fluxo padrão é **resetar o banco e rebuildar**. Isso garante que as migrations sejam aplicadas de forma limpa e o Prisma Client seja regenerado corretamente.
-
+#### 2. Mudanças no `schema.prisma`:
 ```bash
 pnpm docker:reset:seed
 ```
-
-> Este comando apaga todos os dados do banco (`down -v`) e repopula via seed. É o fluxo esperado durante o desenvolvimento.
+> Apaga todos os dados e repopula via seed. É o fluxo esperado durante o desenvolvimento.
 
 | Situação | Comando | Perde dados? |
 |---|---|---|
 | Mudança em `.ts` | Nenhum (hot-reload) | ❌ |
-| Mudança no `schema.prisma` | `pnpm docker:reset:seed` | ✅ (repopula com seed) |
+| Mudança no `schema.prisma` | `pnpm docker:reset:seed` | ✅ (repopula) |
 | Resetar banco sem seed | `pnpm docker:reset` | ✅ |
 | Primeira vez subindo | `pnpm docker:seed` | — |
 
-
-## Scripts disponíveis
-
-Atalhos configurados no `package.json` para abstrair os comandos Docker mais comuns:
+### Scripts disponíveis
 
 | Script | Descrição |
 |---|---|
@@ -109,39 +122,127 @@ Atalhos configurados no `package.json` para abstrair os comandos Docker mais com
 | `pnpm docker:seed` | Sobe com seed (sem apagar banco) |
 | `pnpm docker:logs` | Acompanha logs da API |
 | `pnpm docker:migrate` | Cria nova migration dentro do container |
-| `pnpm docker:studio` | Abre o Prisma Studio |
+| `pnpm docker:studio` | Abre o Prisma Studio em http://localhost:5555 |
 
 
-## Gerenciamento do Banco (Prisma)
+## Troubleshoot
+### IntelliSense e Erros do VS Code após mudança no Schema
 
-- **Visualizar dados (Interface Gráfica):**
-  ```bash
-  pnpm docker:studio
-  # Abre em http://localhost:5555
-  ```
+Após alterar o `schema.prisma`, o VS Code pode exibir erros como:
 
-- **Criar nova migração:**
-  ```bash
-  pnpm docker:migrate
-  ```
+```
+Property 'fabricoGrade' does not exist on type 'PrismaClient'
+```
 
-- **Resetar banco e repopular (fluxo padrão ao mudar schema):**
-  ```bash
-  pnpm docker:reset:seed
-  ```
+**Isso não é um erro real**, é o IntelliSense usando o Prisma Client desatualizado do host.
+
+**Solução:**
+```bash
+pnpm exec prisma generate
+```
+
+Se persistir: `Ctrl+Shift+P` → `TypeScript: Restart TS Server`
+
+> Hábito recomendado após qualquer mudança de schema (modo Docker):
+> ```bash
+> pnpm docker:reset:seed && pnpm exec prisma generate
+> ```
+
+---
+
+
+## Start Modo Local
+
+Roda a API e o banco diretamente no host, sem Docker.
+
+### Setup inicial
+
+1. **Clone o repositório e instale as dependências:**
+   ```bash
+   git clone https://github.com/filo-scc/filo-back.git
+   cd filo-back
+   pnpm install
+   ```
+
+2. **Configure as variáveis de ambiente:**
+   ```bash
+   # Linux / macOS
+   cp .env.example .env
+   ```
+   ```powershell
+   # PowerShell
+   Copy-Item .env.example .env
+   ```
+
+   Edite o `.env` e ajuste o `DATABASE_URL` para apontar para o seu PostgreSQL local:
+   ```env
+   DATABASE_URL="postgresql://usuario:senha@localhost:5432/filo_db?schema=public"
+   ```
+
+3. **Crie o banco `filo_db` no PostgreSQL local:**
+
+   **Linux (bash):**
+
+   No Linux o PostgreSQL usa autenticação por peer — é necessário usar `sudo` para acessar como o usuário `postgres`:
+   ```bash
+   # Cria o banco
+   sudo -u postgres psql -c "CREATE DATABASE filo_db;"
+
+   # Define uma senha para o usuário postgres (necessário para o DATABASE_URL)
+   sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'sua_senha';"
+   ```
+
+   **Windows (PowerShell):**
+
+   No Windows o `psql` normalmente já está no PATH após a instalação do PostgreSQL:
+   ```powershell
+   # Cria o banco
+   psql -U postgres -c "CREATE DATABASE filo_db;"
+   ```
+   Será solicitada a senha do usuário `postgres` definida durante a instalação.
+
+   **Alternativa (Linux e Windows) — pelo DBeaver:**
+
+   Botão direito em `Databases` → `Create Database` → nome `filo_db` → OK.
+
+4. **Aplique as migrações e popule o banco com seed:**
+   ```bash
+   pnpm exec prisma migrate deploy
+   pnpm exec prisma db seed
+   ```
+
+5. **Suba a API:**
+   ```bash
+   pnpm run start:dev
+   ```
+
+### Uso diário
+
+```bash
+pnpm run start:dev
+```
+
+### Gerenciamento do banco
+
+```bash
+# Visualizar dados
+pnpm exec prisma studio          # Abre em http://localhost:5555
+
+# Criar nova migração
+pnpm exec prisma migrate dev --name nome_descritivo
+
+# Resetar banco e repopular
+pnpm exec prisma migrate reset
+pnpm exec prisma db seed
+```
 
 
 ## Testes
 
 ```bash
-# Unitários
-pnpm run test
-
-# E2E
-pnpm run test:e2e
-
-# Cobertura
-pnpm run test:cov
+pnpm run test        # Unitários
+pnpm run test:e2e    # E2E
+pnpm run test:cov    # Cobertura
 ```
 
 
@@ -157,43 +258,6 @@ pnpm run test:cov
 
 ## Outros Pontos
 
-- **CORS:** O backend está configurado por padrão para aceitar requisições do frontend em `http://localhost:5173`.
-- **DATABASE_URL:** Dentro do Docker, o host do banco é sempre `db` (nome do serviço no compose), nunca `localhost`.
-- **Massa de Dados:** O seed gera automaticamente fabricos, facções, clientes, usuários (Admin/Proprietário), grades, tamanhos e fluxos de Kanban completos para testes.
-- **Segurança:** Nunca comite o arquivo `.env` com chaves reais. Use sempre o `.env.example` como base.
-
-
-## IntelliSense e Erros do VS Code após mudança no Schema
-
-Após alterar o `schema.prisma` e rodar o `pnpm docker:reset:seed`, a aplicação funciona corretamente no container, mas o VS Code pode continuar exibindo erros como:
-
-```
-Property 'fabricoGrade' does not exist on type 'PrismaClient'
-Property 'tamanho' does not exist on type 'PrismaService'
-```
-
-**Isso não é um erro real.** O IntelliSense do VS Code usa o Prisma Client gerado localmente no host, que ainda está desatualizado. O container usa o client correto, por isso a aplicação roda normalmente.
-
-### Solução
-
-Regenere o Prisma Client no host:
-
-```bash
-pnpm exec prisma generate
-```
-
-Se os erros persistirem após alguns segundos, reinicie o servidor TypeScript do VS Code:
-
-```
-Ctrl+Shift+P → TypeScript: Restart TS Server
-```
-
-### Regra geral
-
-Sempre que rodar `pnpm docker:reset:seed` ou qualquer comando que altere o schema, rode também `pnpm exec prisma generate` no terminal do host para manter o IntelliSense sincronizado.
-
-Você pode criar um hábito com a sequência:
-
-```bash
-pnpm docker:reset:seed && pnpm exec prisma generate
-```
+- **CORS:** Configurado para aceitar requisições de `http://localhost:5173`.
+- **Massa de Dados:** O seed gera fabricos, facções, clientes, usuários, grades, tamanhos e Kanban completos.
+- **Segurança:** Nunca comite o `.env` com chaves reais. Use sempre o `.env.example` como base.
