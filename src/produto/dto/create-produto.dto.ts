@@ -16,4 +16,8 @@ export class CreateProdutoDto {
     @IsNumber()
     @IsNotEmpty()
     fabrico_id: number;
+
+    @IsNumber()
+    @IsOptional()
+    grade_versao_id?: number;
 }

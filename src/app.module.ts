@@ -9,6 +9,10 @@ import { EnderecoModule } from "./endereco/endereco.module";
 import { ProdutoModule } from "./produto/produto.module";
 import { EtapaModule } from "./etapa/etapa.module";
 import { FichaTecnicaModule } from "./ficha-tecnica/ficha-tecnica.module";
+import { TamanhoModule } from "./tamanho/tamanho.module";
+import { CorModule } from "./cor/cor.module";
+import { FabricoGradeModule } from "./fabrico-grade/fabrico-grade.module";
+import { GradeModule } from "./grade/grade.module";
 
 @Module({
     imports: [
@@ -20,6 +24,10 @@ import { FichaTecnicaModule } from "./ficha-tecnica/ficha-tecnica.module";
         ProdutoModule,
         AuthModule,
         FichaTecnicaModule,
+        TamanhoModule,
+        CorModule,
+        FabricoGradeModule,
+        GradeModule,
     ],
     controllers: [AppController],
     providers: [AppService],

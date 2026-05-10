@@ -16,6 +16,10 @@ import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
 
+/* TODO: 
+- Implementar segurança de fabrico, garantindo que o usuário só possa acessar clientes do fabrico ao qual ele pertence.
+*/
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
 @Controller("clientes")

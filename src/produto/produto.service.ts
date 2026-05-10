@@ -1,4 +1,9 @@
-import { NotFoundException, Injectable, ConflictException } from "@nestjs/common";
+import {
+    NotFoundException,
+    Injectable,
+    ConflictException,
+    BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
@@ -9,8 +14,23 @@ export class ProdutoService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreateProdutoDto) {
+        if (data.grade_versao_id) {
+            const grade = await this.prisma.gradeVersao.findFirst({
+                where: {
+                    id: data.grade_versao_id,
+                    ativo: true,
+                },
+            });
+
+            if (!grade) {
+                throw new BadRequestException("Versão de grade inválida ou inativa");
+            }
+        }
+
         try {
-            return await this.prisma.produto.create({ data: { ...data } });
+            return await this.prisma.produto.create({
+                data: { ...data },
+            });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
                 throw new ConflictException("Já existe um produto com este nome para este fabrico");
@@ -44,16 +64,33 @@ export class ProdutoService {
     }
 
     async update(id: number, dados: UpdateProduto) {
-        const produto = await this.prisma.produto.findUnique({ where: { id } });
+        const produto = await this.prisma.produto.findUnique({
+            where: { id },
+        });
+
         if (!produto) {
             throw new NotFoundException("Produto não encontrado");
         }
 
+        if (dados.grade_versao_id) {
+            const grade = await this.prisma.gradeVersao.findFirst({
+                where: {
+                    id: dados.grade_versao_id,
+                    ativo: true,
+                },
+            });
+
+            if (!grade) {
+                throw new BadRequestException("Versão de grade inválida ou inativa");
+            }
+        }
+
         try {
             await this.prisma.produto.update({
-                where: { id: id },
+                where: { id },
                 data: { ...dados },
             });
+
             return `O produto com o id ${id} foi atualizado`;
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
