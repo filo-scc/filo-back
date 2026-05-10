@@ -23,6 +23,14 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+
+    // Verifica se já existem dados para evitar duplicação
+    const fabricosExistentes = await prisma.fabrico.count();
+    if (fabricosExistentes > 0) {
+        console.log(`Banco já possui dados (${fabricosExistentes} fabricos). Seed ignorado.`);
+        return;
+    }
+
     const quantidadeDeFabricos = 5;
     const fabricos: any[] = [];
 
