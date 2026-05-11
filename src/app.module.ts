@@ -13,6 +13,7 @@ import { TamanhoModule } from "./tamanho/tamanho.module";
 import { CorModule } from "./cor/cor.module";
 import { FabricoGradeModule } from "./fabrico-grade/fabrico-grade.module";
 import { GradeModule } from "./grade/grade.module";
+import { TecidosModule } from './tecidos/tecidos.module';
 
 @Module({
     imports: [
@@ -28,6 +29,7 @@ import { GradeModule } from "./grade/grade.module";
         CorModule,
         FabricoGradeModule,
         GradeModule,
+        TecidosModule,
     ],
     controllers: [AppController],
     providers: [AppService],
