@@ -37,6 +37,7 @@ model Fabrico {
   fichas_tecnicas FichaTecnica[]
   cores Cor[]
   fabrico_grades FabricoGrade[]
+  aviamentos Aviamento[]
 
   @@map("fabricos")
 }
@@ -409,4 +410,16 @@ model FichaTecnicaItem {
   @@index([cor_id])
   @@index([grade_versao_item_id])
   @@map("ficha_tecnica_itens")
+}
+
+model Aviamento {
+  id Int @id @default(autoincrement())
+
+  nome String
+  fabrico_id Int
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@unique([nome, fabrico_id])
+  @@map("aviamentos")
 }

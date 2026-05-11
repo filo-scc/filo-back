@@ -13,6 +13,7 @@ import { TamanhoModule } from "./tamanho/tamanho.module";
 import { CorModule } from "./cor/cor.module";
 import { FabricoGradeModule } from "./fabrico-grade/fabrico-grade.module";
 import { GradeModule } from "./grade/grade.module";
+import { AviamentoModule } from './aviamento/aviamento.module';
 
 @Module({
     imports: [
@@ -28,8 +29,7 @@ import { GradeModule } from "./grade/grade.module";
         CorModule,
         FabricoGradeModule,
         GradeModule,
+        AviamentoModule,
     ],
-    controllers: [AppController],
-    providers: [AppService],
 })
 export class AppModule {}
