@@ -28,6 +28,11 @@ export class TecidosController {
         return this.tecidosService.findOne(id);
     }
 
+    @Get("fabrico/:idFabrico")
+    findAllByFabrico(@Param("idFabrico", ParseIntPipe) idFabrico: number) {
+        return this.tecidosService.findAllByFabrico(idFabrico);
+    }
+
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number) {
         return this.tecidosService.remove(id);

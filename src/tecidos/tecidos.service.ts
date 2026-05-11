@@ -13,6 +13,7 @@ export class TecidosService {
         const nomeExistente = await this.prisma.tecido.findFirst({
             where: {
                 nome: tecido.nome,
+                fabrico_id: tecido.fabrico_id,
             },
         });
 
@@ -39,6 +40,13 @@ export class TecidosService {
             throw new ConflictException("Tecido não encontrado");
         }
         return tecido;
+    }
+
+    async findAllByFabrico(idFabrico: number) {
+        return this.prisma.tecido.findMany({
+            where: { fabrico_id: idFabrico },
+            orderBy: { nome: "asc" },
+        });
     }
 
     async update(id: number, data: UpdateTecidosDto) {
