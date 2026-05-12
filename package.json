@@ -17,7 +17,16 @@
         "test:watch": "jest --watch",
         "test:cov": "jest --coverage",
         "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-        "test:e2e": "jest --config ./test/jest-e2e.json"
+        "test:e2e": "jest --config ./test/jest-e2e.json",
+        "docker:up": "docker compose up",
+        "docker:up:build": "docker compose up --build",
+        "docker:down": "docker compose down",
+        "docker:reset": "docker compose down -v && docker compose up --build",
+        "docker:seed": "cross-env RUN_SEED=true docker compose up --build",
+        "docker:reset:seed": "docker compose down -v && cross-env RUN_SEED=true docker compose up --build",
+        "docker:logs": "docker compose logs -f api",
+        "docker:migrate": "docker exec filo-backend pnpm exec prisma migrate dev",
+        "docker:studio": "docker exec -it filo-backend pnpm exec prisma studio"
     },
     "dependencies": {
         "@nestjs/common": "^11.0.1",
@@ -53,6 +62,7 @@
         "@types/multer": "^2.1.0",
         "@types/node": "^22.10.7",
         "@types/supertest": "^6.0.2",
+        "cross-env": "^10.1.0",
         "dotenv": "^17.3.1",
         "eslint": "^9.18.0",
         "eslint-config-prettier": "^10.0.1",

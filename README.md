@@ -1,4 +1,4 @@
-# Filo Backend 
+# Filo Backend
 
 O **Filo Backend** é o motor central do projeto Filo, desenvolvido para gerenciar o fluxo de produção têxtil, desde a modelagem até a embalagem (Kanban), controle de clientes, facções e fichas técnicas.
 
@@ -12,93 +12,237 @@ O **Filo Backend** é o motor central do projeto Filo, desenvolvido para gerenci
 - **Autenticação:** JWT (Access & Refresh Tokens)
 
 
+## Instalando o pnpm
+
+Este projeto utiliza o `pnpm` como gerenciador de pacotes. Caso não tenha instalado:
+
+
+**Alternativa (Linux e Windows), via npm:**
+```bash
+npm install -g pnpm
+```
+
+Verifique a instalação:
+```bash
+pnpm --version
+```
+
+
 ## Pré-requisitos
 
-Antes de começar, você precisará ter instalado em sua máquina:
-- [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) (**Recomendado**)
-- Ou [Node.js](https://nodejs.org/) (v18+) e [pnpm](https://pnpm.io/) (para execução local)
+Escolha **um** dos modos abaixo e instale o que for necessário:
+
+| | 🐳 Docker (recomendado) | 💻 Local |
+|---|---|---|
+| Instalar | [Docker Desktop](https://www.docker.com/) | [Node.js](https://nodejs.org/) v18+ e [pnpm](https://pnpm.io/) e [PostgreSQL](https://www.postgresql.org/) |
+| Banco | Automático | Manual |
 
 
-## Quick Start (Docker)
+## Quickstart Docker (recomendado)
 
-Esta é a forma mais rápida de subir o ambiente completo (API + Banco de Dados).
+Sobe a API e o banco juntos, sem instalar nada além do Docker.
+
+### Setup inicial
 
 1. **Clone o repositório:**
    ```bash
-   # git clone
    git clone https://github.com/filo-scc/filo-back.git
-   
-   # ou através do github cli
-   # gh repo clone filo-scc/filo-back
-
    cd filo-back
    ```
 
 2. **Configure as variáveis de ambiente:**
    ```bash
+   # Linux / macOS
    cp .env.example .env
-
+   ```
+   ```powershell
+   # PowerShell
+   Copy-Item .env.example .env
    ```
 
-    *Edite o arquivo `.env` e preencha suas senha do database e as chaves JWT (instruções no arquivo).*
-
+   Edite o `.env` e preencha a senha do banco e as chaves JWT:
    ```bash
-   # Rode o comando 2x, uma para cada chave JWT
+   # Rode 2x — uma vez para cada chave JWT
    node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
    ```
 
-
-
 3. **Suba o ambiente com Seed (primeira vez):**
    ```bash
-   # Para terminal bash
+   # Linux / macOS
    RUN_SEED=true docker compose up --build
    ```
-   
-   ```Powershell
-   # Powershell
+   ```powershell
+   # PowerShell
    $env:RUN_SEED="true"; docker compose up --build
    ```
-   *Isso irá construir a imagem, subir o banco, rodar as migrações e popular os dados iniciais.*
-
-4. **Uso diário:**
+   Ou pelo script:
    ```bash
-   docker compose up
+   pnpm docker:seed
+   ```
+   > **Windows:** antes de usar scripts `pnpm docker:*` pela primeira vez:
+   > ```bash
+   > pnpm add -D cross-env
+   > ```
+
+### Uso diário
+
+```bash
+docker compose up
+# ou
+pnpm docker:up
+```
+
+### Quando fazer rebuild e quando resetar o banco
+
+#### 1. Mudanças no código TypeScript (controller, service, dto):
+Hot-reload cuida sozinho — nenhuma ação necessária.
+
+#### 2. Mudanças no `schema.prisma`:
+```bash
+pnpm docker:reset:seed
+```
+> Apaga todos os dados e repopula via seed. É o fluxo esperado durante o desenvolvimento.
+
+| Situação | Comando | Perde dados? |
+|---|---|---|
+| Mudança em `.ts` | Nenhum (hot-reload) | ❌ |
+| Mudança no `schema.prisma` | `pnpm docker:reset:seed` | ✅ (repopula) |
+| Resetar banco sem seed | `pnpm docker:reset` | ✅ |
+| Primeira vez subindo | `pnpm docker:seed` | — |
+
+### Scripts disponíveis
+
+| Script | Descrição |
+|---|---|
+| `pnpm docker:up` | Sobe o ambiente |
+| `pnpm docker:up:build` | Sobe com rebuild (sem resetar banco) |
+| `pnpm docker:down` | Para e remove containers |
+| `pnpm docker:reset` | Apaga banco e rebuilda (sem seed) |
+| `pnpm docker:reset:seed` | Apaga banco, rebuilda e popula com seed |
+| `pnpm docker:seed` | Sobe com seed (sem apagar banco) |
+| `pnpm docker:logs` | Acompanha logs da API |
+| `pnpm docker:migrate` | Cria nova migration dentro do container |
+| `pnpm docker:studio` | Abre o Prisma Studio em http://localhost:5555 |
+
+
+## Troubleshoot
+### IntelliSense e Erros do VS Code após mudança no Schema
+
+Após alterar o `schema.prisma`, o VS Code pode exibir erros como:
+
+```
+Property 'fabricoGrade' does not exist on type 'PrismaClient'
+```
+
+**Isso não é um erro real**, é o IntelliSense usando o Prisma Client desatualizado do host.
+
+**Solução:**
+```bash
+pnpm exec prisma generate
+```
+
+Se persistir: `Ctrl+Shift+P` → `TypeScript: Restart TS Server`
+
+> Hábito recomendado após qualquer mudança de schema (modo Docker):
+> ```bash
+> pnpm docker:reset:seed && pnpm exec prisma generate
+> ```
+
+---
+
+
+## Start Modo Local
+
+Roda a API e o banco diretamente no host, sem Docker.
+
+### Setup inicial
+
+1. **Clone o repositório e instale as dependências:**
+   ```bash
+   git clone https://github.com/filo-scc/filo-back.git
+   cd filo-back
+   pnpm install
    ```
 
+2. **Configure as variáveis de ambiente:**
+   ```bash
+   # Linux / macOS
+   cp .env.example .env
+   ```
+   ```powershell
+   # PowerShell
+   Copy-Item .env.example .env
+   ```
 
-## Gerenciamento do Banco (Prisma)
+   Edite o `.env` e ajuste o `DATABASE_URL` para apontar para o seu PostgreSQL local:
+   ```env
+   DATABASE_URL="postgresql://usuario:senha@localhost:5432/filo_db?schema=public"
+   ```
 
-- **Visualizar dados (Interface Gráfica):**
-  ```bash
-  # Local
-  npx prisma studio
-  # Docker
-  docker exec -it filo-backend pnpm exec prisma studio
-  ```
+3. **Crie o banco `filo_db` no PostgreSQL local:**
 
-- **Criar nova migração:**
-  ```bash
-  npx prisma migrate dev --name <nome_da_migracao>
-  ```
+   **Linux (bash):**
 
-- **Resetar banco e repopular:**
-  ```bash
-  npx prisma migrate reset
-  ```
+   No Linux o PostgreSQL usa autenticação por peer — é necessário usar `sudo` para acessar como o usuário `postgres`:
+   ```bash
+   # Cria o banco
+   sudo -u postgres psql -c "CREATE DATABASE filo_db;"
+
+   # Define uma senha para o usuário postgres (necessário para o DATABASE_URL)
+   sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'sua_senha';"
+   ```
+
+   **Windows (PowerShell):**
+
+   No Windows o `psql` normalmente já está no PATH após a instalação do PostgreSQL:
+   ```powershell
+   # Cria o banco
+   psql -U postgres -c "CREATE DATABASE filo_db;"
+   ```
+   Será solicitada a senha do usuário `postgres` definida durante a instalação.
+
+   **Alternativa (Linux e Windows) — pelo DBeaver:**
+
+   Botão direito em `Databases` → `Create Database` → nome `filo_db` → OK.
+
+4. **Aplique as migrações e popule o banco com seed:**
+   ```bash
+   pnpm exec prisma migrate deploy
+   pnpm exec prisma db seed
+   ```
+
+5. **Suba a API:**
+   ```bash
+   pnpm run start:dev
+   ```
+
+### Uso diário
+
+```bash
+pnpm run start:dev
+```
+
+### Gerenciamento do banco
+
+```bash
+# Visualizar dados
+pnpm exec prisma studio          # Abre em http://localhost:5555
+
+# Criar nova migração
+pnpm exec prisma migrate dev --name nome_descritivo
+
+# Resetar banco e repopular
+pnpm exec prisma migrate reset
+pnpm exec prisma db seed
+```
 
 
 ## Testes
 
 ```bash
-# Testes unitários
-pnpm run test
-
-# Testes E2E
-pnpm run test:e2e
-
-# Cobertura de testes
-pnpm run test:cov
+pnpm run test        # Unitários
+pnpm run test:e2e    # E2E
+pnpm run test:cov    # Cobertura
 ```
 
 
@@ -109,10 +253,11 @@ pnpm run test:cov
 - `docker/`: Scripts de inicialização e configuração de containers.
 - `test/`: Testes de integração (E2E).
 
+
 ---
 
 ## Outros Pontos
 
-- **CORS:** O backend está configurado por padrão para aceitar requisições do frontend em `http://localhost:5173`.
-- **Massa de Dados:** O comando de seed gera automaticamente empresas (fabricos), facções, clientes, usuários (Admin/Proprietário) e fluxos de Kanban completos para testes.
-- **Segurança:** Nunca comite o arquivo `.env` com chaves reais. Utilize sempre o `.env.example` como base.
+- **CORS:** Configurado para aceitar requisições de `http://localhost:5173`.
+- **Massa de Dados:** O seed gera fabricos, facções, clientes, usuários, grades, tamanhos e Kanban completos.
+- **Segurança:** Nunca comite o `.env` com chaves reais. Use sempre o `.env.example` como base.
