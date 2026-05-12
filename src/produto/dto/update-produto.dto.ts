@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsNumber, IsOptional, IsString } from "class-validator";
 
 export class UpdateProduto {
     @IsOptional()
@@ -17,7 +17,7 @@ export class UpdateProduto {
     @IsNumber()
     grade_versao_id?: number;
 
+    @IsOptional()
     @IsNumber()
-    @IsNotEmpty()
-    tecido_id: number;
+    tecido_id?: number;
 }

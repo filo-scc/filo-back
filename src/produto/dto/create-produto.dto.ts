@@ -22,6 +22,6 @@ export class CreateProdutoDto {
     grade_versao_id?: number;
 
     @IsNumber()
-    @IsNotEmpty()
-    tecido_id: number;
+    @IsOptional()
+    tecido_id?: number;
 }
