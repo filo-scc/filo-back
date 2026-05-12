@@ -6,7 +6,7 @@
     "private": true,
     "license": "UNLICENSED",
     "pnpm": {
-  "onlyBuiltDependencies": [
+        "onlyBuiltDependencies": [
             "sharp",
             "esbuild",
             "bcrypt",

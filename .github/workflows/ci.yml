@@ -34,7 +34,7 @@ jobs:
           pnpm lint
 
       - name: Gerar Prisma Client
-        run: pnpm prisma generate
+        run: pnpm exec prisma generate
 
       - name: Build da aplicação
         run: pnpm build
@@ -58,7 +58,7 @@ jobs:
           node-version: 22
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
-      - run: pnpm prisma generate
+      - run: pnpm exec prisma generate
 
       - name: Executar Testes
         continue-on-error: true
@@ -99,4 +99,4 @@ jobs:
         run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
 
       - name: Executar migrações
-        run: pnpm prisma migrate deploy
+        run: pnpm exec prisma migrate deploy
