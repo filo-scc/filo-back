@@ -20,4 +20,8 @@ export class CreateProdutoDto {
     @IsNumber()
     @IsOptional()
     grade_versao_id?: number;
+
+    @IsNumber()
+    @IsOptional()
+    tecido_id?: number;
 }

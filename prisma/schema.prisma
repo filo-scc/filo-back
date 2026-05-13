@@ -37,6 +37,8 @@ model Fabrico {
   fichas_tecnicas FichaTecnica[]
   cores Cor[]
   fabrico_grades FabricoGrade[]
+  tecidos tecido[]
+  aviamentos Aviamento[]
 
   @@map("fabricos")
 }
@@ -178,6 +180,9 @@ model Produto {
 
   grade_versao_id Int?
   grade_versao GradeVersao? @relation(fields: [grade_versao_id], references: [id])
+
+  tecido_id Int?
+  tecido tecido? @relation(fields: [tecido_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
   faccao_produto FaccaoProduto[]
@@ -409,4 +414,35 @@ model FichaTecnicaItem {
   @@index([cor_id])
   @@index([grade_versao_item_id])
   @@map("ficha_tecnica_itens")
+}
+
+model tecido {
+  id Int @id @default(autoincrement())
+
+  nome String 
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
+
+  tecido_produto Produto[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([fabrico_id, nome])
+  @@index([fabrico_id])
+  @@map("tecidos")
+
+}
+
+model Aviamento {
+  id Int @id @default(autoincrement())
+
+  nome String
+  fabrico_id Int
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@unique([nome, fabrico_id])
+  @@map("aviamentos")
 }

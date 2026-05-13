@@ -16,8 +16,8 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { LoginDto } from "./dto/login-dto";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
-import { RolesGuard } from "src/common/guards/roles.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
 
 @Controller("usuarios")
 export class AuthController {
