@@ -15,6 +15,7 @@ import { FabricoGradeModule } from "./fabrico-grade/fabrico-grade.module";
 import { GradeModule } from "./grade/grade.module";
 import { TecidosModule } from "./tecidos/tecidos.module";
 import { AviamentoModule } from "./aviamento/aviamento.module";
+import { UploadModule } from "./common/utils/upload/upload.module";
 
 @Module({
     imports: [
@@ -32,6 +33,7 @@ import { AviamentoModule } from "./aviamento/aviamento.module";
         GradeModule,
         TecidosModule,
         AviamentoModule,
+        UploadModule,
     ],
     controllers: [AppController],
     providers: [AppService],
