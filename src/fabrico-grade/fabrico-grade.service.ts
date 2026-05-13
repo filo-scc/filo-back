@@ -67,7 +67,7 @@ export class FabricoGradeService {
 
     async findAll() {
         try {
-            return this.prisma.fabricoGrade.findMany({
+            return await this.prisma.fabricoGrade.findMany({
                 include: {
                     fabrico: true,
                     grade: {
@@ -101,7 +101,7 @@ export class FabricoGradeService {
 
     async findAllByFabricoID(fabrico_id: number) {
         try {
-            return this.prisma.fabricoGrade.findMany({
+            return await this.prisma.fabricoGrade.findMany({
                 where: {
                     fabrico_id: Number(fabrico_id),
                     ativo: true,
