@@ -31,5 +31,7 @@ import { AviamentoModule } from './aviamento/aviamento.module';
         GradeModule,
         AviamentoModule,
     ],
+    controllers: [AppController],
+    providers: [AppService],
 })
 export class AppModule {}
