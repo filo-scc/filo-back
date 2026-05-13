@@ -16,4 +16,8 @@ export class UpdateProduto {
     @IsOptional()
     @IsNumber()
     grade_versao_id?: number;
+
+    @IsOptional()
+    @IsNumber()
+    tecido_id?: number;
 }
