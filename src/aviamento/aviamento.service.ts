@@ -1,8 +1,4 @@
-import {
-    ConflictException,
-    Injectable,
-    NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, Aviamento } from "@prisma/client";
 import { CreateAviamentoDto } from "./dto/create-aviamento.dto";
 import { PrismaService } from "src/prisma/prisma.service";
