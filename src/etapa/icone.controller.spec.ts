@@ -8,7 +8,12 @@ describe("IconeController", () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [IconeController],
-            providers: [IconeService],
+            providers: [
+                {
+                    provide: IconeService,
+                    useValue: {},
+                },
+            ],
         }).compile();
 
         controller = module.get<IconeController>(IconeController);

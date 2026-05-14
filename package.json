@@ -108,6 +108,9 @@
             "lines": 5,
             "statements": 5
         }
+        },
+        "moduleNameMapper": {
+            "^src/(.*)$": "<rootDir>/$1"
         }
     },
     "prisma": {

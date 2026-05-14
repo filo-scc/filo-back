@@ -8,7 +8,12 @@ describe("CorController", () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [CorController],
-            providers: [CorService],
+            providers: [
+                {
+                    provide: CorService,
+                    useValue: {},
+                },
+            ],
         }).compile();
 
         controller = module.get<CorController>(CorController);
