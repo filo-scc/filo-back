@@ -7,13 +7,14 @@ describe("EtapaService", () => {
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
-            providers: [EtapaService,
+            providers: [
+                EtapaService,
 
                 {
                     provide: PrismaService,
                     useValue: {},
                 },
-            ]
+            ],
         }).compile();
 
         service = module.get<EtapaService>(EtapaService);

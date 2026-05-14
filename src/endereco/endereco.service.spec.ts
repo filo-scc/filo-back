@@ -7,13 +7,14 @@ describe("EnderecoService", () => {
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
-            providers: [EnderecoService,
+            providers: [
+                EnderecoService,
 
                 {
                     provide: PrismaService,
                     useValue: {},
                 },
-            ]
+            ],
         }).compile();
 
         service = module.get<EnderecoService>(EnderecoService);

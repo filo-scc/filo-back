@@ -7,13 +7,14 @@ describe("IconeService", () => {
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
-            providers: [IconeService,
+            providers: [
+                IconeService,
 
                 {
                     provide: PrismaService,
                     useValue: {},
                 },
-            ]
+            ],
         }).compile();
 
         service = module.get<IconeService>(IconeService);
