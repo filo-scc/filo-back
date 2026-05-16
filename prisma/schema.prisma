@@ -39,6 +39,7 @@ model Fabrico {
   fabrico_grades FabricoGrade[]
   tecidos tecido[]
   aviamentos Aviamento[]
+  pedidos Pedido[]
 
   @@map("fabricos")
 }
@@ -104,6 +105,7 @@ model Cliente {
   updated_at DateTime @updatedAt
 
   cliente_produto ClienteProduto[]
+  pedidos Pedido[]
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
@@ -219,6 +221,9 @@ model FichaTecnica {
 
   etapa_atual_id Int?
   etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
+
+  pedido_id Int?
+  pedido Pedido? @relation(fields: [pedido_id], references: [id])
 
   fichas_etapas FichaEtapa[]
   ficha_tecnica_itens FichaTecnicaItem[]
@@ -445,4 +450,21 @@ model Aviamento {
 
   @@unique([nome, fabrico_id])
   @@map("aviamentos")
+}
+
+model Pedido {
+  id Int @id @default(autoincrement())
+
+  finalizado Boolean
+  data_prevista DateTime?
+  observacoes String?
+  cliente_id Int?
+  fabrico_id Int
+
+  cliente Cliente? @relation(fields: [cliente_id], references: [id])
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  fichas_tecnicas FichaTecnica[]
+
+  @@map("pedidos")
 }
