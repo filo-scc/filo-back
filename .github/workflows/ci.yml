@@ -90,7 +90,7 @@ jobs:
   validate-production-image:
     name: Validate Production Image
     runs-on: ubuntu-latest
-    needs: validate-and-build
+    needs: [validate-and-build, test]
 
     steps:
       - name: Checkout código
