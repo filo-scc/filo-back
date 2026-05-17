@@ -1,6 +1,6 @@
 import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Cargo } from "@prisma/client";
-import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
+import { CreateEnderecoDto } from "../../endereco/dto/create-endereco.dto";
 import { Type } from "class-transformer";
 
 export class CreateUserDto {
