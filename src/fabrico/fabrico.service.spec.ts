@@ -173,7 +173,7 @@ describe("FabricoService", () => {
 
     describe("delete", () => {
         it("deve deletar o fabrico com sucesso", async () => {
-            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData); // Passa na verificação do ID
+            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData); 
             prismaService.fabrico.delete.mockResolvedValue(fabricoData);
 
             const resultado = await service.delete(1);
@@ -188,7 +188,7 @@ describe("FabricoService", () => {
             prismaService.fabrico.findUnique.mockResolvedValue(null);
 
             await expect(service.delete(99)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fabrico.delete).not.toHaveBeenCalled(); // Garante que não tentou deletar no banco
+            expect(prismaService.fabrico.delete).not.toHaveBeenCalled(); 
         });
     });
 });
