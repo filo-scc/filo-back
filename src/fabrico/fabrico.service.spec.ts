@@ -52,7 +52,6 @@ describe("FabricoService", () => {
         it("deve criar um fabrico com sucesso quando receber dados válidos", async () => {
             prismaService.fabrico.create.mockResolvedValue(fabricoData);
 
-
             const { ...createDto } = fabricoData;
             const resultado = await service.create(createDto);
 
@@ -67,7 +66,7 @@ describe("FabricoService", () => {
             const fabricoVazio = { id: 2 };
             prismaService.fabrico.create.mockResolvedValue(fabricoVazio);
 
-            const resultado = await service.create({}); 
+            const resultado = await service.create({});
 
             expect(resultado).toEqual(fabricoVazio);
             expect(prismaService.fabrico.create).toHaveBeenCalledWith({
@@ -86,8 +85,6 @@ describe("FabricoService", () => {
 
             await expect(service.create(fabricoData)).rejects.toThrow(ConflictException);
 
-        
-            
             await expect(service.create(fabricoData)).rejects.toThrow("CNPJ já cadastrado");
         });
 
@@ -98,7 +95,6 @@ describe("FabricoService", () => {
             await expect(service.create(fabricoData)).rejects.toThrow(erroGenerico);
         });
     });
-
 
     describe("getAll", () => {
         it("deve retornar uma lista de fabricos", async () => {
@@ -132,13 +128,10 @@ describe("FabricoService", () => {
         });
     });
 
-   
     describe("update", () => {
         it("deve atualizar os dados do fabrico com sucesso", async () => {
-            
             prismaService.fabrico.findUnique.mockResolvedValue(fabricoData);
 
-           
             const dadosAtualizados = { ...fabricoData, nome_fantasia: "Novo Nome" };
             prismaService.fabrico.update.mockResolvedValue(dadosAtualizados);
 
@@ -155,17 +148,17 @@ describe("FabricoService", () => {
             prismaService.fabrico.findUnique.mockResolvedValue(null);
 
             await expect(service.update(99, fabricoData)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fabrico.update).not.toHaveBeenCalled(); 
+            expect(prismaService.fabrico.update).not.toHaveBeenCalled();
         });
 
         it("deve lançar ConflictException se a atualização violar um CNPJ já existente (Erro P2002)", async () => {
-            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData); 
+            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData);
 
             const prismaError = new Prisma.PrismaClientKnownRequestError(
                 "Unique constraint failed",
                 { code: "P2002", clientVersion: "4.x" },
             );
-            prismaService.fabrico.update.mockRejectedValue(prismaError); 
+            prismaService.fabrico.update.mockRejectedValue(prismaError);
 
             await expect(service.update(1, fabricoData)).rejects.toThrow(ConflictException);
         });
@@ -173,7 +166,7 @@ describe("FabricoService", () => {
 
     describe("delete", () => {
         it("deve deletar o fabrico com sucesso", async () => {
-            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData); 
+            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData);
             prismaService.fabrico.delete.mockResolvedValue(fabricoData);
 
             const resultado = await service.delete(1);
@@ -188,7 +181,7 @@ describe("FabricoService", () => {
             prismaService.fabrico.findUnique.mockResolvedValue(null);
 
             await expect(service.delete(99)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fabrico.delete).not.toHaveBeenCalled(); 
+            expect(prismaService.fabrico.delete).not.toHaveBeenCalled();
         });
     });
 });
