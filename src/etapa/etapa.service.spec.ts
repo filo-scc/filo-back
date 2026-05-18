@@ -118,7 +118,9 @@ describe("EtapaService", () => {
             });
             prismaService.etapa.findMany.mockRejectedValue(prismaError);
 
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+            await expect(service.findAllByFabricoID(1)).rejects.toThrow(
+                Prisma.PrismaClientKnownRequestError,
+            );
             await expect(service.findAllByFabricoID(1)).rejects.toThrow("Erro");
         });
 
@@ -128,10 +130,10 @@ describe("EtapaService", () => {
             });
             prismaService.etapa.findMany.mockRejectedValue(prismaError);
 
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow(Prisma.PrismaClientValidationError);
             await expect(service.findAllByFabricoID(1)).rejects.toThrow(
-                "Erro de validação",
+                Prisma.PrismaClientValidationError,
             );
+            await expect(service.findAllByFabricoID(1)).rejects.toThrow("Erro de validação");
         });
     });
 
