@@ -2,37 +2,49 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   validate-and-build:
     name: Lint, Format & Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: "pnpm"
-      - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
-      - name: Lint & Format
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
+
+      - name: Verificar Lint e Formatação
         run: |
           pnpm exec prettier --check .
           pnpm lint
-      - run: pnpm prisma generate
-      - run: pnpm build
+
+      - name: Gerar Prisma Client
+        run: pnpm exec prisma generate
+
+      - name: Build da aplicação
+        run: pnpm build
 
   test:
     name: Run Tests & Coverage
     runs-on: ubuntu-latest
     needs: validate-and-build
     env:
-      # Use um banco mock para testes unitários
+      # Banco mock para testes unitários
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/unused"
       JWT_ACCESS_SECRET: "test_secret"
       JWT_REFRESH_SECRET: "test_secret"
@@ -46,10 +58,10 @@ jobs:
           node-version: 22
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
-      - run: pnpm prisma generate
-      
+      - run: pnpm exec prisma generate
+
       - name: Executar Testes
-        continue-on-error: true 
+        continue-on-error: true
         run: pnpm test:cov
 
       - name: Upload Coverage Report
@@ -62,17 +74,29 @@ jobs:
     name: Prisma Migrate Deploy
     runs-on: ubuntu-latest
     needs: [validate-and-build, test]
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
     env:
       DATABASE_URL: ${{ secrets.DIRECT_URL }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: "pnpm"
-      - run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
-      - run: pnpm prisma migrate deploy
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile --config.only-built-dependencies-schema=false
+
+      - name: Executar migrações
+        run: pnpm exec prisma migrate deploy

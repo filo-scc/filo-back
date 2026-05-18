@@ -38,6 +38,7 @@ model Fabrico {
   cores Cor[]
   fabrico_grades FabricoGrade[]
   tecidos tecido[]
+  aviamentos Aviamento[]
 
   @@map("fabricos")
 }
@@ -432,4 +433,16 @@ model tecido {
   @@index([fabrico_id])
   @@map("tecidos")
 
+}
+
+model Aviamento {
+  id Int @id @default(autoincrement())
+
+  nome String
+  fabrico_id Int
+
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  @@unique([nome, fabrico_id])
+  @@map("aviamentos")
 }

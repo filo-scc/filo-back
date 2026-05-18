@@ -32,7 +32,7 @@ export class FabricoGradeController {
         return this.fabricoGradeService.findAll();
     }
 
-    @Roles("PROPIETARIO", "GERENTE")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
     findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
         return this.fabricoGradeService.findAllByFabricoID(fabrico_id);

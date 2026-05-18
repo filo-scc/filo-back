@@ -8,7 +8,6 @@
 #
 # =============================================================================
 services:
-
   # ── PostgreSQL ───────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
@@ -49,6 +48,8 @@ services:
       # Isso sobrescreve o valor do .env, que usa @localhost:5433 para uso local.
       # Assim o mesmo .env funciona para os dois modos sem nenhuma alteração.
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public"
+      TSC_WATCHFILE: UseFsEventsWithFallbackDynamicPolling
+      CHOCKIDAR_USEPOLLING: "true"
       PORT: ${PORT:-3000}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -61,6 +62,7 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
       - /usr/src/app/node_modules/.prisma
+      - api_state:/data
     networks:
       - filo-network
 
@@ -71,3 +73,4 @@ networks:
 
 volumes:
   postgres_data:
+  api_state:
