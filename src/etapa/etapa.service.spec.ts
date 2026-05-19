@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { EtapaService } from "./etapa.service";
-import { PrismaService } from "../prisma/prisma.service"; // Ajuste o path conforme seu projeto
-import { ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service"; 
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 const mockPrismaService = {
