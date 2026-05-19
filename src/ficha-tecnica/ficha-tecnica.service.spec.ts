@@ -76,7 +76,6 @@ describe("FichaTecnicaService", () => {
         expect(service).toBeDefined();
     });
 
-   
     describe("create", () => {
         const createDto = { produto_id: 10, fabrico_id: 20 } as any;
 
@@ -140,13 +139,12 @@ describe("FichaTecnicaService", () => {
         const updateDto = { fabrico_id: 20, etapa_atual_id: 40 } as any;
 
         beforeEach(() => {
-           
             jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
             prismaService.produto.findFirst.mockResolvedValue({ id: 10, grade_versao_id: 30 });
         });
 
         it("deve atualizar a ficha com sucesso", async () => {
-            etapaService.getById.mockResolvedValue({ fabrico_id: 20 }); 
+            etapaService.getById.mockResolvedValue({ fabrico_id: 20 });
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
                 etapa_atual_id: 40,
@@ -156,14 +154,14 @@ describe("FichaTecnicaService", () => {
 
             expect(result.etapa_atual_id).toEqual(40);
             expect(prismaService.fichaTecnica.update).toHaveBeenCalled();
-            expect(prismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled(); 
+            expect(prismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
         });
 
         it("deve limpar os itens da ficha se a grade_versao_id for alterada", async () => {
             const updateComGradeDto = { ...updateDto, grade_versao_id: 31 };
 
             etapaService.getById.mockResolvedValue({ fabrico_id: 20 });
-            prismaService.gradeVersao.findFirst.mockResolvedValue({ id: 31, grade_id: 5 }); 
+            prismaService.gradeVersao.findFirst.mockResolvedValue({ id: 31, grade_id: 5 });
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
                 grade_versao_id: 31,
@@ -171,7 +169,6 @@ describe("FichaTecnicaService", () => {
 
             await service.update(1, updateComGradeDto);
 
-           
             expect(prismaService.fichaTecnicaItem.deleteMany).toHaveBeenCalledWith({
                 where: { ficha_tecnica_id: 1 },
             });
@@ -188,7 +185,7 @@ describe("FichaTecnicaService", () => {
         });
 
         it("deve lançar BadRequestException se o produto não pertencer ao novo fabrico", async () => {
-            prismaService.produto.findFirst.mockResolvedValue(null); 
+            prismaService.produto.findFirst.mockResolvedValue(null);
 
             await expect(service.update(1, { fabrico_id: 21 } as any)).rejects.toThrow(
                 BadRequestException,
@@ -219,7 +216,6 @@ describe("FichaTecnicaService", () => {
         });
     });
 
-   
     describe("remove", () => {
         it("deve remover a ficha com sucesso", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
@@ -239,7 +235,6 @@ describe("FichaTecnicaService", () => {
         });
     });
 
-
     describe("findAllByFabricoId", () => {
         it("deve retornar lista de fichas por fabrico", async () => {
             prismaService.fichaTecnica.findMany.mockResolvedValue([fichaData]);
@@ -248,13 +243,10 @@ describe("FichaTecnicaService", () => {
         });
 
         it("deve capturar PrismaClientValidationError e lançar BadRequestException", async () => {
-          
             const prismaError = new Error("Erro de validação");
 
-            
             Object.setPrototypeOf(prismaError, Prisma.PrismaClientValidationError.prototype);
 
-            
             prismaService.fichaTecnica.findMany.mockRejectedValue(prismaError);
 
             await expect(service.findAllByFabricoId(20)).rejects.toThrow(BadRequestException);
