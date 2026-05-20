@@ -8,7 +8,12 @@ describe("FaccaoController", () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [FaccaoController],
-            providers: [FaccaoService],
+            providers: [
+                {
+                    provide: FaccaoService,
+                    useValue: {},
+                },
+            ],
         }).compile();
 
         controller = module.get<FaccaoController>(FaccaoController);

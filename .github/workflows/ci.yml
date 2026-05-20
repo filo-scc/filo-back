@@ -78,7 +78,7 @@ jobs:
         run: pnpm exec prisma generate
 
       - name: Executar Testes
-        continue-on-error: true
+        continue-on-error: false
         run: pnpm test:cov
 
       - name: Upload Coverage Report
