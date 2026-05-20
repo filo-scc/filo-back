@@ -258,6 +258,50 @@ pnpm run test:cov    # Cobertura
 
 ## Outros Pontos
 
-- **CORS:** Configurado para aceitar requisições de `http://localhost:5173`.
-- **Massa de Dados:** O seed gera fabricos, facções, clientes, usuários, grades, tamanhos e Kanban completos.
-- **Segurança:** Nunca comite o `.env` com chaves reais. Use sempre o `.env.example` como base.
+- **CORS:** O backend está configurado por padrão para aceitar requisições do frontend em `http://localhost:5173`.
+- **Massa de Dados:** O comando de seed gera automaticamente empresas (fabricos), facções, clientes, usuários (Admin/Proprietário) e fluxos de Kanban completos para testes.
+- **Segurança:** Nunca comite o arquivo `.env` com chaves reais. Utilize sempre o `.env.example` como base.
+
+## Imagem de Produção
+
+O repositório mantém uma imagem dedicada de produção em `Dockerfile.prod`. Ela é separada do Docker de desenvolvimento e:
+
+- compila a API para `dist`
+- executa com `NODE_ENV=production`
+- inicia com `node dist/src/main.js`
+- não usa hot reload, seed, volumes ou `.env` real embutido
+
+### Build local
+
+```bash
+docker build -f Dockerfile.prod -t filo-back:prod .
+```
+
+### Execução local da imagem
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL="postgresql://usuario:senha@host:5432/database?schema=public" \
+  -e JWT_ACCESS_SECRET="troque" \
+  -e JWT_REFRESH_SECRET="troque" \
+  -e PORT=3000 \
+  filo-back:prod
+```
+
+As variáveis reais de ambiente não são copiadas da branch nem do `.env`. A imagem é publicada genérica e recebe os valores no runtime.
+
+## CI e GHCR
+
+O workflow em `.github/workflows/ci.yml` faz dois fluxos:
+
+- em PR para `master` ou `main`: valida lint, build da aplicação e build da imagem de produção
+- em `push` para `master` ou `main`: publica a imagem no GHCR
+
+Formato esperado da imagem publicada:
+
+```text
+ghcr.io/filo-scc/filo-back:latest
+ghcr.io/filo-scc/filo-back:sha-<commit>
+```
+
+Para o publish funcionar, o repositório precisa permitir escrita de packages para o `GITHUB_TOKEN`.

@@ -27,6 +27,11 @@ docker-compose*.yml
 docker/
 !docker/entrypoint.dev.sh
 
+# Documentação local
+INFRASTRUCTURE.md
+inicio-guia-docker.md
+como-o-front-conhece-o-backend.md
+
 # Editor / OS
 .DS_Store
 .vscode
