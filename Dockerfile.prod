@@ -1,0 +1,45 @@
+# Base comum para build e runtime.
+# Mantém a mesma versão de Node/pnpm e instala dependências nativas exigidas pelo Prisma.
+FROM node:22-alpine AS base
+
+RUN apk add --no-cache libc6-compat openssl
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /usr/src/app
+
+# Instala todas as dependências uma única vez para aproveitar cache entre builds.
+FROM base AS deps
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Compila a aplicação e gera o Prisma Client.
+# O prune remove dependências de desenvolvimento antes de copiarmos node_modules ao runtime.
+FROM deps AS build
+
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY prisma ./prisma
+COPY src ./src
+RUN pnpm exec prisma generate
+RUN pnpm run build
+RUN pnpm prune --prod
+
+# Imagem final de produção: só recebe artefatos necessários para executar a API.
+FROM base AS runtime
+
+ENV NODE_ENV=production
+
+COPY --from=build /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/prisma ./prisma
+COPY --from=build /usr/src/app/package.json ./package.json
+
+# Evita executar o processo como root no container final.
+RUN addgroup -S nodejs && adduser -S nestjs -G nodejs
+USER nestjs
+
+EXPOSE 3000
+
+# Runtime simples, sem seed, sem migrations automáticas e sem watch mode.
+# Neste projeto o Nest compila o entrypoint para dist/src/main.js.
+CMD ["node", "dist/src/main.js"]
