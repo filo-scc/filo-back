@@ -103,15 +103,7 @@ export class ProdutoService {
     async findAllFabrico(fabrico_id: number) {
         const produtos = await this.prisma.produto.findMany({
             where: { fabrico_id: fabrico_id },
-            select: {
-                id: true,
-                foto: true,
-                nome: true,
-                tipo: true,
-                created_at: true,
-                fabrico_id: true,
-                grade_versao_id: true,
-                tecido_id: true,
+            include: {
                 tecido: true,
             },
         });
