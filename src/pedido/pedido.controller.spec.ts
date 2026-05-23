@@ -1,8 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { PedidoController } from './pedido.controller';
-import { PedidoService } from './pedido.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { PedidoController } from "./pedido.controller";
+import { PedidoService } from "./pedido.service";
 
-describe('PedidoController', () => {
+describe("PedidoController", () => {
     let controller: PedidoController;
 
     const mockPedidoService = {
@@ -27,7 +27,7 @@ describe('PedidoController', () => {
         controller = module.get<PedidoController>(PedidoController);
     });
 
-    it('should be defined', () => {
+    it("should be defined", () => {
         expect(controller).toBeDefined();
     });
 });
