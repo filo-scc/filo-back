@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
-import { FaccaoService } from "./faccao.service";
-import { CreateFaccaoDto } from "./dto/create-faccao.dto";
-import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
+import { ParceiroService } from "./faccao.service";
+import { CreateParceiroDto } from "./dto/create-faccao.dto";
+import { UpdateParceiroDto } from "./dto/update-faccao.dto";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -10,36 +10,36 @@ import { Roles } from "../common/decorators/roles.decorator";
 @Controller("faccoes")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
-export class FaccaoController {
-    constructor(private readonly faccaoService: FaccaoService) {}
+export class ParceiroController {
+    constructor(private readonly parceiroService: ParceiroService) {}
 
     @Post()
-    create(@Body() data: CreateFaccaoDto) {
-        return this.faccaoService.create(data);
+    create(@Body() data: CreateParceiroDto) {
+        return this.parceiroService.create(data);
     }
 
     @Get("fabrico/:id")
-    findAllFaccaoByFabrico(@Param("id") id: string) {
-        return this.faccaoService.getAllFaccaoByFabrico(Number(id));
+    findAllparceiroByFabrico(@Param("id") id: string) {
+        return this.parceiroService.getAllparceiroByFabrico(Number(id));
     }
 
     @Get()
     findAll() {
-        return this.faccaoService.getAll();
+        return this.parceiroService.getAll();
     }
 
     @Get(":id")
     findOne(@Param("id") id: string) {
-        return this.faccaoService.getById(+id);
+        return this.parceiroService.getById(+id);
     }
 
     @Put(":id")
-    update(@Param("id") id: string, @Body() data: UpdateFaccaoDto) {
-        return this.faccaoService.update(+id, data);
+    update(@Param("id") id: string, @Body() data: UpdateParceiroDto) {
+        return this.parceiroService.update(+id, data);
     }
 
     @Delete(":id")
     remove(@Param("id") id: string) {
-        return this.faccaoService.delete(+id);
+        return this.parceiroService.delete(+id);
     }
 }

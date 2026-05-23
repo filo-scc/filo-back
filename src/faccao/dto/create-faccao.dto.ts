@@ -26,7 +26,7 @@ export enum FormaPagamentoEnum {
 
 import { Type } from "class-transformer";
 import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
-export class CreateFaccaoDto {
+export class CreateParceiroDto {
     @IsString()
     nome: string;
 

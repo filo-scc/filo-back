@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 
-export const FaccaoFactory = {
+export const ParceiroFactory = {
     build(overrides: any = {}) {
         const { fabrico_id, endereco, ...restOverrides } = overrides;
 
@@ -29,7 +29,7 @@ export const FaccaoFactory = {
     async create(prisma: PrismaClient, overrides: any = {}) {
         const data = this.build(overrides);
 
-        return prisma.faccao.upsert({
+        return prisma.parceiro.upsert({
             // Usando a chave composta gerada pelo @@unique no schema
             where: {
                 fabrico_id_nome: {

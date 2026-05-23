@@ -13,51 +13,51 @@ import {
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
-import { FaccaoProdutoService } from "./faccaoProduto.service";
-import { CreateFaccaoProdutoDto } from "./dto/create-faccaoproduto.dto";
-import { UpdateFaccaoProdutoDto } from "./dto/update-faccaoproduto.dto";
+import { ParceiroProdutoService } from "./faccaoProduto.service";
+import { CreateParceiroProdutoDto } from "./dto/create-faccaoproduto.dto";
+import { UpdateParceiroProdutoDto } from "./dto/update-faccaoproduto.dto";
 
 @Controller("faccoes-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class FaccaoProdutoController {
-    constructor(private readonly faccaoProdutoService: FaccaoProdutoService) {}
+    constructor(private readonly ParceiroProdutoService: ParceiroProdutoService) {}
 
     @Roles("PROPRIETARIO", "ADMIN")
-    @Post(":faccao_id/:produto_id")
-    createFaccaoProduto(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
+    @Post(":Parceiro_id/:produto_id")
+    createParceiroProduto(
+        @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
-        @Body() data: CreateFaccaoProdutoDto,
+        @Body() data: CreateParceiroProdutoDto,
     ) {
-        return this.faccaoProdutoService.createFaccaoProduto(idFaccao, idProduto, data);
+        return this.ParceiroProdutoService.createParceiroProduto(idParceiro, idProduto, data);
     }
 
     @Roles("PROPRIETARIO", "ADMIN")
-    @Delete(":faccao_id/:produto_id")
-    deleteFaccaoProduto(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
+    @Delete(":Parceiro_id/:produto_id")
+    deleteParceiroProduto(
+        @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
     ) {
-        return this.faccaoProdutoService.deleteFaccaoProduto(idFaccao, idProduto);
+        return this.ParceiroProdutoService.deleteParceiroProduto(idParceiro, idProduto);
     }
 
-    @Get("/faccao/:faccao_id")
-    getProdutosByFaccao(@Param("faccao_id", ParseIntPipe) idFaccao: number) {
-        return this.faccaoProdutoService.getProdutosByFaccao(idFaccao);
+    @Get("/Parceiro/:Parceiro_id")
+    getProdutosByParceiro(@Param("Parceiro_id", ParseIntPipe) idParceiro: number) {
+        return this.ParceiroProdutoService.getProdutosByParceiro(idParceiro);
     }
 
     @Get("produto/:produto_id")
-    getFaccaoByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
-        return this.faccaoProdutoService.getFaccaoByProduto(idProduto);
+    getParceiroByProduto(@Param("produto_id", ParseIntPipe) idProduto: number) {
+        return this.ParceiroProdutoService.getParceiroByProduto(idProduto);
     }
 
     @Roles("PROPRIETARIO", "ADMIN")
-    @Put(":faccao_id/:produto_id")
-    updateFaccaoProduto(
-        @Param("faccao_id", ParseIntPipe) idFaccao: number,
+    @Put(":Parceiro_id/:produto_id")
+    updateParceiroProduto(
+        @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
-        @Body() data: UpdateFaccaoProdutoDto,
+        @Body() data: UpdateParceiroProdutoDto,
     ) {
-        return this.faccaoProdutoService.updateFaccaoProduto(idFaccao, idProduto, data);
+        return this.ParceiroProdutoService.updateParceiroProduto(idParceiro, idProduto, data);
     }
 }

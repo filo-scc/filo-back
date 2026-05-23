@@ -1,97 +1,97 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { UpdateFaccaoProdutoDto } from "./dto/update-faccaoproduto.dto";
-import { CreateFaccaoProdutoDto } from "./dto/create-faccaoproduto.dto";
+import { UpdateParceiroProdutoDto } from "./dto/update-faccaoproduto.dto";
+import { CreateParceiroProdutoDto } from "./dto/create-faccaoproduto.dto";
 import { ProdutoService } from "src/produto/produto.service";
-import { FaccaoService } from "./faccao.service";
+import { ParceiroService } from "./faccao.service";
 
 @Injectable()
-export class FaccaoProdutoService {
+export class ParceiroProdutoService {
     constructor(
         private prisma: PrismaService,
         private readonly produtoService: ProdutoService,
-        private readonly faccaoService: FaccaoService,
+        private readonly parceiroService: ParceiroService,
     ) {}
 
-    async createFaccaoProduto(faccao_id: number, produto_id: number, data: CreateFaccaoProdutoDto) {
-        const [produto, faccao] = await Promise.all([
+    async createParceiroProduto(parceiro_id: number, produto_id: number, data: CreateParceiroProdutoDto) {
+        const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
-            this.faccaoService.getById(faccao_id),
+            this.parceiroService.getById(parceiro_id),
         ]);
 
-        if (produto.fabrico_id !== faccao.fabrico_id) {
+        if (produto.fabrico_id !== parceiro.fabrico_id) {
             throw new ConflictException("O produto e a facção devem pertencer ao mesmo fabrico");
         }
 
-        const vinculoExiste = await this.prisma.faccaoProduto.findUnique({
-            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+        const vinculoExiste = await this.prisma.parceiroProduto.findUnique({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
         });
 
         if (vinculoExiste) {
             throw new ConflictException("Este produto já está vinculado a esta facção");
         }
 
-        return await this.prisma.faccaoProduto.create({
+        return await this.prisma.parceiroProduto.create({
             data: {
                 produto_id: produto_id,
-                faccao_id: faccao_id,
+                parceiro_id: parceiro_id,
                 preco: data.preco,
             },
         });
     }
 
-    async deleteFaccaoProduto(faccao_id: number, produto_id: number) {
-        const vinculo = await this.prisma.faccaoProduto.findUnique({
-            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+    async deleteParceiroProduto(parceiro_id: number, produto_id: number) {
+        const vinculo = await this.prisma.parceiroProduto.findUnique({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
         });
 
         if (!vinculo) throw new NotFoundException("Vínculo não encontrado");
 
-        return await this.prisma.faccaoProduto.delete({
-            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+        return await this.prisma.parceiroProduto.delete({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
         });
     }
 
-    async getProdutosByFaccao(faccao_id: number) {
-        const faccao = await this.prisma.faccao.findUnique({ where: { id: faccao_id } });
-        if (!faccao) throw new NotFoundException("Facção não encontrada");
+    async getProdutosByParceiro(parceiro_id: number) {
+        const parceiro = await this.prisma.parceiro.findUnique({ where: { id: parceiro_id } });
+        if (!parceiro) throw new NotFoundException("Facção não encontrada");
 
-        return await this.prisma.faccaoProduto.findMany({
-            where: { faccao_id: faccao_id },
+        return await this.prisma.parceiroProduto.findMany({
+            where: { parceiro_id: parceiro_id },
             include: { produto: true },
         });
     }
 
-    async getFaccaoByProduto(produto_id: number) {
+    async getParceiroByProduto(produto_id: number) {
         const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
         if (!produto) throw new NotFoundException("Produto não encontrado");
 
-        return await this.prisma.faccaoProduto.findMany({
+        return await this.prisma.parceiroProduto.findMany({
             where: { produto_id: produto_id },
-            include: { faccao: true },
+            include: { parceiro: true },
         });
     }
 
-    async updateFaccaoProduto(faccao_id: number, produto_id: number, data: UpdateFaccaoProdutoDto) {
-        const [produto, faccao] = await Promise.all([
+    async updateParceiroProduto(parceiro_id: number, produto_id: number, data: UpdateParceiroProdutoDto) {
+        const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
-            this.faccaoService.getById(faccao_id),
+            this.parceiroService.getById(parceiro_id),
         ]);
 
-        if (produto.fabrico_id !== faccao.fabrico_id) {
+        if (produto.fabrico_id !== parceiro.fabrico_id) {
             throw new ConflictException("O produto e a facção devem pertencer ao mesmo fabrico");
         }
 
-        const vinculo = await this.prisma.faccaoProduto.findUnique({
-            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+        const vinculo = await this.prisma.parceiroProduto.findUnique({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
         });
 
         if (!vinculo) {
             throw new NotFoundException("Relacionamento não encontrado");
         }
 
-        return await this.prisma.faccaoProduto.update({
-            where: { produto_id_faccao_id: { produto_id, faccao_id } },
+        return await this.prisma.parceiroProduto.update({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
             data: { preco: data.preco },
         });
     }

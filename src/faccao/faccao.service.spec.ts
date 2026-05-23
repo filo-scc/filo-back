@@ -1,17 +1,17 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { FaccaoService } from "./faccao.service";
+import { ParceiroService } from "./faccao.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 
-describe("FaccaoService", () => {
-    let service: FaccaoService;
+describe("ParceiroService", () => {
+    let service: ParceiroService;
     let prisma: PrismaService;
     let enderecoService: EnderecoService;
 
     const mockPrismaService = {
-        faccao: {
+        parceiro: {
             findMany: jest.fn<any>(),
             findUnique: jest.fn<any>(),
             findFirst: jest.fn<any>(),
@@ -26,7 +26,7 @@ describe("FaccaoService", () => {
         update: jest.fn<any>(),
     };
 
-    const mockFaccao = {
+    const mockparceiro = {
         id: 1,
         nome: "Facção Teste",
         fabrico_id: 1,
@@ -38,13 +38,13 @@ describe("FaccaoService", () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
-                FaccaoService,
+                ParceiroService,
                 { provide: PrismaService, useValue: mockPrismaService },
                 { provide: EnderecoService, useValue: mockEnderecoService },
             ],
         }).compile();
 
-        service = module.get<FaccaoService>(FaccaoService);
+        service = module.get<ParceiroService>(ParceiroService);
         prisma = module.get<PrismaService>(PrismaService);
         enderecoService = module.get<EnderecoService>(EnderecoService);
 
@@ -57,15 +57,15 @@ describe("FaccaoService", () => {
 
     describe("getAll()", () => {
         it("deve retornar todos as facções incluindo os seus respectivos endereços", async () => {
-            mockPrismaService.faccao.findMany.mockResolvedValue([mockFaccao]);
+            mockPrismaService.parceiro.findMany.mockResolvedValue([mockparceiro]);
 
             const result = await service.getAll();
-            expect(result).toEqual([mockFaccao]);
-            expect(prisma.faccao.findMany).toHaveBeenCalledTimes(1);
+            expect(result).toEqual([mockparceiro]);
+            expect(prisma.parceiro.findMany).toHaveBeenCalledTimes(1);
         });
 
         it("deve lançar NotFoundException caso tenha uma falha na requisição com o banco", async () => {
-            mockPrismaService.faccao.findMany.mockRejectedValue(
+            mockPrismaService.parceiro.findMany.mockRejectedValue(
                 new Error("Nenhuma facção encontrada"),
             );
 
@@ -73,13 +73,13 @@ describe("FaccaoService", () => {
         });
     });
 
-    describe("getAllFaccaoByFabrico()", () => {
+    describe("getAllparceiroByFabrico()", () => {
         it("deve retornar todas as facções de um determinado fabrico", async () => {
-            mockPrismaService.faccao.findMany.mockResolvedValue([mockFaccao]);
+            mockPrismaService.parceiro.findMany.mockResolvedValue([mockparceiro]);
 
-            const result = await service.getAllFaccaoByFabrico(1);
-            expect(result).toEqual([mockFaccao]);
-            expect(prisma.faccao.findMany).toHaveBeenCalledWith(
+            const result = await service.getAllparceiroByFabrico(1);
+            expect(result).toEqual([mockparceiro]);
+            expect(prisma.parceiro.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({ where: { fabrico_id: 1 } }),
             );
         });
@@ -87,17 +87,17 @@ describe("FaccaoService", () => {
 
     describe("getById()", () => {
         it("deve retornar os dados de uma facção caso ela exista", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(mockparceiro);
 
             const result = await service.getById(1);
-            expect(result).toEqual(mockFaccao);
-            expect(prisma.faccao.findUnique).toHaveBeenCalledWith(
+            expect(result).toEqual(mockparceiro);
+            expect(prisma.parceiro.findUnique).toHaveBeenCalledWith(
                 expect.objectContaining({ where: { id: 1 } }),
             );
         });
 
         it("deve lançar NotFoundException caso a facção não exista", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(null);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(null);
 
             await expect(service.getById(99)).rejects.toThrow(NotFoundException);
         });
@@ -112,15 +112,15 @@ describe("FaccaoService", () => {
         };
 
         it("deve criar um facção com seu respetivo endereço com sucesso", async () => {
-            mockPrismaService.faccao.findFirst.mockResolvedValue(null);
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
             mockEnderecoService.create.mockResolvedValue({ id: 20 });
-            mockPrismaService.faccao.create.mockResolvedValue({ id: 2, ...createDto });
+            mockPrismaService.parceiro.create.mockResolvedValue({ id: 2, ...createDto });
 
             const result = await service.create(createDto);
 
             expect(result).toEqual({ message: "Facção criada com sucesso" });
             expect(enderecoService.create).toHaveBeenCalledWith(createDto.endereco);
-            expect(prisma.faccao.create).toHaveBeenCalledWith({
+            expect(prisma.parceiro.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
                     nome: "Nova Facção",
                     endereco: { connect: { id: 20 } },
@@ -130,11 +130,11 @@ describe("FaccaoService", () => {
         });
 
         it("deve impedir e lançar ConflictException caso tente cadastrar um nome de uma facção existente no mesmo fabrico", async () => {
-            mockPrismaService.faccao.findFirst.mockResolvedValue(mockFaccao);
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(mockparceiro);
 
             await expect(service.create(createDto)).rejects.toThrow(ConflictException);
             expect(enderecoService.create).not.toHaveBeenCalled();
-            expect(prisma.faccao.create).not.toHaveBeenCalled();
+            expect(prisma.parceiro.create).not.toHaveBeenCalled();
         });
     });
 
@@ -145,12 +145,12 @@ describe("FaccaoService", () => {
         };
 
         it("deve atualizar os dados de uma facção e seu endereço com sucesso", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
-            mockPrismaService.faccao.findFirst.mockResolvedValue(null);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(mockparceiro);
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
 
             mockEnderecoService.update.mockResolvedValue({});
-            mockPrismaService.faccao.update.mockResolvedValue({
-                ...mockFaccao,
+            mockPrismaService.parceiro.update.mockResolvedValue({
+                ...mockparceiro,
                 nome: "Facção Atualizada",
             });
 
@@ -158,29 +158,29 @@ describe("FaccaoService", () => {
 
             expect(result).toEqual({ message: "Facção atualizada com sucesso" });
             expect(enderecoService.update).toHaveBeenCalledWith(10, updateDto.endereco);
-            expect(prisma.faccao.update).toHaveBeenCalledWith({
+            expect(prisma.parceiro.update).toHaveBeenCalledWith({
                 where: { id: 1 },
                 data: expect.objectContaining({ nome: "Facção Atualizada" }),
             });
         });
 
         it("deve lançar ConflictException ao tentar atualizar um facção para um nome que já existente", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
-            mockPrismaService.faccao.findFirst.mockResolvedValue({
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(mockparceiro);
+            mockPrismaService.parceiro.findFirst.mockResolvedValue({
                 id: 2,
                 nome: "Facção Atualizada",
             });
 
             await expect(service.update(1, updateDto)).rejects.toThrow(ConflictException);
-            expect(prisma.faccao.update).not.toHaveBeenCalled();
+            expect(prisma.parceiro.update).not.toHaveBeenCalled();
         });
 
         it("deve lançar NotFoundException ao tentar atualizar o endereço de uma facção que não possui um endereço prévio cadastrado", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue({
-                ...mockFaccao,
+            mockPrismaService.parceiro.findUnique.mockResolvedValue({
+                ...mockparceiro,
                 endereco: null,
             });
-            mockPrismaService.faccao.findFirst.mockResolvedValue(null);
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
 
             await expect(service.update(1, updateDto)).rejects.toThrow(NotFoundException);
         });
@@ -189,42 +189,42 @@ describe("FaccaoService", () => {
             const dtoApenasTelefone = {
                 telefone: "11111111111",
             };
-            mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(mockparceiro);
 
-            mockPrismaService.faccao.update.mockResolvedValue({
-                ...mockFaccao,
+            mockPrismaService.parceiro.update.mockResolvedValue({
+                ...mockparceiro,
                 telefone: "11111111111",
             });
 
             const result = await service.update(1, dtoApenasTelefone);
 
             expect(result).toEqual({ message: "Facção atualizada com sucesso" });
-            expect(prisma.faccao.update).toHaveBeenCalledWith({
+            expect(prisma.parceiro.update).toHaveBeenCalledWith({
                 where: { id: 1 },
                 data: expect.objectContaining({ telefone: "11111111111" }),
             });
 
-            expect(prisma.faccao.findFirst).not.toHaveBeenCalled();
+            expect(prisma.parceiro.findFirst).not.toHaveBeenCalled();
             expect(enderecoService.update).not.toHaveBeenCalled();
         });
     });
 
     describe("delete", () => {
         it("deve excluir a facção com sucesso quandoo o ID for válido", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(mockFaccao);
-            mockPrismaService.faccao.delete.mockResolvedValue(mockFaccao);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(mockparceiro);
+            mockPrismaService.parceiro.delete.mockResolvedValue(mockparceiro);
 
             const result = await service.delete(1);
 
             expect(result).toEqual({ message: "Facção foi removida com sucesso" });
-            expect(prisma.faccao.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prisma.parceiro.delete).toHaveBeenCalledWith({ where: { id: 1 } });
         });
 
         it("deve lançar NotFoundException se tentar excluir facção inexistente", async () => {
-            mockPrismaService.faccao.findUnique.mockResolvedValue(null);
+            mockPrismaService.parceiro.findUnique.mockResolvedValue(null);
 
             await expect(service.delete(99)).rejects.toThrow(NotFoundException);
-            expect(prisma.faccao.delete).not.toHaveBeenCalled();
+            expect(prisma.parceiro.delete).not.toHaveBeenCalled();
         });
     });
 });

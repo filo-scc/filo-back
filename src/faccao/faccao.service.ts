@@ -1,11 +1,11 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
-import { CreateFaccaoDto } from "./dto/create-faccao.dto";
-import { UpdateFaccaoDto } from "./dto/update-faccao.dto";
+import { CreateParceiroDto } from "./dto/create-faccao.dto";
+import { UpdateParceiroDto } from "./dto/update-faccao.dto";
 
 @Injectable()
-export class FaccaoService {
+export class ParceiroService {
     constructor(
         private prisma: PrismaService,
         private enderecoService: EnderecoService,
@@ -13,10 +13,10 @@ export class FaccaoService {
 
     async getAll() {
         try {
-            return await this.prisma.faccao.findMany({
+            return await this.prisma.parceiro.findMany({
                 include: {
                     endereco: true,
-                    faccao_produto: { include: { produto: true } },
+                    parceiro_produto: { include: { produto: true } },
                 },
             });
         } catch (error) {
@@ -25,8 +25,8 @@ export class FaccaoService {
         }
     }
 
-    async getAllFaccaoByFabrico(id: number) {
-        const faccoes = await this.prisma.faccao.findMany({
+    async getAllparceiroByFabrico(id: number) {
+        const faccoes = await this.prisma.parceiro.findMany({
             where: { fabrico_id: id },
             include: { endereco: true },
         });
@@ -35,28 +35,28 @@ export class FaccaoService {
     }
 
     async getById(id: number) {
-        const faccao = await this.prisma.faccao.findUnique({
+        const parceiro = await this.prisma.parceiro.findUnique({
             where: { id },
             include: {
                 endereco: true,
-                faccao_produto: { include: { produto: true } },
+                parceiro_produto: { include: { produto: true } },
             },
         });
 
-        if (!faccao) {
+        if (!parceiro) {
             throw new NotFoundException("Facção não encontrada!");
         }
 
-        return faccao;
+        return parceiro;
     }
 
-    async create(data: CreateFaccaoDto) {
-        const { endereco, ...dadosFaccao } = data;
+    async create(data: CreateParceiroDto) {
+        const { endereco, ...dadosparceiro } = data;
 
-        const existente = await this.prisma.faccao.findFirst({
+        const existente = await this.prisma.parceiro.findFirst({
             where: {
-                nome: dadosFaccao.nome,
-                fabrico_id: dadosFaccao.fabrico_id,
+                nome: dadosparceiro.nome,
+                fabrico_id: dadosparceiro.fabrico_id,
             },
         });
 
@@ -66,10 +66,10 @@ export class FaccaoService {
 
         const enderecoCriado = await this.enderecoService.create(endereco ?? {});
 
-        await this.prisma.faccao.create({
+        await this.prisma.parceiro.create({
             data: {
-                ...dadosFaccao,
-                telefone: dadosFaccao.telefone ?? null,
+                ...dadosparceiro,
+                telefone: dadosparceiro.telefone ?? null,
                 endereco: { connect: { id: enderecoCriado.id } },
             },
             include: { endereco: true },
@@ -78,15 +78,15 @@ export class FaccaoService {
         return { message: "Facção criada com sucesso" };
     }
 
-    async update(id: number, data: UpdateFaccaoDto) {
-        const { endereco, ...dadosFaccao } = data;
+    async update(id: number, data: UpdateParceiroDto) {
+        const { endereco, ...dadosparceiro } = data;
 
-        const faccaoAtual = await this.getById(id);
-        const fabricoChecar = dadosFaccao.fabrico_id || faccaoAtual.fabrico_id;
+        const parceiroAtual = await this.getById(id);
+        const fabricoChecar = dadosparceiro.fabrico_id || parceiroAtual.fabrico_id;
 
-        if (dadosFaccao.nome || dadosFaccao.fabrico_id) {
-            const nomeChecar = dadosFaccao.nome || faccaoAtual.nome;
-            const existente = await this.prisma.faccao.findFirst({
+        if (dadosparceiro.nome || dadosparceiro.fabrico_id) {
+            const nomeChecar = dadosparceiro.nome || parceiroAtual.nome;
+            const existente = await this.prisma.parceiro.findFirst({
                 where: {
                     nome: nomeChecar,
                     fabrico_id: fabricoChecar,
@@ -100,28 +100,28 @@ export class FaccaoService {
         }
 
         if (endereco) {
-            if (!faccaoAtual.endereco) {
+            if (!parceiroAtual.endereco) {
                 throw new NotFoundException("Endereço da facção não encontrado");
             }
-            await this.enderecoService.update(faccaoAtual.endereco.id, endereco);
+            await this.enderecoService.update(parceiroAtual.endereco.id, endereco);
         }
 
-        await this.prisma.faccao.update({
+        await this.prisma.parceiro.update({
             where: { id },
-            data: { ...dadosFaccao },
+            data: { ...dadosparceiro },
         });
 
         return { message: "Facção atualizada com sucesso" };
     }
 
     async delete(id: number) {
-        const faccao = await this.getById(id);
+        const parceiro = await this.getById(id);
 
-        if (!faccao) {
+        if (!parceiro) {
             throw new NotFoundException("Facção não encontrada");
         }
 
-        await this.prisma.faccao.delete({
+        await this.prisma.parceiro.delete({
             where: { id },
         });
 

@@ -1,16 +1,16 @@
 import { Module } from "@nestjs/common";
-import { FaccaoService } from "./faccao.service";
-import { FaccaoController } from "./faccao.controller";
+import { ParceiroService } from "./faccao.service";
+import { ParceiroController } from "./faccao.controller";
 import { PrismaModule } from "../prisma/prisma.module";
 import { PrismaService } from "src/prisma/prisma.service";
 import { FaccaoProdutoController } from "./faccaoProduto.controller";
-import { FaccaoProdutoService } from "./faccaoProduto.service";
+import { ParceiroProdutoService } from "./faccaoProduto.service";
 import { EnderecoModule } from "src/endereco/endereco.module";
 import { ProdutoModule } from "src/produto/produto.module";
 
 @Module({
     imports: [PrismaModule, ProdutoModule, EnderecoModule, ProdutoModule],
-    controllers: [FaccaoController, FaccaoProdutoController],
-    providers: [FaccaoService, FaccaoProdutoService, PrismaService],
+    controllers: [ParceiroController, FaccaoProdutoController],
+    providers: [ParceiroService, ParceiroProdutoService, PrismaService],
 })
 export class FaccaoModule {}
