@@ -13,7 +13,11 @@ export class ParceiroProdutoService {
         private readonly parceiroService: ParceiroService,
     ) {}
 
-    async createParceiroProduto(parceiro_id: number, produto_id: number, data: CreateParceiroProdutoDto) {
+    async createParceiroProduto(
+        parceiro_id: number,
+        produto_id: number,
+        data: CreateParceiroProdutoDto,
+    ) {
         const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
             this.parceiroService.getById(parceiro_id),
@@ -72,7 +76,11 @@ export class ParceiroProdutoService {
         });
     }
 
-    async updateParceiroProduto(parceiro_id: number, produto_id: number, data: UpdateParceiroProdutoDto) {
+    async updateParceiroProduto(
+        parceiro_id: number,
+        produto_id: number,
+        data: UpdateParceiroProdutoDto,
+    ) {
         const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
             this.parceiroService.getById(parceiro_id),
