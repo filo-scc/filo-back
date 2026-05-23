@@ -338,6 +338,9 @@ describe("ProdutoService", () => {
 
             expect(prismaService.produto.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 1 },
+                include: {
+                    tecido: true,
+                },
             });
             expect(result).toEqual(produtos.filter((p) => p.fabrico_id === 1));
 
