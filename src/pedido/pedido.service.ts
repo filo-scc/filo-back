@@ -113,7 +113,6 @@ export class PedidoService {
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,
-                fabrico_id: data.fabrico_id,
             },
         });
     }

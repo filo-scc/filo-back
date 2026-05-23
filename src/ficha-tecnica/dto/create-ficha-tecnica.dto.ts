@@ -17,5 +17,5 @@ export class CreateFichaTecnicaDto {
 
     @IsInt()
     fabrico_id: number;
-    pedido_id: any;
+    pedido_id: number;
 }
