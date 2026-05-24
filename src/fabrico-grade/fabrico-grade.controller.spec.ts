@@ -8,7 +8,12 @@ describe("FabricoGradeController", () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [FabricoGradeController],
-            providers: [FabricoGradeService],
+            providers: [
+                {
+                    provide: FabricoGradeService,
+                    useValue: {},
+                },
+            ],
         }).compile();
 
         controller = module.get<FabricoGradeController>(FabricoGradeController);
