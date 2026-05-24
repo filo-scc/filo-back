@@ -18,4 +18,8 @@ export class CreatePedidoDto {
 
     @IsInt()
     fabrico_id: number;
+
+    @IsOptional()
+    @IsInt()
+    numero?: number;
 }

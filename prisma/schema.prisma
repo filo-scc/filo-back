@@ -460,11 +460,13 @@ model Pedido {
   observacoes String?
   cliente_id Int?
   fabrico_id Int
+  numero Int?
 
   cliente Cliente? @relation(fields: [cliente_id], references: [id])
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
 
+  @@unique([fabrico_id, numero])
   @@map("pedidos")
 }
