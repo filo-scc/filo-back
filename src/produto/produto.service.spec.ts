@@ -171,7 +171,10 @@ describe("ProdutoService", () => {
 
             const result = await service.getById(1);
 
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({
+                where: { id: 1 },
+                include: { tecido: true },
+            });
             expect(result).toEqual(produtoCriado);
         });
         it("Deve lançar um erro ao tentar obter um produto que não existe", async () => {
@@ -183,7 +186,10 @@ describe("ProdutoService", () => {
                 new NotFoundException("Produto não encontrado"),
             );
 
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 999 } });
+            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({
+                where: { id: 999 },
+                include: { tecido: true },
+            });
 
             expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
         });
