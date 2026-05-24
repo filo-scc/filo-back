@@ -187,10 +187,26 @@ model Produto {
   fichas_tecnicas FichaTecnica[]
   faccao_produto FaccaoProduto[]
 
+  produtoAviamentos ProdutoAviamento[]
+
   @@unique([fabrico_id, nome])
   @@index([fabrico_id])
   @@index([grade_versao_id])
   @@map("produtos")
+}
+
+model ProdutoAviamento {
+  id Int @id @default(autoincrement())
+  custo Decimal? @db.Decimal(10, 2)
+
+  produto_id Int
+  produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
+
+  aviamento_id Int
+  aviamento Aviamento @relation(fields: [aviamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([produto_id, aviamento_id])
+  @@map("produtos_aviamentos")
 }
 
 model Icone {
@@ -442,6 +458,8 @@ model Aviamento {
   fabrico_id Int
 
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  produtoAviamentos ProdutoAviamento[]
 
   @@unique([nome, fabrico_id])
   @@map("aviamentos")

@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from "@nestjs/common";
-import { PrismaService } from "src/prisma/prisma.service";
+import { PrismaService } from "../prisma/prisma.service";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
 
