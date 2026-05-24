@@ -210,6 +210,7 @@ model FichaTecnica {
 
   observacoes String?
   concluida Boolean
+  quantidade Int @default(0)
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -461,6 +462,11 @@ model Pedido {
   cliente_id Int?
   fabrico_id Int
   numero Int?
+  cor String
+  quantidade Int @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   cliente Cliente? @relation(fields: [cliente_id], references: [id])
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
