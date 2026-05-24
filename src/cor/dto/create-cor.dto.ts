@@ -2,7 +2,7 @@ import { Type } from "class-transformer";
 import { IsNumber, IsOptional, IsString, MaxLength, IsEnum } from "class-validator";
 
 export enum TipoCorEnum {
-    LISA = "LISA",
+    COR = "COR",
     ESTAMPA = "ESTAMPA",
 }
 
@@ -24,9 +24,8 @@ export class CreateCorDto {
     foto?: string;
 
     @IsString()
-    @IsOptional()
     @IsEnum(TipoCorEnum, {
-        message: "O tipo de cor deve ser: LISA ou ESTAMPA",
+        message: "O tipo de cor deve ser: COR ou ESTAMPA",
     })
-    tipo?: TipoCorEnum;
+    tipo: TipoCorEnum;
 }

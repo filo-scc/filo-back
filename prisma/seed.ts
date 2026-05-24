@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, TipoCor } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 import { fakerPT_BR as faker } from "@faker-js/faker";
@@ -133,6 +133,7 @@ async function criarCoresDoFabrico(fabricoId: number) {
                 fabrico_id: fabricoId,
                 nome,
                 codigo_hex: faker.color.rgb(),
+                tipo: TipoCor.COR,
             },
         });
 
