@@ -14,8 +14,6 @@ export class PedidoService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreatePedidoDto): Promise<Pedido> {
-        console.log("Recebido no Service:", data);
-
         const fabricoExists = await this.prisma.fabrico.findUnique({
             where: { id: data.fabrico_id },
         });
@@ -42,6 +40,8 @@ export class PedidoService {
                     observacoes: data.observacoes,
                     cliente_id: data.cliente_id,
                     fabrico_id: data.fabrico_id,
+                    cor: data.cor,
+                    quantidade: data.quantidade,
                 },
             });
         } catch (error) {

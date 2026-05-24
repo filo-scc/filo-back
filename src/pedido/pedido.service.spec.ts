@@ -62,6 +62,8 @@ describe("PedidoService", () => {
             const result = await service.create({
                 finalizado: false,
                 fabrico_id: 1,
+                cor: "#FFFFFF",
+                quantidade: 10,
             });
 
             expect(result).toEqual(pedido);
@@ -76,6 +78,8 @@ describe("PedidoService", () => {
                 service.create({
                     finalizado: false,
                     fabrico_id: 99,
+                    cor: "#FFFFFF",
+                    quantidade: 10,
                 }),
             ).rejects.toThrow(NotFoundException);
         });

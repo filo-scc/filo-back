@@ -22,4 +22,10 @@ export class CreatePedidoDto {
     @IsOptional()
     @IsInt()
     numero?: number;
+
+    @IsString()
+    cor: string;
+
+    @IsInt()
+    quantidade: number;
 }

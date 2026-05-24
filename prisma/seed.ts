@@ -255,7 +255,8 @@ async function main() {
                     finalizado: false,
                     observacoes: faker.lorem.sentence(),
                     data_prevista: faker.date.soon(),
-
+                    cor: faker.color.rgb(),
+                    quantidade: faker.number.int({ min: 10, max: 100 }),
                     fabrico: {
                         connect: {
                             id: fabricoAtual.id,
