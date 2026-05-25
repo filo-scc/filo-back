@@ -17,6 +17,11 @@ enum FormaPagamento {
   TED
 }
 
+enum TipoCor{
+  COR
+  ESTAMPA
+}
+
 model Fabrico {
   id Int @id @default(autoincrement())
 
@@ -398,6 +403,9 @@ model Cor {
   fabrico_id Int
   nome String
   codigo_hex String?
+
+  tipo TipoCor
+  foto String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
