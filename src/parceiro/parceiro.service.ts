@@ -1,8 +1,8 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
-import { CreateParceiroDto } from "./dto/create-faccao.dto";
-import { UpdateParceiroDto } from "./dto/update-faccao.dto";
+import { CreateParceiroDto } from "./dto/create-parceiro.dto";
+import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
 
 @Injectable()
 export class ParceiroService {
@@ -20,18 +20,18 @@ export class ParceiroService {
                 },
             });
         } catch (error) {
-            console.error("Erro ao buscar facções:", error);
-            throw new NotFoundException("Nenhuma facção encontrada");
+            console.error("Erro ao buscar parceiros:", error);
+            throw new NotFoundException("Nenhum parceiro encontrado");
         }
     }
 
     async getAllparceiroByFabrico(id: number) {
-        const faccoes = await this.prisma.parceiro.findMany({
+        const parceiros = await this.prisma.parceiro.findMany({
             where: { fabrico_id: id },
             include: { endereco: true },
         });
 
-        return faccoes;
+        return parceiros;
     }
 
     async getById(id: number) {
@@ -44,7 +44,7 @@ export class ParceiroService {
         });
 
         if (!parceiro) {
-            throw new NotFoundException("Facção não encontrada!");
+            throw new NotFoundException("Parceiro não encontrado!");
         }
 
         return parceiro;
@@ -61,7 +61,7 @@ export class ParceiroService {
         });
 
         if (existente) {
-            throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
+            throw new ConflictException("Já existe um parceiro com esse nome nesse fabrico");
         }
 
         const enderecoCriado = await this.enderecoService.create(endereco ?? {});
@@ -75,7 +75,7 @@ export class ParceiroService {
             include: { endereco: true },
         });
 
-        return { message: "Facção criada com sucesso" };
+        return { message: "Parceiro criado com sucesso" };
     }
 
     async update(id: number, data: UpdateParceiroDto) {
@@ -95,13 +95,13 @@ export class ParceiroService {
             });
 
             if (existente) {
-                throw new ConflictException("Já existe uma facção com esse nome nesse fabrico");
+                throw new ConflictException("Já existe uma parceiro com esse nome nesse fabrico");
             }
         }
 
         if (endereco) {
             if (!parceiroAtual.endereco) {
-                throw new NotFoundException("Endereço da facção não encontrado");
+                throw new NotFoundException("Endereço da parceiro não encontrado");
             }
             await this.enderecoService.update(parceiroAtual.endereco.id, endereco);
         }
@@ -111,20 +111,20 @@ export class ParceiroService {
             data: { ...dadosparceiro },
         });
 
-        return { message: "Facção atualizada com sucesso" };
+        return { message: "Parceiro atualizado com sucesso" };
     }
 
     async delete(id: number) {
         const parceiro = await this.getById(id);
 
         if (!parceiro) {
-            throw new NotFoundException("Facção não encontrada");
+            throw new NotFoundException("Parceiro não encontrado");
         }
 
         await this.prisma.parceiro.delete({
             where: { id },
         });
 
-        return { message: "Facção foi removida com sucesso" };
+        return { message: "Parceiro foi removido com sucesso" };
     }
 }

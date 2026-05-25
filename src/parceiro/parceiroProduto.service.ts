@@ -1,9 +1,9 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { UpdateParceiroProdutoDto } from "./dto/update-faccaoproduto.dto";
-import { CreateParceiroProdutoDto } from "./dto/create-faccaoproduto.dto";
+import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
+import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { ProdutoService } from "src/produto/produto.service";
-import { ParceiroService } from "./faccao.service";
+import { ParceiroService } from "./parceiro.service";
 
 @Injectable()
 export class ParceiroProdutoService {

@@ -13,13 +13,13 @@ import {
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
-import { ParceiroProdutoService } from "./faccaoProduto.service";
-import { CreateParceiroProdutoDto } from "./dto/create-faccaoproduto.dto";
-import { UpdateParceiroProdutoDto } from "./dto/update-faccaoproduto.dto";
+import { ParceiroProdutoService } from "./parceiroProduto.service";
+import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
+import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 
 @Controller("faccoes-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
-export class FaccaoProdutoController {
+export class ParceiroProdutoController {
     constructor(private readonly ParceiroProdutoService: ParceiroProdutoService) {}
 
     @Roles("PROPRIETARIO", "ADMIN")

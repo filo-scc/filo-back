@@ -5,12 +5,12 @@ import { fakerPT_BR as faker } from "@faker-js/faker";
 
 import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
-import { ParceiroFactory } from "./factories/faccao.factory";
+import { ParceiroFactory } from "./factories/parceiro.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
 import { ProdutoFactory } from "./factories/produto.factory";
 import { ClienteProdutoFactory } from "./factories/cliente-produto.factory";
-import { ParceiroProdutoFactory } from "./factories/faccao-produto.factory";
+import { ParceiroProdutoFactory } from "./factories/parceiro-produto.factory";
 
 const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,

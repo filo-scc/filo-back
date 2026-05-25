@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
-import { ParceiroService } from "./faccao.service";
-import { CreateParceiroDto } from "./dto/create-faccao.dto";
-import { UpdateParceiroDto } from "./dto/update-faccao.dto";
+import { ParceiroService } from "./parceiro.service";
+import { CreateParceiroDto } from "./dto/create-parceiro.dto";
+import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";

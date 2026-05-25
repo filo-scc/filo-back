@@ -6,7 +6,7 @@ export const ParceiroFactory = {
         const { fabrico_id, endereco, ...restOverrides } = overrides;
 
         return {
-            nome: `Facção ${faker.company.name()}`,
+            nome: `Parceiro ${faker.person.firstName()}`,
             telefone: faker.phone.number({ style: "national" }),
 
             // Liga a Facção ao Fabrico obrigatoriamente
