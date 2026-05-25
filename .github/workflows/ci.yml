@@ -184,8 +184,5 @@ jobs:
       - name: Acionar deploy hook do Render com a imagem publicada
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          IMAGE_URL: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
         run: |
-          ENCODED_IMAGE_URL="${IMAGE_URL//:/%3A}"
-          ENCODED_IMAGE_URL="${ENCODED_IMAGE_URL//\//%2F}"
-          curl --fail --silent --show-error "${RENDER_DEPLOY_HOOK_URL}&imgURL=${ENCODED_IMAGE_URL}"
+          curl --fail --silent --show-error -X POST "${RENDER_DEPLOY_HOOK_URL}"
