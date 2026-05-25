@@ -32,7 +32,7 @@ export class EtapaController {
         return this.etapaService.getAll();
     }
 
-    @Get("/:fabrico_id")
+    @Get("fabrico/:fabrico_id")
     findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
         return this.etapaService.findAllByFabricoID(Number(fabrico_id));
     }

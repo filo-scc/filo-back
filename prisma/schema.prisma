@@ -30,6 +30,7 @@ model Fabrico {
   razao_social String?
   nome_fantasia String?
   ativo Boolean @default(true)
+  fabricacao_sob_demanda Boolean @default(false)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -42,8 +43,9 @@ model Fabrico {
   fichas_tecnicas FichaTecnica[]
   cores Cor[]
   fabrico_grades FabricoGrade[]
-  tecidos tecido[]
+  tecidos Tecido[]
   aviamentos Aviamento[]
+  pedidos Pedido[]
 
   @@map("fabricos")
 }
@@ -109,6 +111,7 @@ model Cliente {
   updated_at DateTime @updatedAt
 
   cliente_produto ClienteProduto[]
+  pedidos Pedido[]
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
@@ -187,7 +190,7 @@ model Produto {
   grade_versao GradeVersao? @relation(fields: [grade_versao_id], references: [id])
 
   tecido_id Int?
-  tecido tecido? @relation(fields: [tecido_id], references: [id])
+  tecido Tecido? @relation(fields: [tecido_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
   faccao_produto FaccaoProduto[]
@@ -228,6 +231,7 @@ model FichaTecnica {
 
   observacoes String?
   concluida Boolean
+  quantidade Int @default(0)
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -240,6 +244,9 @@ model FichaTecnica {
 
   etapa_atual_id Int?
   etapa_atual Etapa? @relation(fields: [etapa_atual_id], references: [id])
+
+  pedido_id Int?
+  pedido Pedido? @relation(fields: [pedido_id], references: [id])
 
   fichas_etapas FichaEtapa[]
   ficha_tecnica_itens FichaTecnicaItem[]
@@ -440,10 +447,10 @@ model FichaTecnicaItem {
   @@map("ficha_tecnica_itens")
 }
 
-model tecido {
+model Tecido {
   id Int @id @default(autoincrement())
 
-  nome String 
+  nome String
 
   fabrico_id Int
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -456,7 +463,6 @@ model tecido {
   @@unique([fabrico_id, nome])
   @@index([fabrico_id])
   @@map("tecidos")
-
 }
 
 model Aviamento {
@@ -471,4 +477,28 @@ model Aviamento {
 
   @@unique([nome, fabrico_id])
   @@map("aviamentos")
+}
+
+model Pedido {
+  id Int @id @default(autoincrement())
+
+  finalizado Boolean
+  data_prevista DateTime?
+  observacoes String?
+  cliente_id Int?
+  fabrico_id Int
+  numero Int?
+  cor String
+  quantidade Int @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  cliente Cliente? @relation(fields: [cliente_id], references: [id])
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  fichas_tecnicas FichaTecnica[]
+
+  @@unique([fabrico_id, numero])
+  @@map("pedidos")
 }

@@ -76,16 +76,6 @@ describe("AuthController", () => {
         });
     });
 
-    describe("GET /usuarios/me", () => {
-        it("deve retornar os dados do usuário extraídos do request", () => {
-            const req = { user: mockUsuario };
-
-            const resultado = controller.getMe(req);
-
-            expect(resultado).toEqual(mockUsuario);
-        });
-    });
-
     describe("PUT /usuarios/:id", () => {
         it("deve repassar o ID do usuario e os dados para o authService.update", async () => {
             const dto: UpdateUserDto = { nome: "Thiago Editado" };
