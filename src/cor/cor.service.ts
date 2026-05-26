@@ -37,6 +37,8 @@ export class CorService {
                     nome,
                     codigo_hex: data.codigo_hex,
                     fabrico_id: Number(data.fabrico_id),
+                    tipo: data.tipo,
+                    foto: data.foto,
                 },
             });
 
