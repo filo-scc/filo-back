@@ -193,6 +193,8 @@ model Produto {
   tecido_id Int?
   tecido Tecido? @relation(fields: [tecido_id], references: [id])
 
+  produtoAviamentos ProdutoAviamento[]
+
   fichas_tecnicas  FichaTecnica[]
   parceiro_produto parceiroProduto[]
 
@@ -449,7 +451,6 @@ model FichaTecnicaItem {
 model Tecido {
   id Int @id @default(autoincrement())
 
-  nome String
   nome String
 
   fabrico_id Int

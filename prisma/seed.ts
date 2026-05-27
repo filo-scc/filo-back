@@ -251,7 +251,7 @@ async function main() {
 
             const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
 
-            const pedido = await prisma.Pedido.create({
+            const pedido = await prisma.pedido.create({
                 data: {
                     finalizado: false,
                     observacoes: faker.lorem.sentence(),
