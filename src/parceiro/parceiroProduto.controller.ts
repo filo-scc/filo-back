@@ -17,7 +17,7 @@ import { ParceiroProdutoService } from "./parceiroProduto.service";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 
-@Controller("faccoes-produtos")
+@Controller("parceiros-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ParceiroProdutoController {
     constructor(private readonly ParceiroProdutoService: ParceiroProdutoService) {}
