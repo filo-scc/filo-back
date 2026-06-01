@@ -7,7 +7,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 
-@Controller("faccoes")
+@Controller("parceiros")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
 export class ParceiroController {
