@@ -48,6 +48,16 @@ describe("FichaTecnicaService", () => {
         fabrico_id: 20,
         grade_versao_id: 30,
         etapa_atual_id: 40,
+        produto: {
+            id: 10,
+            nome: "Produto Teste",
+            parceiro_produto: [],
+        },
+        pedido: {
+            id: 100,
+            data_prevista: new Date(),
+            cor: "#ffffff",
+        },
     };
 
     beforeEach(async () => {

@@ -16,6 +16,8 @@ import { GradeModule } from "./grade/grade.module";
 import { TecidosModule } from "./tecidos/tecidos.module";
 import { AviamentoModule } from "./aviamento/aviamento.module";
 import { UploadModule } from "./common/utils/upload/upload.module";
+import { ProdutoAviamentoModule } from "./produto-aviamento/produto-aviamento.module";
+import { PedidoModule } from "./pedido/pedido.module";
 
 @Module({
     imports: [
@@ -34,6 +36,8 @@ import { UploadModule } from "./common/utils/upload/upload.module";
         TecidosModule,
         AviamentoModule,
         UploadModule,
+        ProdutoAviamentoModule,
+        PedidoModule,
     ],
     controllers: [AppController],
     providers: [AppService],
