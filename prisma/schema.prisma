@@ -491,6 +491,7 @@ model Pedido {
   numero Int?
   cor String
   quantidade Int @default(0)
+  valor_total Float?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
