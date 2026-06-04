@@ -1,22 +1,22 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { FaccaoController } from "./faccao.controller";
-import { FaccaoService } from "./faccao.service";
+import { ParceiroController } from "./parceiro.controller";
+import { ParceiroService } from "./parceiro.service";
 
-describe("FaccaoController", () => {
-    let controller: FaccaoController;
+describe("ParceiroController", () => {
+    let controller: ParceiroController;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
-            controllers: [FaccaoController],
+            controllers: [ParceiroController],
             providers: [
                 {
-                    provide: FaccaoService,
+                    provide: ParceiroService,
                     useValue: {},
                 },
             ],
         }).compile();
 
-        controller = module.get<FaccaoController>(FaccaoController);
+        controller = module.get<ParceiroController>(ParceiroController);
     });
 
     it("should be defined", () => {

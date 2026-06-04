@@ -88,8 +88,21 @@ export class FichaTecnicaService {
             return await this.prisma.fichaTecnica.findMany({
                 where: { fabrico_id: Number(id) },
                 include: {
-                    produto: true,
+                    produto: {
+                        include: {
+                            parceiro_produto: {
+                                include: {
+                                    parceiro: true,
+                                },
+                            },
+                        },
+                    },
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -127,6 +140,11 @@ export class FichaTecnicaService {
                 include: {
                     produto: true,
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -153,6 +171,11 @@ export class FichaTecnicaService {
             include: {
                 produto: true,
                 etapa_atual: true,
+                pedido: {
+                    include: {
+                        cliente: true,
+                    },
+                },
                 grade_versao: {
                     include: {
                         itens: {

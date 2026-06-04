@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { FabricoModule } from "./fabrico/fabrico.module";
-import { FaccaoModule } from "./faccao/faccao.module";
+import { ParceiroModule } from "./parceiro/parceiro.module";
 import { ClienteModule } from "./cliente/cliente.module";
 import { AuthModule } from "./auth/auth.module";
 import { EnderecoModule } from "./endereco/endereco.module";
@@ -23,7 +23,7 @@ import { PedidoModule } from "./pedido/pedido.module";
     imports: [
         FabricoModule,
         ClienteModule,
-        FaccaoModule,
+        ParceiroModule,
         EtapaModule,
         EnderecoModule,
         ProdutoModule,

@@ -53,13 +53,13 @@ export class EnderecoService {
         return endereco;
     }
 
-    async findByFaccaoId(faccao_id: number) {
+    async findByParceiroId(parceiro_id: number) {
         const endereco = await this.prisma.endereco.findUnique({
-            where: { faccao_id },
+            where: { parceiro_id },
         });
 
         if (!endereco)
-            throw new NotFoundException(`Endereço para a facção ${faccao_id} não encontrado.`);
+            throw new NotFoundException(`Endereço para o parceiro ${parceiro_id} não encontrado.`);
         return endereco;
     }
 }
