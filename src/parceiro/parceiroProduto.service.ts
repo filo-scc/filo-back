@@ -24,7 +24,7 @@ export class ParceiroProdutoService {
         ]);
 
         if (produto.fabrico_id !== parceiro.fabrico_id) {
-            throw new ConflictException("O produto e a facção devem pertencer ao mesmo fabrico");
+            throw new ConflictException("O produto e o parceiro devem pertencer ao mesmo fabrico");
         }
 
         const vinculoExiste = await this.prisma.parceiroProduto.findUnique({
@@ -32,7 +32,7 @@ export class ParceiroProdutoService {
         });
 
         if (vinculoExiste) {
-            throw new ConflictException("Este produto já está vinculado a esta facção");
+            throw new ConflictException("Este produto já está vinculado a este parceiro");
         }
 
         return await this.prisma.parceiroProduto.create({
@@ -58,7 +58,7 @@ export class ParceiroProdutoService {
 
     async getProdutosByParceiro(parceiro_id: number) {
         const parceiro = await this.prisma.parceiro.findUnique({ where: { id: parceiro_id } });
-        if (!parceiro) throw new NotFoundException("Facção não encontrada");
+        if (!parceiro) throw new NotFoundException("Parceiro não encontrado");
 
         return await this.prisma.parceiroProduto.findMany({
             where: { parceiro_id: parceiro_id },
@@ -87,7 +87,7 @@ export class ParceiroProdutoService {
         ]);
 
         if (produto.fabrico_id !== parceiro.fabrico_id) {
-            throw new ConflictException("O produto e a facção devem pertencer ao mesmo fabrico");
+            throw new ConflictException("O produto e o parceiro devem pertencer ao mesmo fabrico");
         }
 
         const vinculo = await this.prisma.parceiroProduto.findUnique({

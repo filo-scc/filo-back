@@ -12,7 +12,7 @@ export const ParceiroProdutoFactory = {
             // Conecta ao Produto (Obrigatório)
             ...(produto_id ? { produto: { connect: { id: produto_id } } } : {}),
 
-            // Conecta à Facção (Obrigatório)
+            // Conecta ao Parceiro (Obrigatório)
             ...(parceiro_id ? { parceiro: { connect: { id: parceiro_id } } } : {}),
 
             ...restOverrides,

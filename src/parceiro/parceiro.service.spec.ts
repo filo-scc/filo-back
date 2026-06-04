@@ -28,7 +28,7 @@ describe("ParceiroService", () => {
 
     const mockparceiro = {
         id: 1,
-        nome: "Facção Teste",
+        nome: "Parceiro Teste",
         fabrico_id: 1,
         responsavel: "Thiago",
         telefone: "11999999999",
@@ -56,7 +56,7 @@ describe("ParceiroService", () => {
     });
 
     describe("getAll()", () => {
-        it("deve retornar todos as facções incluindo os seus respectivos endereços", async () => {
+        it("deve retornar todos os parceiros incluindo os seus respectivos endereços", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockparceiro]);
 
             const result = await service.getAll();
@@ -74,7 +74,7 @@ describe("ParceiroService", () => {
     });
 
     describe("getAllparceiroByFabrico()", () => {
-        it("deve retornar todas as facções de um determinado fabrico", async () => {
+        it("deve retornar todas as parceiros de um determinado fabrico", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockparceiro]);
 
             const result = await service.getAllparceiroByFabrico(1);

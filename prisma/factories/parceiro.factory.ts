@@ -9,10 +9,10 @@ export const ParceiroFactory = {
             nome: `Parceiro ${faker.person.firstName()}`,
             telefone: faker.phone.number({ style: "national" }),
 
-            // Liga a Facção ao Fabrico obrigatoriamente
+            // Liga o Parceiro ao Fabrico obrigatoriamente
             ...(fabrico_id ? { fabrico: { connect: { id: fabrico_id } } } : {}),
 
-            // Nested Write: O Prisma cria a Facção e o Endereço juntos
+            // Nested Write: O Prisma cria o Parceiro e o Endereço juntos
             endereco: {
                 create: endereco || {
                     rua: faker.location.street(),
