@@ -22,7 +22,7 @@ import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 export class ParceiroProdutoController {
     constructor(private readonly ParceiroProdutoService: ParceiroProdutoService) {}
 
-    @Roles("PROPRIETARIO", "ADMIN")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Post(":Parceiro_id/:produto_id")
     createParceiroProduto(
         @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
@@ -32,7 +32,7 @@ export class ParceiroProdutoController {
         return this.ParceiroProdutoService.createParceiroProduto(idParceiro, idProduto, data);
     }
 
-    @Roles("PROPRIETARIO", "ADMIN")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":Parceiro_id/:produto_id")
     deleteParceiroProduto(
         @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
@@ -51,7 +51,7 @@ export class ParceiroProdutoController {
         return this.ParceiroProdutoService.getParceiroByProduto(idProduto);
     }
 
-    @Roles("PROPRIETARIO", "ADMIN")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":Parceiro_id/:produto_id")
     updateParceiroProduto(
         @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
