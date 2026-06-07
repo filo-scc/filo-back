@@ -1,16 +1,16 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, TipoCor } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 
 import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
-import { FaccaoFactory } from "./factories/faccao.factory";
+import { ParceiroFactory } from "./factories/parceiro.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
 import { ProdutoFactory } from "./factories/produto.factory";
 import { ClienteProdutoFactory } from "./factories/cliente-produto.factory";
-import { FaccaoProdutoFactory } from "./factories/faccao-produto.factory";
+import { ParceiroProdutoFactory } from "./factories/parceiro-produto.factory";
 
 const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,
@@ -133,6 +133,7 @@ async function criarCoresDoFabrico(fabricoId: number) {
                 fabrico_id: fabricoId,
                 nome,
                 codigo_hex: faker.color.rgb(),
+                tipo: TipoCor.COR,
             },
         });
 
@@ -177,13 +178,13 @@ async function main() {
         const coresCriadas = await criarCoresDoFabrico(fabricoAtual.id);
         await criarLinksFabricoGrades(fabricoAtual.id, gradesCriadas);
 
-        // --- FACÇÕES ---
-        const faccoesCriadas: any[] = [];
+        // --- PARCEIROS ---
+        const parceirosCriados: any[] = [];
         for (let j = 1; j <= 2; j++) {
-            const faccao = await FaccaoFactory.create(prisma, {
+            const parceiro = await ParceiroFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
             });
-            faccoesCriadas.push(faccao);
+            parceirosCriados.push(parceiro);
         }
 
         // --- CLIENTES ---
@@ -248,15 +249,65 @@ async function main() {
                 },
             });
 
+            const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
+
+            const pedido = await prisma.pedido.create({
+                data: {
+                    finalizado: false,
+                    observacoes: faker.lorem.sentence(),
+                    data_prevista: faker.date.soon(),
+                    cor: faker.color.rgb(),
+                    quantidade: faker.number.int({ min: 10, max: 100 }),
+                    fabrico: {
+                        connect: {
+                            id: fabricoAtual.id,
+                        },
+                    },
+
+                    cliente: {
+                        connect: {
+                            id: clienteSorteado.id,
+                        },
+                    },
+                },
+            });
+
             const fichaTecnica = await prisma.fichaTecnica.create({
                 data: {
                     observacoes: faker.lorem.sentence(),
+
                     concluida:
                         etapaAleatoria.nome === "Embalagem" ? faker.datatype.boolean() : false,
-                    fabrico_id: fabricoAtual.id,
-                    produto_id: produto.id,
-                    grade_versao_id: gradeVersaoEscolhida.id,
-                    etapa_atual_id: etapaAleatoria.id,
+
+                    fabrico: {
+                        connect: {
+                            id: fabricoAtual.id,
+                        },
+                    },
+
+                    produto: {
+                        connect: {
+                            id: produto.id,
+                        },
+                    },
+
+                    grade_versao: {
+                        connect: {
+                            id: gradeVersaoEscolhida.id,
+                        },
+                    },
+
+                    etapa_atual: {
+                        connect: {
+                            id: etapaAleatoria.id,
+                        },
+                    },
+
+                    pedido: {
+                        connect: {
+                            id: pedido.id,
+                        },
+                    },
                 },
             });
 
@@ -283,17 +334,16 @@ async function main() {
                 });
             }
 
-            const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
-            const faccaoSorteada = faker.helpers.arrayElement(faccoesCriadas);
+            const parceiroSorteado = faker.helpers.arrayElement(parceirosCriados);
 
             await ClienteProdutoFactory.create(prisma, {
                 produto_id: produto.id,
                 cliente_id: clienteSorteado.id,
             });
 
-            await FaccaoProdutoFactory.create(prisma, {
+            await ParceiroProdutoFactory.create(prisma, {
                 produto_id: produto.id,
-                faccao_id: faccaoSorteada.id,
+                parceiro_id: parceiroSorteado.id,
             });
         }
     }

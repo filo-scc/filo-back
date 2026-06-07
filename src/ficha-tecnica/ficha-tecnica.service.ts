@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
-import { PrismaService } from "src/prisma/prisma.service";
-import { ProdutoService } from "src/produto/produto.service";
-import { EtapaService } from "src/etapa/etapa.service";
-import { FabricoService } from "src/fabrico/fabrico.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { ProdutoService } from "../produto/produto.service";
+import { EtapaService } from "../etapa/etapa.service";
+import { FabricoService } from "../fabrico/fabrico.service";
 import { Prisma } from "@prisma/client";
 
 @Injectable()
@@ -85,11 +85,24 @@ export class FichaTecnicaService {
 
     async findAllByFabricoId(id: number) {
         try {
-            return this.prisma.fichaTecnica.findMany({
+            return await this.prisma.fichaTecnica.findMany({
                 where: { fabrico_id: Number(id) },
                 include: {
-                    produto: true,
+                    produto: {
+                        include: {
+                            parceiro_produto: {
+                                include: {
+                                    parceiro: true,
+                                },
+                            },
+                        },
+                    },
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -127,6 +140,11 @@ export class FichaTecnicaService {
                 include: {
                     produto: true,
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -153,6 +171,11 @@ export class FichaTecnicaService {
             include: {
                 produto: true,
                 etapa_atual: true,
+                pedido: {
+                    include: {
+                        cliente: true,
+                    },
+                },
                 grade_versao: {
                     include: {
                         itens: {

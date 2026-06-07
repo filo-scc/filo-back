@@ -258,6 +258,95 @@ pnpm run test:cov    # Cobertura
 
 ## Outros Pontos
 
-- **CORS:** Configurado para aceitar requisições de `http://localhost:5173`.
-- **Massa de Dados:** O seed gera fabricos, facções, clientes, usuários, grades, tamanhos e Kanban completos.
-- **Segurança:** Nunca comite o `.env` com chaves reais. Use sempre o `.env.example` como base.
+- **CORS:** O backend está configurado por padrão para aceitar requisições do frontend em `http://localhost:5173`.
+- **Massa de Dados:** O comando de seed gera automaticamente empresas (fabricos), facções, clientes, usuários (Admin/Proprietário) e fluxos de Kanban completos para testes.
+- **Segurança:** Nunca comite o arquivo `.env` com chaves reais. Utilize sempre o `.env.example` como base.
+
+## Imagem de Produção
+
+O repositório mantém uma imagem dedicada de produção em `Dockerfile.prod`. Ela é separada do Docker de desenvolvimento e:
+
+- compila a API para `dist`
+- executa com `NODE_ENV=production`
+- inicia com `node dist/src/main.js`
+- não usa hot reload, seed, volumes ou `.env` real embutido
+
+### Build local
+
+```bash
+docker build -f Dockerfile.prod -t filo-back:prod .
+```
+
+### Execução local da imagem
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL="postgresql://usuario:senha@host:5432/database?schema=public" \
+  -e JWT_ACCESS_SECRET="troque" \
+  -e JWT_REFRESH_SECRET="troque" \
+  -e PORT=3000 \
+  filo-back:prod
+```
+
+As variáveis reais de ambiente não são copiadas da branch nem do `.env`. A imagem é publicada genérica e recebe os valores no runtime.
+
+## CI e GHCR
+
+O workflow em `.github/workflows/ci.yml` faz dois fluxos:
+
+- em PR para `master` ou `main`: valida lint, build da aplicação e build da imagem de produção
+- em `push` para `master` ou `main`: publica a imagem no GHCR
+
+Formato esperado da imagem publicada:
+
+```text
+ghcr.io/filo-scc/filo-back:latest
+ghcr.io/filo-scc/filo-back:sha-<commit>
+```
+
+Para o publish funcionar, o repositório precisa permitir escrita de packages para o `GITHUB_TOKEN`.
+
+## Render + Supabase
+
+Para produção no Render usando a imagem do GHCR:
+
+- o `Web Service` do Render deve consumir a imagem publicada no GHCR
+- a API em runtime deve usar `DATABASE_URL`
+- as migrations do Prisma no GitHub Actions devem usar `MIGRATION_DATABASE_URL`
+
+### Qual URL usar em cada lugar
+
+No cenário validado deste projeto com Supabase:
+
+- `DATABASE_URL`: use a **transaction pooler** do Supabase na porta `6543`, com `?pgbouncer=true`
+- `MIGRATION_DATABASE_URL`: use a **session pooler** do Supabase na porta `5432`
+
+Exemplo:
+
+```env
+DATABASE_URL="postgresql://postgres.<project-ref>:<senha>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+MIGRATION_DATABASE_URL="postgresql://postgres.<project-ref>:<senha>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_ANON_KEY="..."
+```
+
+### Onde cada variável entra
+
+- `Render -> Environment`
+  - `DATABASE_URL`
+  - `JWT_ACCESS_SECRET`
+  - `JWT_REFRESH_SECRET`
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+  - `CORS_ORIGINS`
+
+- `GitHub -> Settings -> Secrets and variables -> Actions`
+  - `MIGRATION_DATABASE_URL`
+  - `RENDER_DEPLOY_HOOK_URL`
+
+### Por que separar `DATABASE_URL` e `MIGRATION_DATABASE_URL`
+
+- `DATABASE_URL` é usada pela API rodando no Render
+- `MIGRATION_DATABASE_URL` é usada no workflow para `pnpm exec prisma migrate deploy`
+
+Neste projeto, `MIGRATION_DATABASE_URL` é só o nome do secret para migrations. No Supabase, o valor recomendado para ela é a **session pooler** `5432`, não a conexão IPv6 direta, já que esse caminho pode falhar em ambientes sem IPv6.

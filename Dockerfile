@@ -8,7 +8,7 @@ FROM node:22-alpine
 RUN apk add --no-cache libc6-compat openssl
 
 # Ativa o pnpm via corepack (sem precisar instalar globalmente)
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /usr/src/app
 
