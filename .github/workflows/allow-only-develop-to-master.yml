@@ -1,0 +1,20 @@
+name: Allow only develop to master
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  validate-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch
+        run: |
+          echo "base: ${{ github.base_ref }}"
+          echo "head: ${{ github.head_ref }}"
+
+          if [ "${{ github.base_ref }}" = "master" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "Only pull requests from develop to master are allowed."
+            exit 1
+          fi
