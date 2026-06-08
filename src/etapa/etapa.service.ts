@@ -51,6 +51,7 @@ export class EtapaService {
                 where: { fabrico_id: Number(fabrico_id) },
                 include: {
                     icone: true,
+                    icone_verde: true,
                 },
             });
         } catch (error) {
