@@ -69,10 +69,6 @@ export class CreateParceiroDto {
     conta?: string;
 
     @IsOptional()
-    @IsString()
-    categoria?: string;
-
-    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => ProdutoLinkDto)
