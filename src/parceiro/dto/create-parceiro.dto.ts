@@ -39,6 +39,10 @@ export class CreateParceiroDto {
     @Length(9, 11)
     telefone?: string;
 
+    @IsOptional()
+    @IsString()
+    categoria?: string;
+
     @IsNumber()
     fabrico_id: number;
 

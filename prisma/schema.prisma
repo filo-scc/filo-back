@@ -95,6 +95,8 @@ model Parceiro {
 
   parceiro_produto parceiroProduto[]
 
+  ficha_parceiro FichaParceiro[]
+
   @@unique([fabrico_id, nome])
   @@map("parceiros")
 }
@@ -252,7 +254,23 @@ model FichaTecnica {
   fichas_etapas       FichaEtapa[]
   ficha_tecnica_itens FichaTecnicaItem[]
 
+  ficha_parceiro FichaParceiro[]
+
   @@map("fichas-tecnicas")
+}
+
+model FichaParceiro {
+  operacao String?
+  valor Decimal?
+  
+  ficha_id Int
+  ficha    FichaTecnica @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
+
+  parceiro_id Int
+  parceiro    Parceiro @relation(fields: [parceiro_id], references: [id], onDelete: Cascade)
+
+  @@id([ficha_id, parceiro_id])
+  @@map("ficha_tecnica_parceiro")
 }
 
 model ClienteProduto {
