@@ -71,6 +71,7 @@ export class ParceiroService {
                 ...dadosparceiro,
                 telefone: dadosparceiro.telefone ?? null,
                 endereco: { connect: { id: enderecoCriado.id } },
+                categoria: dadosparceiro.categoria ?? null,
             },
             include: { endereco: true },
         });
