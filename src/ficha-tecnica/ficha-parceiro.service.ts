@@ -26,7 +26,7 @@ export class FichaParceiroService {
         const parceiroExiste = await this.prisma.parceiro.findUnique({
             where: { id: data.parceiro_id },
         });
-        if (!parceiroExiste || fichaExiste.fabrico_id !== fabrico_id) {
+        if (!parceiroExiste || parceiroExiste.fabrico_id !== fabrico_id) {
             throw new NotFoundException(
                 "Parceiro não encontrado ou o fabrico não possui esse parceiro",
             );
@@ -36,9 +36,10 @@ export class FichaParceiroService {
             return await this.prisma.fichaParceiro.create({
                 data: {
                     operacao: data.operacao,
-                    valor: Number(data.valor),
+                    valor: data.valor ? Number(data.valor) : undefined,
                     ficha_id: Number(data.ficha_id),
                     parceiro_id: Number(data.parceiro_id),
+                    quantidade: data.quantidade,
                 },
             });
         } catch (error) {
@@ -103,6 +104,7 @@ export class FichaParceiroService {
             data: {
                 operacao: data.operacao,
                 valor: data.valor,
+                quantidade: data.quantidade,
             },
         });
     }

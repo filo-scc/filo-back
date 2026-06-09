@@ -9,6 +9,10 @@ export class CreateFichaParceiroDto {
     @IsNumber({ maxDecimalPlaces: 2 })
     valor?: number;
 
+    @IsOptional()
+    @IsInt()
+    quantidade?: number;
+
     @IsInt()
     ficha_id: number;
 
