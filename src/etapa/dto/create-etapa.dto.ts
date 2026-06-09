@@ -21,4 +21,12 @@ export class CreateEtapaDto {
     @IsOptional()
     @IsInt()
     icone_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    icone_verde_id?: number;
+
+    @IsOptional()
+    @IsInt()
+    icone_cinza_id?: number;
 }

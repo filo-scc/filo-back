@@ -103,4 +103,13 @@ export class ParceiroProdutoService {
             data: { preco: data.preco },
         });
     }
+
+    async getParceiroProduto(produto_id: number, parceiro_id: number) {
+        const vinculo = await this.prisma.parceiroProduto.findUnique({
+            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
+            include: { produto: true, parceiro: true },
+        });
+
+        return vinculo;
+    }
 }
