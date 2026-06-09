@@ -134,6 +134,7 @@ model Etapa {
   ativa     Boolean @default(true)
   icone_id  Int?
   icone_verde_id Int?
+  icone_cinza_id Int?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -142,6 +143,7 @@ model Etapa {
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
   icone      Icone?  @relation("EtapaIconePadrao", fields: [icone_id], references: [id])
   icone_verde Icone? @relation("EtapaIconeVerde", fields: [icone_verde_id], references: [id])
+  icone_cinza Icone? @relation("EtapaIconeCinza", fields: [icone_cinza_id], references: [id])
 
   fichas_tecnicas FichaTecnica[]
   fichas_etapas   FichaEtapa[]
@@ -228,7 +230,8 @@ model Icone {
 
   etapas Etapa[] @relation("EtapaIconePadrao")
   etapas_icone_verde Etapa[] @relation("EtapaIconeVerde")
-
+  etapas_icone_cinza Etapa[] @relation("EtapaIconeCinza")
+  
   @@map("icones")
 }
 

@@ -60,4 +60,13 @@ export class ParceiroProdutoController {
     ) {
         return this.ParceiroProdutoService.updateParceiroProduto(idParceiro, idProduto, data);
     }
+
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Get(":parceiro_id/:produto_id")
+    findOne(
+        @Param("parceiro_id", ParseIntPipe) idParceiro: number,
+        @Param("produto_id", ParseIntPipe) idProduto: number,
+    ) {
+        return this.ParceiroProdutoService.getParceiroProduto(idProduto, idParceiro);
+    }
 }
