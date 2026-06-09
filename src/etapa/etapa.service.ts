@@ -52,6 +52,7 @@ export class EtapaService {
                 include: {
                     icone: true,
                     icone_verde: true,
+                    icone_cinza: true,
                 },
             });
         } catch (error) {
