@@ -20,4 +20,8 @@ export class CreateFabricoDto {
     @IsOptional()
     @IsBoolean()
     ativo?: boolean;
+    
+    @IsOptional()
+    @IsBoolean()
+    fabricacao_sob_demanda?: boolean;
 }
