@@ -166,6 +166,15 @@ export class FichaTecnicaService {
     }
 
     async findOne(id: number) {
+        const fichaBase = await this.prisma.fichaTecnica.findUnique({
+            where: { id },
+            select: { produto_id: true },
+        });
+
+        if (!fichaBase) {
+            throw new NotFoundException("ficha não encontrada");
+        }
+
         const ficha = await this.prisma.fichaTecnica.findUnique({
             where: { id },
             include: {
@@ -197,6 +206,19 @@ export class FichaTecnicaService {
                         },
                     },
                     orderBy: [{ cor_id: "asc" }, { grade_versao_item: { posicao: "asc" } }],
+                },
+                ficha_parceiro: {
+                    include: {
+                        parceiro: {
+                            include: {
+                                parceiro_produto: {
+                                    where: {
+                                        produto_id: fichaBase.produto_id,
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
             },
         });
