@@ -26,7 +26,7 @@ export class FichaTecnicaItemService {
 
     async findAllByFichaTecnicaID(ficha_tecnica_id: number) {
         try {
-            return this.prisma.fichaTecnicaItem.findMany({
+            return await this.prisma.fichaTecnicaItem.findMany({
                 where: { ficha_tecnica_id: Number(ficha_tecnica_id) },
                 include: {
                     cor: true,
