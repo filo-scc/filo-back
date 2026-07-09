@@ -9,6 +9,7 @@ describe("ParceiroService", () => {
     let service: ParceiroService;
     let prisma: PrismaService;
     let enderecoService: EnderecoService;
+    let consoleErrorSpy: jest.SpyInstance;
 
     const mockPrismaService = {
         parceiro: {
@@ -36,6 +37,8 @@ describe("ParceiroService", () => {
     };
 
     beforeEach(async () => {
+        consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ParceiroService,
@@ -49,6 +52,10 @@ describe("ParceiroService", () => {
         enderecoService = module.get<EnderecoService>(EnderecoService);
 
         jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore();
     });
 
     it("deve estar definido", () => {
