@@ -9,9 +9,9 @@ export class CreateProdutoDto {
     @IsNotEmpty()
     nome: string;
 
-    @IsString()
+    @IsNumber()
     @IsNotEmpty()
-    tipo: string;
+    tipo_produto_id: number;
 
     @IsNumber()
     @IsNotEmpty()
