@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service'; // Ajuste o caminho se necessário
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ConcluirFichasCronService {
@@ -8,7 +8,7 @@ export class ConcluirFichasCronService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(CronExpression.EVERY_8_HOURS) // Mude para EVERY_8_HOURS após testar!
+  @Cron(CronExpression.EVERY_8_HOURS)
   async handleConcluirFichasAntigas() {
     this.logger.log('Iniciando Job de verificação de fichas técnicas obsoletas...');
 
