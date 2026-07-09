@@ -18,8 +18,8 @@ import { AviamentoModule } from "./aviamento/aviamento.module";
 import { UploadModule } from "./common/utils/upload/upload.module";
 import { ProdutoAviamentoModule } from "./produto-aviamento/produto-aviamento.module";
 import { PedidoModule } from "./pedido/pedido.module";
-import { ScheduleModule } from '@nestjs/schedule';
-import { CronjobsModule } from './cronjobs/cronjobs.module';
+import { ScheduleModule } from "@nestjs/schedule";
+import { CronjobsModule } from "./cronjobs/cronjobs.module";
 import { TipoProdutoModule } from "./tipo-produto/tipo-produto.module";
 
 @Module({
