@@ -114,9 +114,7 @@ describe("FichaTecnicaItemService", () => {
     it("rejeita itens duplicados no lote", async () => {
         prisma.fichaTecnica.findUnique.mockResolvedValue(ficha);
 
-        await expect(
-            service.createManyByFichaTecnicaID(1, [itemDto, itemDto]),
-        ).rejects.toThrow(
+        await expect(service.createManyByFichaTecnicaID(1, [itemDto, itemDto])).rejects.toThrow(
             new BadRequestException("Existem itens duplicados na mesma ficha técnica"),
         );
     });

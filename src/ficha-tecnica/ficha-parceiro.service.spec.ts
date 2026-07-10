@@ -1,8 +1,4 @@
-import {
-    ConflictException,
-    InternalServerErrorException,
-    NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaParceiroService } from "./ficha-parceiro.service";
 
@@ -56,7 +52,9 @@ describe("FichaParceiroService", () => {
         prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 11 });
 
         await expect(service.create({ ficha_id: 1, parceiro_id: 2 }, 10)).rejects.toThrow(
-            new NotFoundException("Ficha Técnica não encontrada ou o fabrico não possui essa ficha"),
+            new NotFoundException(
+                "Ficha Técnica não encontrada ou o fabrico não possui essa ficha",
+            ),
         );
     });
 

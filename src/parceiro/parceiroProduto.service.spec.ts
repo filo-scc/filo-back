@@ -30,9 +30,10 @@ describe("ParceiroProdutoService", () => {
         prisma.parceiroProduto.findUnique.mockResolvedValue(null);
         prisma.parceiroProduto.create.mockResolvedValue({ parceiro_id: 1, produto_id: 2 });
 
-        await expect(
-            service.createParceiroProduto(1, 2, { preco: 15 }),
-        ).resolves.toEqual({ parceiro_id: 1, produto_id: 2 });
+        await expect(service.createParceiroProduto(1, 2, { preco: 15 })).resolves.toEqual({
+            parceiro_id: 1,
+            produto_id: 2,
+        });
 
         expect(prisma.parceiroProduto.create).toHaveBeenCalledWith({
             data: { produto_id: 2, parceiro_id: 1, preco: 15 },
@@ -80,9 +81,7 @@ describe("ParceiroProdutoService", () => {
         prisma.parceiro.findUnique.mockResolvedValue({ id: 1 });
         prisma.parceiroProduto.findMany.mockResolvedValue([{ produto: { id: 2 } }]);
 
-        await expect(service.getProdutosByParceiro(1)).resolves.toEqual([
-            { produto: { id: 2 } },
-        ]);
+        await expect(service.getProdutosByParceiro(1)).resolves.toEqual([{ produto: { id: 2 } }]);
         expect(prisma.parceiroProduto.findMany).toHaveBeenCalledWith({
             where: { parceiro_id: 1 },
             include: { produto: true },
@@ -101,9 +100,7 @@ describe("ParceiroProdutoService", () => {
         prisma.produto.findUnique.mockResolvedValue({ id: 2 });
         prisma.parceiroProduto.findMany.mockResolvedValue([{ parceiro: { id: 1 } }]);
 
-        await expect(service.getParceiroByProduto(2)).resolves.toEqual([
-            { parceiro: { id: 1 } },
-        ]);
+        await expect(service.getParceiroByProduto(2)).resolves.toEqual([{ parceiro: { id: 1 } }]);
         expect(prisma.parceiroProduto.findMany).toHaveBeenCalledWith({
             where: { produto_id: 2 },
             include: { parceiro: true },

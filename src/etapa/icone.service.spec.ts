@@ -25,10 +25,12 @@ describe("IconeService", () => {
     it("cria ícone", async () => {
         prisma.icone.create.mockResolvedValue({ id: 1, nome: "costura" });
 
-        await expect(service.create({ nome: "costura", url: "icone.svg" } as any)).resolves.toEqual({
-            id: 1,
-            nome: "costura",
-        });
+        await expect(service.create({ nome: "costura", url: "icone.svg" } as any)).resolves.toEqual(
+            {
+                id: 1,
+                nome: "costura",
+            },
+        );
     });
 
     it("traduz ícone duplicado ao criar", async () => {

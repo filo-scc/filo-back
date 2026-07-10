@@ -92,7 +92,11 @@ describe("TamanhoService", () => {
     });
 
     it("atualiza tamanho existente", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, codigo: "PP", ordem_global: 1 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            codigo: "PP",
+            ordem_global: 1,
+        } as any);
         prisma.tamanho.findFirst.mockResolvedValue(null);
         prisma.tamanho.update.mockResolvedValue({ id: 1, codigo: "P" });
 
@@ -107,7 +111,11 @@ describe("TamanhoService", () => {
     });
 
     it("rejeita update com código duplicado", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, codigo: "PP", ordem_global: 1 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            codigo: "PP",
+            ordem_global: 1,
+        } as any);
         prisma.tamanho.findFirst.mockResolvedValue({ id: 2 });
 
         await expect(service.update(1, { codigo: "P" })).rejects.toThrow(

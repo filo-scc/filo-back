@@ -168,7 +168,11 @@ describe("GradeService", () => {
     });
 
     it("atualiza grade existente", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, nome: "antiga", ativo: true } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            nome: "antiga",
+            ativo: true,
+        } as any);
         prisma.grade.findFirst.mockResolvedValue(null);
         prisma.grade.update.mockResolvedValue({ id: 1, nome: "nova", ativo: false });
 
@@ -183,7 +187,11 @@ describe("GradeService", () => {
     });
 
     it("rejeita update com nome duplicado", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, nome: "antiga", ativo: true } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            nome: "antiga",
+            ativo: true,
+        } as any);
         prisma.grade.findFirst.mockResolvedValue({ id: 2 });
 
         await expect(service.update(1, { nome: "Nova" })).rejects.toThrow(
@@ -192,7 +200,11 @@ describe("GradeService", () => {
     });
 
     it("traduz validação Prisma ao atualizar", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, nome: "antiga", ativo: true } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            nome: "antiga",
+            ativo: true,
+        } as any);
         prisma.grade.findFirst.mockResolvedValue(null);
         prisma.grade.update.mockRejectedValue(
             new PrismaClientValidationError("invalid", { clientVersion: "7.0.0" }),

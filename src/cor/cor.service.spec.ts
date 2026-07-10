@@ -121,7 +121,11 @@ describe("CorService", () => {
     });
 
     it("rejeita update com nome duplicado", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, nome: "azul", fabrico_id: 10 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            nome: "azul",
+            fabrico_id: 10,
+        } as any);
         prisma.cor.findFirst.mockResolvedValue({ id: 2 });
 
         await expect(service.update(1, { nome: "Azul" })).rejects.toThrow(
