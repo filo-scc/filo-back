@@ -156,13 +156,7 @@ async function criarLinksFabricoGrades(fabricoId: number, grades: any[]) {
 }
 
 async function criarTiposProduto(fabricoId: number) {
-    const nomes = [
-        "Camiseta",
-        "Calça",
-        "Short",
-        "Vestido",
-        "Jaqueta",
-    ];
+    const nomes = ["Camiseta", "Calça", "Short", "Vestido", "Jaqueta"];
 
     const tiposCriados: TipoProduto[] = [];
 
@@ -201,7 +195,7 @@ async function main() {
     for (const fabricoAtual of fabricos) {
         // --- BASE VISUAL E RELAÇÕES DO FABRICO ---
         const coresCriadas = await criarCoresDoFabrico(fabricoAtual.id);
-        const tiposProdutoCriados = await criarTiposProduto(fabricoAtual.id,);
+        const tiposProdutoCriados = await criarTiposProduto(fabricoAtual.id);
         await criarLinksFabricoGrades(fabricoAtual.id, gradesCriadas);
 
         // --- PARCEIROS ---
@@ -261,9 +255,7 @@ async function main() {
 
         // --- PRODUTOS, FICHAS TÉCNICAS E ITENS ---
         for (let p = 1; p <= 5; p++) {
-            const tipoEscolhido = faker.helpers.arrayElement(
-                tiposProdutoCriados,
-            );
+            const tipoEscolhido = faker.helpers.arrayElement(tiposProdutoCriados);
             const produto = await ProdutoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
                 tipo_produto_id: tipoEscolhido.id,
