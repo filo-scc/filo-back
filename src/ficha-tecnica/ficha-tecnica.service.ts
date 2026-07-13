@@ -178,7 +178,11 @@ export class FichaTecnicaService {
         const ficha = await this.prisma.fichaTecnica.findUnique({
             where: { id },
             include: {
-                produto: true,
+                produto: {
+                    include: {
+                        tecido: true,
+                    },
+                },
                 etapa_atual: true,
                 pedido: {
                     include: {
@@ -187,6 +191,7 @@ export class FichaTecnicaService {
                 },
                 grade_versao: {
                     include: {
+                        grade: true,
                         itens: {
                             include: {
                                 tamanho: true,

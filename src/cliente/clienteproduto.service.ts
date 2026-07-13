@@ -120,7 +120,12 @@ export class ClienteProdutoService {
                             id: true,
                             foto: true,
                             nome: true,
-                            tipo: true,
+                            tipo_produto: {
+                                select: {
+                                    id: true,
+                                    nome: true,
+                                },
+                            },
                         },
                     },
                 },

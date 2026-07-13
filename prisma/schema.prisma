@@ -40,6 +40,7 @@ model Fabrico {
   parceiros       Parceiro[]
   etapas          Etapa[]
   produtos        Produto[]
+  tipos_produto TipoProduto[]
   fichas_tecnicas FichaTecnica[]
   cores Cor[]
   fabrico_grades FabricoGrade[]
@@ -183,7 +184,8 @@ model Produto {
 
   foto String?
   nome String
-  tipo String
+  tipo_produto_id Int
+  tipo_produto TipoProduto @relation(fields: [tipo_produto_id], references: [id])
 
   cliente_produto ClienteProduto[]
 
@@ -528,4 +530,23 @@ model Pedido {
 
   @@unique([fabrico_id, numero])
   @@map("pedidos")
+}
+
+model TipoProduto {
+  id Int @id @default(autoincrement())
+
+  nome String
+
+  fabrico_id Int
+  fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  produtos Produto[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([fabrico_id, nome])
+  @@index([fabrico_id])
+
+  @@map("tipo_produto")
 }
