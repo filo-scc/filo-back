@@ -2,8 +2,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProdutoService } from "./produto.service";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
-import { PrismaClientKnownRequestError } from "@prisma/client-runtime-utils";
+import { Prisma } from "@prisma/client";
 import { ConflictException, NotFoundException } from "@nestjs/common";
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 const mockPrismaService = {
     produto: {

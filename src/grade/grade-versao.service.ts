@@ -186,7 +186,7 @@ export class GradeVersaoService {
 
     async findAllByGradeID(grade_id: number) {
         try {
-            return this.prisma.gradeVersao.findMany({
+            return await this.prisma.gradeVersao.findMany({
                 where: { grade_id: Number(grade_id) },
                 orderBy: { versao: "desc" },
                 include: {

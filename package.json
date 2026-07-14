@@ -104,17 +104,24 @@
             "^.+\\.(t|j)s$": "ts-jest"
         },
         "collectCoverageFrom": [
-            "**/*.(t|j)s"
+            "**/*.service.ts",
+            "common/guards/**/*.ts",
+            "common/decorators/**/*.ts",
+            "common/utils/**/*.ts",
+            "!common/utils/upload/upload.controller.ts",
+            "!common/utils/upload/upload-photos-supabase.ts",
+            "!common/utils/upload/upload.module.ts"
         ],
         "coverageDirectory": "../coverage",
+        "coverageProvider": "v8",
         "testEnvironment": "node",
         "coverageThreshold": {
-            "global": {
-                "branches": 5,
-                "functions": 5,
-                "lines": 5,
-                "statements": 5
-            }
+        "global": {
+            "branches": 80,
+            "functions": 80,
+            "lines": 80,
+            "statements": 80
+        }
         },
         "moduleNameMapper": {
             "^src/(.*)$": "<rootDir>/$1"
