@@ -49,12 +49,14 @@ services:
       # Assim o mesmo .env funciona para os dois modos sem nenhuma alteração.
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public"
       TSC_WATCHFILE: UseFsEventsWithFallbackDynamicPolling
-      CHOCKIDAR_USEPOLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
       PORT: ${PORT:-3000}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION}
       JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       RUN_SEED: ${RUN_SEED:-false}
     ports:
       - "${PORT:-3000}:3000"

@@ -3,27 +3,16 @@ import { fakerPT_BR as faker } from "@faker-js/faker";
 
 export const ProdutoFactory = {
     build(overrides: any = {}) {
-        const { fabrico_id, ...restOverrides } = overrides;
-
-        // Lista de tipos comuns na indústria têxtil para sortear
-        const tiposTêxteis = [
-            "Camiseta",
-            "Calça",
-            "Bermuda",
-            "Vestido",
-            "Jaqueta",
-            "Moletom",
-            "Boné",
-        ];
-        const tipoSorteado = faker.helpers.arrayElement(tiposTêxteis);
+        const { fabrico_id, tipo_produto_id, tipo_nome, ...restOverrides } = overrides;
 
         return {
-            nome: `${tipoSorteado} ${faker.commerce.productAdjective()} ${faker.color.human()}`, // Ex: "Camiseta Elegante Azul"
-            tipo: tipoSorteado,
+            nome: `${tipo_nome} ${faker.commerce.productAdjective()} ${faker.color.human()}`, // Ex: "Camiseta Elegante Azul"
             foto: faker.image.url(), // Traz uma imagem de moda/roupas
 
             // Conecta ao Fabrico (Obrigatório)
             ...(fabrico_id ? { fabrico: { connect: { id: fabrico_id } } } : {}),
+
+            ...(tipo_produto_id ? { tipo_produto: { connect: { id: tipo_produto_id } } } : {}),
 
             ...restOverrides,
         };

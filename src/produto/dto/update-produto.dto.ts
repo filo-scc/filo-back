@@ -10,8 +10,8 @@ export class UpdateProduto {
     nome?: string;
 
     @IsOptional()
-    @IsString()
-    tipo?: string;
+    @IsNumber()
+    tipo_produto_id: number;
 
     @IsOptional()
     @IsNumber()

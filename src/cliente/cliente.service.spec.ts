@@ -3,12 +3,11 @@ import { ClienteService } from "./cliente.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
 import { ConflictException } from "@nestjs/common/exceptions/conflict.exception";
-import {
-    PrismaClientKnownRequestError,
-    PrismaClientValidationError,
-} from "@prisma/client-runtime-utils";
+import { Prisma } from "@prisma/client";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
 import { NotFoundException } from "@nestjs/common/exceptions/not-found.exception";
+
+const { PrismaClientKnownRequestError, PrismaClientValidationError } = Prisma;
 
 const mockPrismaService = {
     cliente: {
