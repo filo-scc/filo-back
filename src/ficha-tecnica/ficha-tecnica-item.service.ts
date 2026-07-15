@@ -578,4 +578,56 @@ export class FichaTecnicaItemService {
             };
         });
     }
+
+    async create(ficha_tecnica_id: number, data: CreateFichaTecnicaItemDto) {
+        const ficha = await this.prisma.fichaTecnica.findUnique({
+            where: { id: ficha_tecnica_id },
+            select: {
+                id: true,
+                fabrico_id: true,
+                grade_versao_id: true,
+            },
+        });
+        if (!ficha) throw new NotFoundException("Ficha não encontrada");
+
+        const cor = await this.prisma.cor.findFirst({
+            where: { id: Number(data.cor_id), fabrico_id: ficha.fabrico_id },
+        });
+        if (!cor) throw new NotFoundException("Cor não encontrada ou não pertence ao fabrico");
+
+        const gradeVersaoItem = await this.prisma.gradeVersaoItem.findFirst({
+            where: {
+                id: Number(data.grade_versao_item_id),
+                grade_versao_id: ficha.grade_versao_id,
+            },
+        });
+        if (!gradeVersaoItem)
+            throw new BadRequestException("O item de grade não pertence à versão da ficha técnica");
+
+        try {
+            const item = await this.prisma.fichaTecnicaItem.create({
+                data: {
+                    ficha_tecnica_id: ficha_tecnica_id,
+                    cor_id: Number(data.cor_id),
+                    grade_versao_item_id: Number(data.grade_versao_item_id),
+                    quantidade: Number(data.quantidade),
+                },
+            });
+
+            return {
+                message: "Item adicionado com sucesso",
+                data: item,
+            };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Esse item já existe nesta ficha técnica");
+                }
+            }
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados inválidos");
+            }
+            throw error;
+        }
+    }
 }
