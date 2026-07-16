@@ -33,7 +33,19 @@ export class PedidoService {
         }
 
         try {
-            return await this.prisma.pedido.create({ data });
+            return await this.prisma.pedido.create({
+                data: {
+                    finalizado: data.finalizado,
+                    data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
+                    observacoes: data.observacoes,
+                    cliente_id: data.cliente_id,
+                    fabrico_id: data.fabrico_id,
+                    numero: data.numero,
+                    cor: data.cor,
+                    quantidade: data.quantidade,
+                    valor_total: data.valor_total,
+                },
+            });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
                 throw new ConflictException("Já existe um pedido com dados conflitantes!");

@@ -28,4 +28,8 @@ export class CreatePedidoDto {
 
     @IsInt()
     quantidade: number;
+
+    @IsOptional()
+    @IsNumber()
+    valor_total?: number;
 }
