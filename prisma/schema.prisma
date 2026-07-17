@@ -17,6 +17,15 @@ enum FormaPagamento {
   TED
 }
 
+enum UnidadeDeMedida {
+  METRO
+  CENTIMETRO
+  GRAMA
+  QUILOGRAMA
+  UNIDADE
+  PAR
+}
+
 enum TipoCor{
   COR
   ESTAMPA
@@ -186,6 +195,10 @@ model Produto {
   nome String
   tipo_produto_id Int
   tipo_produto TipoProduto @relation(fields: [tipo_produto_id], references: [id])
+  custo_tecido Decimal? @db.Decimal(10, 2)
+  quantidade_tecido Decimal? @db.Decimal(10, 2)
+  custo_operacional Decimal? @db.Decimal(10, 2)
+  outros_custos Decimal? @db.Decimal(10, 2)
 
   cliente_produto ClienteProduto[]
 
@@ -215,6 +228,7 @@ model Produto {
 model ProdutoAviamento {
   id Int @id @default(autoincrement())
   custo Decimal? @db.Decimal(10, 2)
+  quantidade Int 
 
   produto_id Int
   produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
@@ -243,6 +257,7 @@ model FichaTecnica {
   observacoes String?
   concluida Boolean
   quantidade Int @default(0)
+  numero Int @default(0)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -479,6 +494,8 @@ model Tecido {
   id Int @id @default(autoincrement())
 
   nome String
+  custo_unitario Decimal @db.Decimal(10, 2)
+  unidade_de_medida UnidadeDeMedida
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -489,19 +506,25 @@ model Tecido {
   updated_at DateTime @updatedAt
 
   @@unique([fabrico_id, nome])
-  @@index([fabrico_id])
+  @@index([fabrico_id]) 
   @@map("tecidos")
 }
 
 model Aviamento {
   id Int @id @default(autoincrement())
 
-  nome       String
+  nome String
+  unidade_de_medida UnidadeDeMedida
+  custo_unitario Decimal? @db.Decimal(10, 2)
+
   fabrico_id Int
 
   fabrico Fabrico @relation(fields: [fabrico_id], references: [id])
 
   produtoAviamentos ProdutoAviamento[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@unique([nome, fabrico_id])
   @@map("aviamentos")

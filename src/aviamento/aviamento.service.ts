@@ -24,6 +24,8 @@ export class AviamentoService {
                 data: {
                     nome: data.nome,
                     fabrico_id: data.fabrico_id,
+                    custo_unitario: data.custo_unitario,
+                    unidade_de_medida: data.unidade_de_medida,
                 },
             });
         } catch (error) {
@@ -82,6 +84,9 @@ export class AviamentoService {
                 where: { id },
                 data: {
                     nome: dados.nome,
+                    fabrico_id: dados.fabrico_id,
+                    custo_unitario: dados.custo_unitario,
+                    unidade_de_medida: dados.unidade_de_medida,
                 },
             });
         } catch (error) {
