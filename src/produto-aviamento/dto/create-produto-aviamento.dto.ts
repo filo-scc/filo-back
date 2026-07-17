@@ -10,6 +10,10 @@ export class CreateProdutoAviamentoDto {
     aviamento_id: number;
 
     @IsOptional()
+    @IsInt()
+    quantidade: number;
+
+    @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
     @Min(0)
     custo: number;
