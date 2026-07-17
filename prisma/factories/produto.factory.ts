@@ -12,7 +12,7 @@ export const ProdutoFactory = {
             custo_unitario: parseFloat(faker.commerce.price({ min: 10, max: 1000, dec: 2 })),
 
             custo_operacional: parseFloat(faker.commerce.price({ min: 5, max: 500, dec: 2 })),
-            
+
             outros_custos: parseFloat(faker.commerce.price({ min: 15, max: 1500, dec: 2 })),
 
             custo_tecido: parseFloat(faker.commerce.price({ min: 20, max: 2000, dec: 2 })),

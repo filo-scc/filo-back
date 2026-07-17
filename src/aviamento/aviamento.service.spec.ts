@@ -26,7 +26,14 @@ describe("AviamentoService", () => {
         prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
         prisma.aviamento.create.mockResolvedValue({ id: 1, nome: "botão" });
 
-        await expect(service.create({ nome: "botão", fabrico_id: 10, unidade_de_medida: "unidade", custo_unitario: 10.0 })).resolves.toEqual({
+        await expect(
+            service.create({
+                nome: "botão",
+                fabrico_id: 10,
+                unidade_de_medida: "unidade",
+                custo_unitario: 10.0,
+            }),
+        ).resolves.toEqual({
             id: 1,
             nome: "botão",
         });
@@ -35,9 +42,14 @@ describe("AviamentoService", () => {
     it("rejeita fabrico inexistente", async () => {
         prisma.fabrico.findUnique.mockResolvedValue(null);
 
-        await expect(service.create({ nome: "botão", fabrico_id: 10, unidade_de_medida: "unidade", custo_unitario: 10.0 })).rejects.toThrow(
-            new NotFoundException("Fabrico não encontrado!"),
-        );
+        await expect(
+            service.create({
+                nome: "botão",
+                fabrico_id: 10,
+                unidade_de_medida: "unidade",
+                custo_unitario: 10.0,
+            }),
+        ).rejects.toThrow(new NotFoundException("Fabrico não encontrado!"));
     });
 
     it("traduz nome duplicado ao criar", async () => {
@@ -49,7 +61,14 @@ describe("AviamentoService", () => {
             }),
         );
 
-        await expect(service.create({ nome: "botão", fabrico_id: 10, unidade_de_medida: "unidade", custo_unitario: 10.0 })).rejects.toThrow(
+        await expect(
+            service.create({
+                nome: "botão",
+                fabrico_id: 10,
+                unidade_de_medida: "unidade",
+                custo_unitario: 10.0,
+            }),
+        ).rejects.toThrow(
             new ConflictException("Já existe um aviamento com este nome para este fabrico"),
         );
     });
