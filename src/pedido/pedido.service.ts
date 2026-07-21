@@ -115,6 +115,7 @@ export class PedidoService {
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,
+                valor_total: data.valor_total,
             },
         });
     }
@@ -122,6 +123,12 @@ export class PedidoService {
     async findAllFabrico(fabrico_id: number) {
         const pedidos = await this.prisma.pedido.findMany({
             where: { fabrico_id: fabrico_id },
+            include: {
+                cliente: true,
+                fichas_tecnicas: {
+                    include: { fichas_etapas: true },
+                },
+            },
         });
         return pedidos;
     }

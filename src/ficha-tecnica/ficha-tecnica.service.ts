@@ -88,8 +88,21 @@ export class FichaTecnicaService {
             return await this.prisma.fichaTecnica.findMany({
                 where: { fabrico_id: Number(id) },
                 include: {
-                    produto: true,
+                    produto: {
+                        include: {
+                            parceiro_produto: {
+                                include: {
+                                    parceiro: true,
+                                },
+                            },
+                        },
+                    },
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -127,6 +140,11 @@ export class FichaTecnicaService {
                 include: {
                     produto: true,
                     etapa_atual: true,
+                    pedido: {
+                        include: {
+                            cliente: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {
@@ -148,13 +166,32 @@ export class FichaTecnicaService {
     }
 
     async findOne(id: number) {
+        const fichaBase = await this.prisma.fichaTecnica.findUnique({
+            where: { id },
+            select: { produto_id: true },
+        });
+
+        if (!fichaBase) {
+            throw new NotFoundException("ficha não encontrada");
+        }
+
         const ficha = await this.prisma.fichaTecnica.findUnique({
             where: { id },
             include: {
-                produto: true,
+                produto: {
+                    include: {
+                        tecido: true,
+                    },
+                },
                 etapa_atual: true,
+                pedido: {
+                    include: {
+                        cliente: true,
+                    },
+                },
                 grade_versao: {
                     include: {
+                        grade: true,
                         itens: {
                             include: {
                                 tamanho: true,
@@ -174,6 +211,19 @@ export class FichaTecnicaService {
                         },
                     },
                     orderBy: [{ cor_id: "asc" }, { grade_versao_item: { posicao: "asc" } }],
+                },
+                ficha_parceiro: {
+                    include: {
+                        parceiro: {
+                            include: {
+                                parceiro_produto: {
+                                    where: {
+                                        produto_id: fichaBase.produto_id,
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
             },
         });

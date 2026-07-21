@@ -23,4 +23,7 @@ export class CreateFichaTecnicaDto {
 
     @IsInt()
     quantidade: number;
+
+    @IsInt()
+    numero: number;
 }

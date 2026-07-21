@@ -1,6 +1,6 @@
 import { IsNumber, IsPositive } from "class-validator";
 
-export class CreateFaccaoProdutoDto {
+export class CreateParceiroProdutoDto {
     @IsNumber()
     @IsPositive()
     preco: number;

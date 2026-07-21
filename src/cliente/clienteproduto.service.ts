@@ -108,7 +108,7 @@ export class ClienteProdutoService {
 
     async getAllProdutoByCliente(cliente_id: number) {
         try {
-            return this.prisma.clienteProduto.findMany({
+            return await this.prisma.clienteProduto.findMany({
                 where: {
                     cliente_id: cliente_id,
                 },
@@ -120,7 +120,12 @@ export class ClienteProdutoService {
                             id: true,
                             foto: true,
                             nome: true,
-                            tipo: true,
+                            tipo_produto: {
+                                select: {
+                                    id: true,
+                                    nome: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -135,7 +140,7 @@ export class ClienteProdutoService {
 
     async getAllClienteByProduto(product_id: number) {
         try {
-            return this.prisma.clienteProduto.findMany({
+            return await this.prisma.clienteProduto.findMany({
                 where: {
                     produto_id: product_id,
                 },

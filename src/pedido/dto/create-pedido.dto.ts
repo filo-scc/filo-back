@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsInt, IsString, IsDateString } from "class-validator";
+import { IsBoolean, IsOptional, IsInt, IsString, IsDateString, IsNumber } from "class-validator";
 
 export class CreatePedidoDto {
     @IsBoolean()

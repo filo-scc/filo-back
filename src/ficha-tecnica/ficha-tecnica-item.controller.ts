@@ -19,6 +19,7 @@ import { CreateFichaTecnicaCorDto } from "./dto/create-ficha-tecnica-cor.dto";
 import { AddCoresBatchDto } from "./dto/add-cores-batch.dto";
 import { RemoveCoresBatchDto } from "./dto/remove-cores-batch.dto";
 import { SyncCoresBatchDto } from "./dto/sync-cores-batch.dto";
+import { CreateFichaTecnicaItemDto } from "./dto/create-ficha-tecnica-item.dto";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
@@ -40,6 +41,14 @@ export class FichaTecnicaItemController {
             ficha_tecnica_id,
             data.itens,
         );
+    }
+
+    @Post("item/:ficha_tecnica_id")
+    create(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Body() data: CreateFichaTecnicaItemDto,
+    ) {
+        return this.fichaTecnicaItemService.create(ficha_tecnica_id, data);
     }
 
     @Put("itens/:id")

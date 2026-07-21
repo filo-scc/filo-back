@@ -9,9 +9,29 @@ export class CreateProdutoDto {
     @IsNotEmpty()
     nome: string;
 
-    @IsString()
+    @IsNumber()
     @IsNotEmpty()
-    tipo: string;
+    @IsOptional()
+    custo_tecido?: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    @IsOptional()
+    quantidade_tecido?: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    @IsOptional()
+    custo_operacional?: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    @IsOptional()
+    outros_custos?: number;
+
+    @IsNumber()
+    @IsNotEmpty()
+    tipo_produto_id: number;
 
     @IsNumber()
     @IsNotEmpty()

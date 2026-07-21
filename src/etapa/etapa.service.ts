@@ -49,6 +49,11 @@ export class EtapaService {
         try {
             return this.prisma.etapa.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
+                include: {
+                    icone: true,
+                    icone_verde: true,
+                    icone_cinza: true,
+                },
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {

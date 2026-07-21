@@ -1,16 +1,16 @@
-import { PrismaClient, TipoCor } from "@prisma/client";
+import { PrismaClient, TipoCor, TipoProduto } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 
 import { FabricoFactory } from "./factories/fabrico.factory";
 import { UsuarioFactory } from "./factories/usario.factory";
-import { FaccaoFactory } from "./factories/faccao.factory";
+import { ParceiroFactory } from "./factories/parceiro.factory";
 import { ClienteFactory } from "./factories/cliente.factory";
 import { EtapaFactory } from "./factories/etapa.factory";
 import { ProdutoFactory } from "./factories/produto.factory";
 import { ClienteProdutoFactory } from "./factories/cliente-produto.factory";
-import { FaccaoProdutoFactory } from "./factories/faccao-produto.factory";
+import { ParceiroProdutoFactory } from "./factories/parceiro-produto.factory";
 
 const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,
@@ -155,6 +155,25 @@ async function criarLinksFabricoGrades(fabricoId: number, grades: any[]) {
     }
 }
 
+async function criarTiposProduto(fabricoId: number) {
+    const nomes = ["Camiseta", "Calça", "Short", "Vestido", "Jaqueta"];
+
+    const tiposCriados: TipoProduto[] = [];
+
+    for (const nome of nomes) {
+        const tipo = await prisma.tipoProduto.create({
+            data: {
+                nome,
+                fabrico_id: fabricoId,
+            },
+        });
+
+        tiposCriados.push(tipo);
+    }
+
+    return tiposCriados;
+}
+
 async function main() {
     // Verifica se já existem dados para evitar duplicação
     const fabricosExistentes = await prisma.fabrico.count();
@@ -176,15 +195,16 @@ async function main() {
     for (const fabricoAtual of fabricos) {
         // --- BASE VISUAL E RELAÇÕES DO FABRICO ---
         const coresCriadas = await criarCoresDoFabrico(fabricoAtual.id);
+        const tiposProdutoCriados = await criarTiposProduto(fabricoAtual.id);
         await criarLinksFabricoGrades(fabricoAtual.id, gradesCriadas);
 
-        // --- FACÇÕES ---
-        const faccoesCriadas: any[] = [];
+        // --- PARCEIROS ---
+        const parceirosCriados: any[] = [];
         for (let j = 1; j <= 2; j++) {
-            const faccao = await FaccaoFactory.create(prisma, {
+            const parceiro = await ParceiroFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
             });
-            faccoesCriadas.push(faccao);
+            parceirosCriados.push(parceiro);
         }
 
         // --- CLIENTES ---
@@ -235,8 +255,11 @@ async function main() {
 
         // --- PRODUTOS, FICHAS TÉCNICAS E ITENS ---
         for (let p = 1; p <= 5; p++) {
+            const tipoEscolhido = faker.helpers.arrayElement(tiposProdutoCriados);
             const produto = await ProdutoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
+                tipo_produto_id: tipoEscolhido.id,
+                tipo_nome: tipoEscolhido.nome,
             });
 
             const gradeVersaoEscolhida = faker.helpers.arrayElement(versoesCriadas);
@@ -334,16 +357,16 @@ async function main() {
                 });
             }
 
-            const faccaoSorteada = faker.helpers.arrayElement(faccoesCriadas);
+            const parceiroSorteado = faker.helpers.arrayElement(parceirosCriados);
 
             await ClienteProdutoFactory.create(prisma, {
                 produto_id: produto.id,
                 cliente_id: clienteSorteado.id,
             });
 
-            await FaccaoProdutoFactory.create(prisma, {
+            await ParceiroProdutoFactory.create(prisma, {
                 produto_id: produto.id,
-                faccao_id: faccaoSorteada.id,
+                parceiro_id: parceiroSorteado.id,
             });
         }
     }

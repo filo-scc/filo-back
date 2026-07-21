@@ -44,6 +44,11 @@ describe("EtapaService", () => {
             ordem: 1,
             ativa: true,
             icone_id: 99,
+            icone_verde_id: 88,
+            icone_cinza_id: 77,
+            icone: { id: 99, nome: "icone-teste" },
+            icone_verde: { id: 88, nome: "icone-verde-teste" },
+            icone_cinza: { id: 77, nome: "icone-cinza-teste" },
         };
     });
 
@@ -108,7 +113,10 @@ describe("EtapaService", () => {
             const resultado = await service.findAllByFabricoID(1);
 
             expect(resultado).toEqual([etapaData]);
-            expect(prismaService.etapa.findMany).toHaveBeenCalledWith({ where: { fabrico_id: 1 } });
+            expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 1 },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
         });
 
         it("deve lançar PrismaClientKnownRequestError se o Prisma retornar um KnownRequestError", async () => {
