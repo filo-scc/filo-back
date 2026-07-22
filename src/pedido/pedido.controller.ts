@@ -8,6 +8,7 @@ import {
     Delete,
     Put,
     UseGuards,
+    Req,
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
@@ -23,8 +24,8 @@ export class PedidoController {
     constructor(private readonly pedidoService: PedidoService) {}
 
     @Post()
-    async create(@Body() createPedidoDto: CreatePedidoDto) {
-        return this.pedidoService.create(createPedidoDto);
+    async create(@Body() createPedidoDto: CreatePedidoDto, @Req() req: Request) {
+        return this.pedidoService.create(createPedidoDto, (req as any).user.fabrico_id);
     }
 
     @Get()
