@@ -8,6 +8,7 @@ import {
     UseGuards,
     Put,
     ParseIntPipe,
+    Req,
 } from "@nestjs/common";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
@@ -23,8 +24,8 @@ export class FichaTecnicaController {
     constructor(private readonly fichaTecnicaService: FichaTecnicaService) {}
 
     @Post()
-    create(@Body() data: CreateFichaTecnicaDto) {
-        return this.fichaTecnicaService.create(data);
+    create(@Body() data: CreateFichaTecnicaDto, @Req() req: Request) {
+        return this.fichaTecnicaService.create(data, (req as any).user.fabrico_id);
     }
 
     @Get("/fabrico/:id")
@@ -43,8 +44,8 @@ export class FichaTecnicaController {
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateFichaTecnicaDto) {
-        return this.fichaTecnicaService.update(+id, data);
+    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateFichaTecnicaDto, @Req() req: Request) {
+        return this.fichaTecnicaService.update(+id, data, (req as any).user.fabrico_id);
     }
 
     @Delete(":id")

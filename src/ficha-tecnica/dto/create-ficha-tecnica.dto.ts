@@ -16,14 +16,8 @@ export class CreateFichaTecnicaDto {
     concluida: boolean;
 
     @IsInt()
-    fabrico_id: number;
-
-    @IsInt()
     pedido_id: number;
 
     @IsInt()
     quantidade: number;
-
-    @IsInt()
-    numero: number;
 }
