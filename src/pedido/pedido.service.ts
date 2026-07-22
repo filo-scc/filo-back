@@ -115,9 +115,9 @@ export class PedidoService {
         });
     }
 
-    async findAllFabrico(fabrico_id: number) {
+    async findAllFabrico(fabricoId: number) {
         const pedidos = await this.prisma.pedido.findMany({
-            where: { fabrico_id: fabrico_id },
+            where: { fabrico_id: fabricoId },
             include: {
                 cliente: true,
                 fichas_tecnicas: {
