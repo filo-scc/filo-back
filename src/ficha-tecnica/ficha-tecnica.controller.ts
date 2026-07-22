@@ -44,7 +44,11 @@ export class FichaTecnicaController {
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateFichaTecnicaDto, @Req() req: Request) {
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateFichaTecnicaDto,
+        @Req() req: Request,
+    ) {
         return this.fichaTecnicaService.update(+id, data, (req as any).user.fabrico_id);
     }
 

@@ -44,7 +44,11 @@ export class PedidoController {
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdatePedidoDto, @Req() req: Request) {
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdatePedidoDto,
+        @Req() req: Request,
+    ) {
         return this.pedidoService.update(id, data, (req as any).user.fabrico_id);
     }
 

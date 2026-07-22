@@ -14,7 +14,6 @@ export class PedidoService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreatePedidoDto, fabricoId: number): Promise<Pedido> {
-        
         if (data.cliente_id) {
             const clienteExists = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -86,7 +85,7 @@ export class PedidoService {
 
     async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
         const pedido = await this.prisma.pedido.findUnique({
-            where: { id , fabrico_id: fabricoId },
+            where: { id, fabrico_id: fabricoId },
         });
 
         if (!pedido) {
