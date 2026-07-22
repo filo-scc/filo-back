@@ -84,9 +84,9 @@ export class PedidoService {
         }
     }
 
-    async update(id: number, data: UpdatePedidoDto): Promise<Pedido> {
+    async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
         const pedido = await this.prisma.pedido.findUnique({
-            where: { id },
+            where: { id , fabrico_id: fabricoId },
         });
 
         if (!pedido) {
@@ -100,16 +100,6 @@ export class PedidoService {
 
             if (!cliente) {
                 throw new NotFoundException("Cliente não encontrado!");
-            }
-        }
-
-        if (data.fabrico_id !== undefined && data.fabrico_id !== null) {
-            const fabrico = await this.prisma.fabrico.findUnique({
-                where: { id: data.fabrico_id },
-            });
-
-            if (!fabrico) {
-                throw new NotFoundException("Fabrico não encontrado!");
             }
         }
 
