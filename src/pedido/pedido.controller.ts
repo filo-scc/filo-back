@@ -28,10 +28,10 @@ export class PedidoController {
         return this.pedidoService.create(createPedidoDto, (req as any).user.fabrico_id);
     }
 
-    // @Get()
-    // findAll() {
-    //     return this.pedidoService.findAll();
-    // }
+    @Get()
+    findAll() {
+        return this.pedidoService.findAll();
+    }
 
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number) {
