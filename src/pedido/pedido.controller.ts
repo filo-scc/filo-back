@@ -28,10 +28,10 @@ export class PedidoController {
         return this.pedidoService.create(createPedidoDto, (req as any).user.fabrico_id);
     }
 
-    // @Get()
-    // findAll() {
-    //     return this.pedidoService.findAll();
-    // }
+    @Get()
+    findAll() {
+        return this.pedidoService.findAll();
+    }
 
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number) {
@@ -52,9 +52,9 @@ export class PedidoController {
         return this.pedidoService.update(id, data, (req as any).user.fabrico_id);
     }
 
-    @Get()
-    findAllFabrico(@Req() req: Request) {
-        return this.pedidoService.findAllFabrico((req as any).user.fabrico_id);
+    @Get("/fabrico/:fabrico_id")
+    findAllFabrico(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
+        return this.pedidoService.findAllFabrico(fabrico_id);
     }
 
     @Get("/cliente/:cliente_id")
