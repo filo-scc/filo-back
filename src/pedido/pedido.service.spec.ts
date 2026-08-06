@@ -12,16 +12,19 @@ describe("PedidoService", () => {
             create: jest.fn(),
             findMany: jest.fn(),
             findUnique: jest.fn(),
+            findFirst: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
         },
 
         cliente: {
             findUnique: jest.fn(),
+            findFirst: jest.fn(),
         },
 
         fabrico: {
             findUnique: jest.fn(),
+            findFirst: jest.fn(),
         },
     };
 
@@ -59,29 +62,18 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.create.mockResolvedValue(pedido);
 
-            const result = await service.create({
-                finalizado: false,
-                fabrico_id: 1,
-                cor: "#FFFFFF",
-                quantidade: 10,
-            });
+            const result = await service.create(
+                {
+                    finalizado: false,
+                    cor: "#FFFFFF",
+                    quantidade: 10,
+                },
+                1,
+            );
 
             expect(result).toEqual(pedido);
 
             expect(mockPrismaService.pedido.create).toHaveBeenCalled();
-        });
-
-        it("deve lançar erro se fabrico não existir", async () => {
-            mockPrismaService.fabrico.findUnique.mockResolvedValue(null);
-
-            await expect(
-                service.create({
-                    finalizado: false,
-                    fabrico_id: 99,
-                    cor: "#FFFFFF",
-                    quantidade: 10,
-                }),
-            ).rejects.toThrow(NotFoundException);
         });
     });
 
@@ -161,9 +153,13 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.update.mockResolvedValue(pedidoAtualizado);
 
-            const result = await service.update(1, {
-                finalizado: true,
-            });
+            const result = await service.update(
+                1,
+                {
+                    finalizado: true,
+                },
+                1,
+            );
 
             expect(result).toEqual(pedidoAtualizado);
 
@@ -174,9 +170,13 @@ describe("PedidoService", () => {
             mockPrismaService.pedido.findUnique.mockResolvedValue(null);
 
             await expect(
-                service.update(1, {
-                    finalizado: true,
-                }),
+                service.update(
+                    1,
+                    {
+                        finalizado: true,
+                    },
+                    1,
+                ),
             ).rejects.toThrow(NotFoundException);
         });
 
@@ -188,9 +188,13 @@ describe("PedidoService", () => {
             mockPrismaService.cliente.findUnique.mockResolvedValue(null);
 
             await expect(
-                service.update(1, {
-                    cliente_id: 99,
-                }),
+                service.update(
+                    1,
+                    {
+                        cliente_id: 99,
+                    },
+                    1,
+                ),
             ).rejects.toThrow(NotFoundException);
         });
     });

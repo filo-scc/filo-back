@@ -14,6 +14,7 @@ const mockPrismaService = {
         update: jest.fn(),
         delete: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
     },
     fichaTecnicaItem: {
@@ -97,7 +98,7 @@ describe("FichaTecnicaService", () => {
             prismaService.gradeVersaoItem.findMany.mockResolvedValue([{ id: 1 }]);
             prismaService.fichaTecnica.create.mockResolvedValue(fichaData);
 
-            const result = await service.create(createDto);
+            const result = await service.create(createDto, 20);
 
             expect(result).toEqual(fichaData);
             expect(prismaService.fichaTecnica.create).toHaveBeenCalled();
@@ -106,8 +107,8 @@ describe("FichaTecnicaService", () => {
         it("deve lançar NotFoundException se o produto não pertencer ao fabrico", async () => {
             prismaService.produto.findFirst.mockResolvedValue(null);
 
-            await expect(service.create(createDto)).rejects.toThrow(NotFoundException);
-            await expect(service.create(createDto)).rejects.toThrow(
+            await expect(service.create(createDto, 20)).rejects.toThrow(NotFoundException);
+            await expect(service.create(createDto, 20)).rejects.toThrow(
                 "Produto não encontrado para este fabrico",
             );
         });
@@ -115,8 +116,8 @@ describe("FichaTecnicaService", () => {
         it("deve lançar BadRequestException se o produto não tiver grade_versao_id", async () => {
             prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: null });
 
-            await expect(service.create(createDto)).rejects.toThrow(BadRequestException);
-            await expect(service.create(createDto)).rejects.toThrow(
+            await expect(service.create(createDto, 20)).rejects.toThrow(BadRequestException);
+            await expect(service.create(createDto, 20)).rejects.toThrow(
                 "Produto não possui grade definida",
             );
         });
@@ -125,8 +126,8 @@ describe("FichaTecnicaService", () => {
             prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
             prismaService.gradeVersaoItem.findMany.mockResolvedValue([]);
 
-            await expect(service.create(createDto)).rejects.toThrow(BadRequestException);
-            await expect(service.create(createDto)).rejects.toThrow(
+            await expect(service.create(createDto, 20)).rejects.toThrow(BadRequestException);
+            await expect(service.create(createDto, 20)).rejects.toThrow(
                 "Grade sem tamanhos configurados",
             );
         });
@@ -160,7 +161,7 @@ describe("FichaTecnicaService", () => {
                 etapa_atual_id: 40,
             });
 
-            const result = await service.update(1, updateDto);
+            const result = await service.update(1, updateDto, 20);
 
             expect(result.etapa_atual_id).toEqual(40);
             expect(prismaService.fichaTecnica.update).toHaveBeenCalled();
@@ -177,7 +178,7 @@ describe("FichaTecnicaService", () => {
                 grade_versao_id: 31,
             });
 
-            await service.update(1, updateComGradeDto);
+            await service.update(1, updateComGradeDto, 20);
 
             expect(prismaService.fichaTecnicaItem.deleteMany).toHaveBeenCalledWith({
                 where: { ficha_tecnica_id: 1 },
@@ -186,10 +187,10 @@ describe("FichaTecnicaService", () => {
         });
 
         it("deve lançar BadRequestException se tentar alterar o produto_id", async () => {
-            await expect(service.update(1, { produto_id: 99 } as any)).rejects.toThrow(
+            await expect(service.update(1, { produto_id: 99 } as any, 20)).rejects.toThrow(
                 BadRequestException,
             );
-            await expect(service.update(1, { produto_id: 99 } as any)).rejects.toThrow(
+            await expect(service.update(1, { produto_id: 99 } as any, 20)).rejects.toThrow(
                 "Não é permitido alterar o produto da ficha",
             );
         });
@@ -197,10 +198,10 @@ describe("FichaTecnicaService", () => {
         it("deve lançar BadRequestException se o produto não pertencer ao novo fabrico", async () => {
             prismaService.produto.findFirst.mockResolvedValue(null);
 
-            await expect(service.update(1, { fabrico_id: 21 } as any)).rejects.toThrow(
+            await expect(service.update(1, { fabrico_id: 21 } as any, 20)).rejects.toThrow(
                 BadRequestException,
             );
-            await expect(service.update(1, { fabrico_id: 21 } as any)).rejects.toThrow(
+            await expect(service.update(1, { fabrico_id: 21 } as any, 20)).rejects.toThrow(
                 "O produto da ficha não pertence ao fabrico informado",
             );
         });
@@ -208,8 +209,8 @@ describe("FichaTecnicaService", () => {
         it("deve lançar BadRequestException se a etapa for de outro fabrico", async () => {
             etapaService.getById.mockResolvedValue({ fabrico_id: 99 }); // Etapa de OUTRO fabrico
 
-            await expect(service.update(1, updateDto)).rejects.toThrow(BadRequestException);
-            await expect(service.update(1, updateDto)).rejects.toThrow(
+            await expect(service.update(1, updateDto, 20)).rejects.toThrow(BadRequestException);
+            await expect(service.update(1, updateDto, 20)).rejects.toThrow(
                 "A etapa não pertence ao mesmo fabrico da ficha técnica",
             );
         });
@@ -217,10 +218,10 @@ describe("FichaTecnicaService", () => {
         it("deve lançar BadRequestException se a nova grade for inválida/inativa", async () => {
             prismaService.gradeVersao.findFirst.mockResolvedValue(null);
 
-            await expect(service.update(1, { grade_versao_id: 99 } as any)).rejects.toThrow(
+            await expect(service.update(1, { grade_versao_id: 99 } as any, 20)).rejects.toThrow(
                 BadRequestException,
             );
-            await expect(service.update(1, { grade_versao_id: 99 } as any)).rejects.toThrow(
+            await expect(service.update(1, { grade_versao_id: 99 } as any, 20)).rejects.toThrow(
                 "A nova versão de grade informada é inválida ou está inativa",
             );
         });
