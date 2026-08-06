@@ -16,9 +16,9 @@ export class FichaTecnicaService {
         private readonly etapaService: EtapaService,
     ) {}
 
-    async create(data: CreateFichaTecnicaDto) {
+    async create(data: CreateFichaTecnicaDto, fabricoId: number) {
         const produto_id = Number(data.produto_id);
-        const fabrico_id = Number(data.fabrico_id);
+        const fabrico_id = Number(fabricoId);
 
         await Promise.all([
             this.produtoService.getById(produto_id),
@@ -58,11 +58,22 @@ export class FichaTecnicaService {
             throw new BadRequestException("Grade sem tamanhos configurados");
         }
 
+        const ultimaFichaTecnica = await this.prisma.fichaTecnica.findFirst({
+            where: {
+                fabrico_id,
+            },
+            orderBy: {
+                id: "desc",
+            },
+        });
+        const numero = (ultimaFichaTecnica?.numero ?? 0) + 1;
+
         return this.prisma.$transaction(async (tx) => {
             // 1. cria ficha
             const ficha = await tx.fichaTecnica.create({
                 data: {
                     ...data,
+                    numero,
                     grade_versao_id,
                     produto_id,
                     fabrico_id,
@@ -235,17 +246,15 @@ export class FichaTecnicaService {
         return ficha;
     }
 
-    async update(id: number, data: UpdateFichaTecnicaDto) {
+    async update(id: number, data: UpdateFichaTecnicaDto, fabricoId: number) {
         const ficha = await this.findOne(id);
+
+        if (ficha.fabrico_id !== Number(fabricoId)) {
+            throw new NotFoundException("Ficha não encontrada");
+        }
 
         if (data.produto_id && data.produto_id !== ficha.produto_id) {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
-        }
-
-        const fabricoId = Number(data.fabrico_id ?? ficha.fabrico_id);
-
-        if (data.fabrico_id) {
-            await this.fabricoService.getById(fabricoId);
         }
 
         const produto = await this.prisma.produto.findFirst({
