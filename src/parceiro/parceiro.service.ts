@@ -128,4 +128,13 @@ export class ParceiroService {
 
         return { message: "Parceiro foi removido com sucesso" };
     }
+
+    async getParceirosByFabricoECategoria(fabricoId: number, categoria: string) {
+        return await this.prisma.parceiro.findMany({
+            where: {
+                fabrico_id: fabricoId,
+                categoria: categoria,
+            },
+        });
+    }
 }
