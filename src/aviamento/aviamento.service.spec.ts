@@ -22,114 +22,269 @@ describe("AviamentoService", () => {
         service = new AviamentoService(prisma);
     });
 
-    it("cria aviamento para fabrico existente", async () => {
-        prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
-        prisma.aviamento.create.mockResolvedValue({ id: 1, nome: "botão" });
+    describe("create", () => {
+        it("cria aviamento para fabrico existente", async () => {
+            prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+            prisma.aviamento.create.mockResolvedValue({ id: 1, nome: "botão" });
 
-        await expect(
-            service.create({
+            await expect(
+                service.create({
+                    nome: "botão",
+                    fabrico_id: 10,
+                    unidade_de_medida: "UNIDADE",
+                    custo_unitario: 10,
+                }),
+            ).resolves.toEqual({
+                id: 1,
                 nome: "botão",
+            });
+        });
+
+        it("envia os dados corretamente ao prisma", async () => {
+            prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+            prisma.aviamento.create.mockResolvedValue({ id: 1 });
+
+            await service.create({
+                nome: "Linha",
                 fabrico_id: 10,
-                unidade_de_medida: "unidade",
-                custo_unitario: 10.0,
-            }),
-        ).resolves.toEqual({
-            id: 1,
-            nome: "botão",
+                unidade_de_medida: "METRO",
+                custo_unitario: 12.5,
+            });
+
+            expect(prisma.aviamento.create).toHaveBeenCalledWith({
+                data: {
+                    nome: "Linha",
+                    fabrico_id: 10,
+                    unidade_de_medida: "METRO",
+                    custo_unitario: 12.5,
+                },
+            });
+        });
+
+        it("rejeita fabrico inexistente", async () => {
+            prisma.fabrico.findUnique.mockResolvedValue(null);
+
+            await expect(
+                service.create({
+                    nome: "botão",
+                    fabrico_id: 10,
+                    unidade_de_medida: "UNIDADE",
+                    custo_unitario: 10,
+                }),
+            ).rejects.toThrow(new NotFoundException("Fabrico não encontrado!"));
+
+            expect(prisma.aviamento.create).not.toHaveBeenCalled();
+        });
+
+        it("traduz nome duplicado ao criar", async () => {
+            prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+            prisma.aviamento.create.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "7.0.0",
+                }),
+            );
+
+            await expect(
+                service.create({
+                    nome: "botão",
+                    fabrico_id: 10,
+                    unidade_de_medida: "UNIDADE",
+                    custo_unitario: 10,
+                }),
+            ).rejects.toThrow(
+                new ConflictException("Já existe um aviamento com este nome para este fabrico"),
+            );
+        });
+
+        it("propaga erros inesperados", async () => {
+            prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+
+            const error = new Error("Erro interno");
+
+            prisma.aviamento.create.mockRejectedValue(error);
+
+            await expect(
+                service.create({
+                    nome: "botão",
+                    fabrico_id: 10,
+                    unidade_de_medida: "UNIDADE",
+                    custo_unitario: 10,
+                }),
+            ).rejects.toBe(error);
         });
     });
 
-    it("rejeita fabrico inexistente", async () => {
-        prisma.fabrico.findUnique.mockResolvedValue(null);
+    describe("findAll", () => {
+        it("lista aviamentos", async () => {
+            prisma.aviamento.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(
-            service.create({
-                nome: "botão",
-                fabrico_id: 10,
-                unidade_de_medida: "unidade",
-                custo_unitario: 10.0,
-            }),
-        ).rejects.toThrow(new NotFoundException("Fabrico não encontrado!"));
-    });
+            await expect(service.findAll()).resolves.toEqual([{ id: 1 }]);
+        });
 
-    it("traduz nome duplicado ao criar", async () => {
-        prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
-        prisma.aviamento.create.mockRejectedValue(
-            new PrismaClientKnownRequestError("duplicado", {
-                code: "P2002",
-                clientVersion: "7.0.0",
-            }),
-        );
+        it("chama findMany sem filtros", async () => {
+            prisma.aviamento.findMany.mockResolvedValue([]);
 
-        await expect(
-            service.create({
-                nome: "botão",
-                fabrico_id: 10,
-                unidade_de_medida: "unidade",
-                custo_unitario: 10.0,
-            }),
-        ).rejects.toThrow(
-            new ConflictException("Já existe um aviamento com este nome para este fabrico"),
-        );
-    });
+            await service.findAll();
 
-    it("lista aviamentos", async () => {
-        prisma.aviamento.findMany.mockResolvedValue([{ id: 1 }]);
-
-        await expect(service.findAll()).resolves.toEqual([{ id: 1 }]);
-    });
-
-    it("busca aviamento existente", async () => {
-        prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
-
-        await expect(service.getById(1)).resolves.toEqual({ id: 1 });
-    });
-
-    it("rejeita aviamento inexistente", async () => {
-        prisma.aviamento.findUnique.mockResolvedValue(null);
-
-        await expect(service.getById(1)).rejects.toThrow(
-            new NotFoundException("Aviamento não encontrado"),
-        );
-    });
-
-    it("lista aviamentos por fabrico", async () => {
-        prisma.aviamento.findMany.mockResolvedValue([{ id: 1 }]);
-
-        await expect(service.findAllFabrico(10)).resolves.toEqual([{ id: 1 }]);
-        expect(prisma.aviamento.findMany).toHaveBeenCalledWith({ where: { fabrico_id: 10 } });
-    });
-
-    it("remove aviamento existente", async () => {
-        prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
-        prisma.aviamento.delete.mockResolvedValue({ id: 1 });
-
-        await expect(service.delete(1)).resolves.toBe(
-            "O aviamento com o id 1 foi deletado com sucesso",
-        );
-    });
-
-    it("atualiza aviamento existente", async () => {
-        prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
-        prisma.aviamento.update.mockResolvedValue({ id: 1, nome: "zíper" });
-
-        await expect(service.update(1, { nome: "zíper" })).resolves.toEqual({
-            id: 1,
-            nome: "zíper",
+            expect(prisma.aviamento.findMany).toHaveBeenCalledWith();
         });
     });
 
-    it("traduz nome duplicado ao atualizar", async () => {
-        prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
-        prisma.aviamento.update.mockRejectedValue(
-            new PrismaClientKnownRequestError("duplicado", {
-                code: "P2002",
-                clientVersion: "7.0.0",
-            }),
-        );
+    describe("getById", () => {
+        it("busca aviamento existente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
 
-        await expect(service.update(1, { nome: "botão" })).rejects.toThrow(
-            new ConflictException("Já existe um aviamento com este nome para este fabrico"),
-        );
+            await expect(service.getById(1)).resolves.toEqual({ id: 1 });
+        });
+
+        it("consulta o prisma pelo id informado", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 5 });
+
+            await service.getById(5);
+
+            expect(prisma.aviamento.findUnique).toHaveBeenCalledWith({
+                where: { id: 5 },
+            });
+        });
+
+        it("rejeita aviamento inexistente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue(null);
+
+            await expect(service.getById(1)).rejects.toThrow(
+                new NotFoundException("Aviamento não encontrado"),
+            );
+        });
+    });
+
+    describe("findAllFabrico", () => {
+        it("lista aviamentos por fabrico", async () => {
+            prisma.aviamento.findMany.mockResolvedValue([{ id: 1 }]);
+
+            await expect(service.findAllFabrico(10)).resolves.toEqual([{ id: 1 }]);
+
+            expect(prisma.aviamento.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10 },
+            });
+        });
+    });
+
+    describe("delete", () => {
+        it("remove aviamento existente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+            prisma.aviamento.delete.mockResolvedValue({ id: 1 });
+
+            await expect(service.delete(1)).resolves.toBe(
+                "O aviamento com o id 1 foi deletado com sucesso",
+            );
+        });
+
+        it("chama delete com o id correto", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+            prisma.aviamento.delete.mockResolvedValue({ id: 1 });
+
+            await service.delete(1);
+
+            expect(prisma.aviamento.delete).toHaveBeenCalledWith({
+                where: { id: 1 },
+            });
+        });
+
+        it("rejeita remoção de aviamento inexistente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue(null);
+
+            await expect(service.delete(1)).rejects.toThrow(
+                new NotFoundException("Aviamento não encontrado"),
+            );
+
+            expect(prisma.aviamento.delete).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("update", () => {
+        it("atualiza aviamento existente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+
+            prisma.aviamento.update.mockResolvedValue({
+                id: 1,
+                nome: "zíper",
+            });
+
+            await expect(
+                service.update(1, {
+                    nome: "zíper",
+                }),
+            ).resolves.toEqual({
+                id: 1,
+                nome: "zíper",
+            });
+        });
+
+        it("envia os dados corretamente ao prisma", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+            prisma.aviamento.update.mockResolvedValue({ id: 1 });
+
+            await service.update(1, {
+                nome: "Elástico",
+                fabrico_id: 5,
+                unidade_de_medida: "METRO",
+                custo_unitario: 8,
+            });
+
+            expect(prisma.aviamento.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: {
+                    nome: "Elástico",
+                    fabrico_id: 5,
+                    unidade_de_medida: "METRO",
+                    custo_unitario: 8,
+                },
+            });
+        });
+
+        it("rejeita atualização de aviamento inexistente", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue(null);
+
+            await expect(
+                service.update(1, {
+                    nome: "zíper",
+                }),
+            ).rejects.toThrow(new NotFoundException("Aviamento não encontrado"));
+
+            expect(prisma.aviamento.update).not.toHaveBeenCalled();
+        });
+
+        it("traduz nome duplicado ao atualizar", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+
+            prisma.aviamento.update.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "7.0.0",
+                }),
+            );
+
+            await expect(
+                service.update(1, {
+                    nome: "botão",
+                }),
+            ).rejects.toThrow(
+                new ConflictException("Já existe um aviamento com este nome para este fabrico"),
+            );
+        });
+
+        it("propaga erros inesperados", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+
+            const error = new Error("Erro interno");
+
+            prisma.aviamento.update.mockRejectedValue(error);
+
+            await expect(
+                service.update(1, {
+                    nome: "zíper",
+                }),
+            ).rejects.toBe(error);
+        });
     });
 });

@@ -90,12 +90,12 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async update(id: number, updateProdutoAviamentoDto: UpdateProdutoAviamentoDto) {
+    async update(id: number, payload: UpdateProdutoAviamentoDto) {
         await this.findOne(id);
 
         return this.prisma.produtoAviamento.update({
             where: { id },
-            data: { custo: updateProdutoAviamentoDto.custo },
+            data: payload,
         });
     }
 

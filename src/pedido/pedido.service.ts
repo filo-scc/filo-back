@@ -13,18 +13,10 @@ import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 export class PedidoService {
     constructor(private prisma: PrismaService) {}
 
-    async create(data: CreatePedidoDto): Promise<Pedido> {
-        const fabricoExists = await this.prisma.fabrico.findUnique({
-            where: { id: data.fabrico_id },
-        });
-
-        if (!fabricoExists) {
-            throw new NotFoundException("Fabrico não encontrado!");
-        }
-
+    async create(data: CreatePedidoDto, fabricoId: number): Promise<Pedido> {
         if (data.cliente_id) {
-            const clienteExists = await this.prisma.cliente.findUnique({
-                where: { id: data.cliente_id },
+            const clienteExists = await this.prisma.cliente.findFirst({
+                where: { id: data.cliente_id, fabrico_id: fabricoId },
             });
 
             if (!clienteExists) {
@@ -32,14 +24,27 @@ export class PedidoService {
             }
         }
 
+        const ultimoPedido = await this.prisma.pedido.findFirst({
+            where: {
+                fabrico_id: fabricoId,
+                numero: { not: null },
+            },
+            orderBy: {
+                numero: "desc",
+            },
+        });
+
+        const numero = (ultimoPedido?.numero ?? 0) + 1;
+
         try {
             return await this.prisma.pedido.create({
                 data: {
-                    finalizado: data.finalizado,
+                    finalizado: data.finalizado ?? false,
                     data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                     observacoes: data.observacoes,
                     cliente_id: data.cliente_id,
-                    fabrico_id: data.fabrico_id,
+                    fabrico_id: fabricoId,
+                    numero: numero,
                     cor: data.cor,
                     quantidade: data.quantidade,
                     valor_total: data.valor_total,
@@ -78,9 +83,9 @@ export class PedidoService {
         }
     }
 
-    async update(id: number, data: UpdatePedidoDto): Promise<Pedido> {
+    async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
         const pedido = await this.prisma.pedido.findUnique({
-            where: { id },
+            where: { id, fabrico_id: fabricoId },
         });
 
         if (!pedido) {
@@ -97,16 +102,6 @@ export class PedidoService {
             }
         }
 
-        if (data.fabrico_id !== undefined && data.fabrico_id !== null) {
-            const fabrico = await this.prisma.fabrico.findUnique({
-                where: { id: data.fabrico_id },
-            });
-
-            if (!fabrico) {
-                throw new NotFoundException("Fabrico não encontrado!");
-            }
-        }
-
         return await this.prisma.pedido.update({
             where: { id },
             data: {
@@ -119,9 +114,9 @@ export class PedidoService {
         });
     }
 
-    async findAllFabrico(fabrico_id: number) {
+    async findAllFabrico(fabricoId: number) {
         const pedidos = await this.prisma.pedido.findMany({
-            where: { fabrico_id: fabrico_id },
+            where: { fabrico_id: fabricoId },
             include: {
                 cliente: true,
                 fichas_tecnicas: {

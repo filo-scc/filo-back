@@ -42,4 +42,12 @@ export class ParceiroController {
     remove(@Param("id") id: string) {
         return this.parceiroService.delete(+id);
     }
+
+    @Get("fabrico/:fabricoId/categoria/:categoria")
+    async getByFabricoECategoria(
+        @Param("fabricoId") fabricoId: string,
+        @Param("categoria") categoria: string,
+    ) {
+        return this.parceiroService.getParceirosByFabricoECategoria(Number(fabricoId), categoria);
+    }
 }

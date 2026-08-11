@@ -16,13 +16,6 @@ export class CreatePedidoDto {
     @IsInt()
     cliente_id?: number;
 
-    @IsInt()
-    fabrico_id: number;
-
-    @IsOptional()
-    @IsInt()
-    numero?: number;
-
     @IsString()
     cor: string;
 

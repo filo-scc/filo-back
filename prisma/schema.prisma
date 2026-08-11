@@ -228,7 +228,7 @@ model Produto {
 model ProdutoAviamento {
   id Int @id @default(autoincrement())
   custo Decimal? @db.Decimal(10, 2)
-  quantidade Int 
+  quantidade Decimal? 
 
   produto_id Int
   produto Produto @relation(fields: [produto_id], references: [id], onDelete: Cascade)
