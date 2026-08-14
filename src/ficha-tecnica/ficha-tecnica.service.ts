@@ -192,6 +192,7 @@ export class FichaTecnicaService {
                 produto: {
                     include: {
                         tecido: true,
+                        tipo_produto: true,
                     },
                 },
                 etapa_atual: true,
