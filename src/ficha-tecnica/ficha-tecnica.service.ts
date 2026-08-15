@@ -114,6 +114,11 @@ export class FichaTecnicaService {
                             cliente: true,
                         },
                     },
+                    ficha_parceiro: {
+                        include: {
+                            parceiro: true,
+                        },
+                    },
                     grade_versao: {
                         include: {
                             itens: {

@@ -54,6 +54,7 @@ describe("FichaTecnicaService", () => {
             nome: "Produto Teste",
             parceiro_produto: [],
         },
+        ficha_parceiro: [],
         pedido: {
             id: 100,
             data_prevista: new Date(),
@@ -250,7 +251,20 @@ describe("FichaTecnicaService", () => {
         it("deve retornar lista de fichas por fabrico", async () => {
             prismaService.fichaTecnica.findMany.mockResolvedValue([fichaData]);
             const result = await service.findAllByFabricoId(20);
+
             expect(result).toEqual([fichaData]);
+            expect(prismaService.fichaTecnica.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { fabrico_id: 20 },
+                    include: expect.objectContaining({
+                        ficha_parceiro: {
+                            include: {
+                                parceiro: true,
+                            },
+                        },
+                    }),
+                }),
+            );
         });
 
         it("deve capturar PrismaClientValidationError e lançar BadRequestException", async () => {
