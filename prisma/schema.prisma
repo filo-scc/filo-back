@@ -199,6 +199,7 @@ model Produto {
   quantidade_tecido Decimal? @db.Decimal(10, 2)
   custo_operacional Decimal? @db.Decimal(10, 2)
   outros_custos Decimal? @db.Decimal(10, 2)
+  custo_total Decimal? @db.Decimal(10, 2)
 
   cliente_produto ClienteProduto[]
 
@@ -515,7 +516,7 @@ model Aviamento {
 
   nome String
   unidade_de_medida UnidadeDeMedida
-  custo_unitario Decimal? @db.Decimal(10, 2)
+  custo_unitario Decimal? @db.Decimal(10, 4)
 
   fabrico_id Int
 
