@@ -9,6 +9,22 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 
+const PALETA_13_CORES = [
+    "#7FA9B8",
+    "#9DB7A5",
+    "#5F8F9B",
+    "#A89FBF",
+    "#8FAF7A",
+    "#6E8CA5",
+    "#B88772",
+    "#8E9CA8",
+    "#8D7FA8",
+    "#A288C7",
+    "#5F9EA0",
+    "#B86A7B",
+    "#7E8F4E",
+];
+
 @Injectable()
 export class PedidoService {
     constructor(private prisma: PrismaService) {}
@@ -35,6 +51,8 @@ export class PedidoService {
         });
 
         const numero = (ultimoPedido?.numero ?? 0) + 1;
+        
+        const corPedido = data.usarCorPaleta ? await this.getCorPaleta(fabricoId) : "#FFFFFF";
 
         try {
             return await this.prisma.pedido.create({
@@ -45,7 +63,7 @@ export class PedidoService {
                     cliente_id: data.cliente_id,
                     fabrico_id: fabricoId,
                     numero: numero,
-                    cor: data.cor,
+                    cor: corPedido,
                     quantidade: data.quantidade,
                     valor_total: data.valor_total,
                 },
@@ -132,5 +150,24 @@ export class PedidoService {
             where: { cliente_id: cliente_id },
         });
         return pedidos;
+    }
+
+    private async getCorPaleta(fabricoId: number): Promise<string> {
+        const pedidosAtivos = await this.prisma.pedido.findMany({
+            where: {
+              fabrico_id: fabricoId,
+              finalizado: false,
+              NOT: { cor: { equals: "#FFFFFF", mode: "insensitive" } },
+            },
+            select: { cor: true },
+          });
+          const coresEmUso = pedidosAtivos
+            .map((p) => p.cor?.toUpperCase())
+            .filter(Boolean);
+
+          return (
+            PALETA_13_CORES.find((c) => !coresEmUso.includes(c.toUpperCase())) ??
+            PALETA_13_CORES[0]
+          );
     }
 }
