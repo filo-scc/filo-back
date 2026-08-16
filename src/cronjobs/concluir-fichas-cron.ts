@@ -1,16 +1,35 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
-export class ConcluirFichasCronService {
+export class ConcluirFichasCronService implements OnModuleInit {
     private readonly logger = new Logger(ConcluirFichasCronService.name);
+    private executando = false;
 
     constructor(private readonly prisma: PrismaService) {}
 
+    async onModuleInit() {
+        await this.executarConclusaoDeFichas("inicialização do backend");
+    }
+
     @Cron(CronExpression.EVERY_8_HOURS)
     async handleConcluirFichasAntigas() {
-        this.logger.log("Iniciando Job de verificação de fichas técnicas obsoletas...");
+        await this.executarConclusaoDeFichas("agendamento de 8 horas");
+    }
+
+    private async executarConclusaoDeFichas(origem: string) {
+        if (this.executando) {
+            this.logger.warn(
+                `Job de conclusão de fichas ignorado (${origem}): já existe uma execução em andamento.`,
+            );
+            return;
+        }
+
+        this.executando = true;
+        const inicio = Date.now();
+
+        this.logger.log(`Iniciando Job de conclusão de fichas (${origem})...`);
 
         try {
             const fabricos = await this.prisma.fabrico.findMany({
@@ -73,10 +92,16 @@ export class ConcluirFichasCronService {
             }
 
             this.logger.log(
-                `Job finalizado com sucesso. Total de ${totalAtualizado} fichas técnicas concluídas.`,
+                `Job finalizado com sucesso (${origem}). Total de ${totalAtualizado} fichas técnicas concluídas em ${Date.now() - inicio}ms.`,
             );
         } catch (error) {
-            this.logger.error("Erro ao executar o Job de conclusão de fichas técnicas:", error);
+            const detalhe = error instanceof Error ? error.stack : String(error);
+            this.logger.error(
+                `Erro ao executar o Job de conclusão de fichas técnicas (${origem}).`,
+                detalhe,
+            );
+        } finally {
+            this.executando = false;
         }
     }
 }
