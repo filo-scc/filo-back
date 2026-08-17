@@ -51,7 +51,7 @@ export class PedidoService {
         });
 
         const numero = (ultimoPedido?.numero ?? 0) + 1;
-        
+
         const corPedido = data.usarCorPaleta ? await this.getCorPaleta(fabricoId) : "#FFFFFF";
 
         try {
@@ -155,19 +155,16 @@ export class PedidoService {
     private async getCorPaleta(fabricoId: number): Promise<string> {
         const pedidosAtivos = await this.prisma.pedido.findMany({
             where: {
-              fabrico_id: fabricoId,
-              finalizado: false,
-              NOT: { cor: { equals: "#FFFFFF", mode: "insensitive" } },
+                fabrico_id: fabricoId,
+                finalizado: false,
+                NOT: { cor: { equals: "#FFFFFF", mode: "insensitive" } },
             },
             select: { cor: true },
-          });
-          const coresEmUso = pedidosAtivos
-            .map((p) => p.cor?.toUpperCase())
-            .filter(Boolean);
+        });
+        const coresEmUso = pedidosAtivos.map((p) => p.cor?.toUpperCase()).filter(Boolean);
 
-          return (
-            PALETA_13_CORES.find((c) => !coresEmUso.includes(c.toUpperCase())) ??
-            PALETA_13_CORES[0]
-          );
+        return (
+            PALETA_13_CORES.find((c) => !coresEmUso.includes(c.toUpperCase())) ?? PALETA_13_CORES[0]
+        );
     }
 }
