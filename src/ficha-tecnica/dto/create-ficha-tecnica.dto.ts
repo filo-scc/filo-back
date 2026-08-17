@@ -20,4 +20,20 @@ export class CreateFichaTecnicaDto {
 
     @IsInt()
     quantidade: number;
+
+    @IsOptional()
+    @IsInt()
+    defeitos_costura: number;
+
+    @IsOptional()
+    @IsInt() 
+    defeitos_tecido: number;
+    
+    @IsOptional()
+    @IsInt()
+    retiradas: number; 
+
+    @IsOptional()
+    @IsInt()
+    sobras: number;
 }

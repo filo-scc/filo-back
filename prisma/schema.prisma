@@ -258,6 +258,10 @@ model FichaTecnica {
   concluida Boolean
   quantidade Int @default(0)
   numero Int @default(0)
+  defeitos_costura Int? @default(0)
+  defeitos_tecido Int? @default(0)
+  retiradas Int? @default(0)
+  sobras Int? @default(0)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
