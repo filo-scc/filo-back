@@ -38,9 +38,12 @@ describe("ProdutoService", () => {
         produtoData = {
             fabrico_id: 1,
             nome: "Produto Teste",
-            descricao: "Descrição do produto teste",
-            preco: 100.0,
-            gradeVersaoId: 1,
+            tipo_produto_id: 1,
+            custo_tecido: 50.0,
+            quantidade_tecido: 2.0,
+            custo_operacional: 20.0,
+            outros_custos: 10.0,
+            custo_total: 130.0,
         };
     });
 
@@ -152,8 +155,8 @@ describe("ProdutoService", () => {
     describe("findAll", () => {
         it("Deve retornar uma lista de produtos", async () => {
             const produtos = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1 },
+                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
+                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
             ];
 
             prismaService.produto.findMany.mockResolvedValue(produtos);
@@ -254,6 +257,26 @@ describe("ProdutoService", () => {
             expect(prismaService.produto.update).toHaveBeenCalledTimes(1);
         });
 
+        it("Deve atualizar o custo_total de um produto com sucesso", async () => {
+            const produtoCriado = { id: 1, ...produtoData };
+            const dadosAtualizados = { custo_total: 150.0 };
+
+            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
+            prismaService.produto.update.mockResolvedValue({
+                ...produtoCriado,
+                ...dadosAtualizados,
+            });
+
+            const resultado = await service.update(1, dadosAtualizados);
+
+            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { custo_total: 150.0 },
+            });
+            expect(resultado).toEqual("O produto com o id 1 foi atualizado");
+        });
+
         it("Deve lançar um erro ao tentar atualizar um produto que não existe", async () => {
             prismaService.produto.findUnique.mockResolvedValue(null);
 
@@ -333,9 +356,9 @@ describe("ProdutoService", () => {
     describe("findAllFabrico", () => {
         it("Deve retornar uma lista de produtos para um fabrico específico", async () => {
             const produtos = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1 },
-                { id: 3, nome: "Produto 3", fabrico_id: 2 },
+                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
+                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
+                { id: 3, nome: "Produto 3", fabrico_id: 2, custo_total: 90.0 },
             ];
 
             prismaService.produto.findMany.mockResolvedValue(
@@ -355,8 +378,8 @@ describe("ProdutoService", () => {
             expect(prismaService.produto.findMany).toHaveBeenCalledTimes(1);
 
             expect(result).toEqual([
-                { id: 1, nome: "Produto 1", fabrico_id: 1 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1 },
+                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
+                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
             ]);
         });
     });
@@ -366,8 +389,8 @@ describe("ProdutoService", () => {
             const cliente_id = 1;
             const fabrico_id = 1;
             const produtosEsperados = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1 },
+                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
+                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
             ];
 
             prismaService.produto.findMany.mockResolvedValue(produtosEsperados);

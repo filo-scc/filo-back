@@ -29,6 +29,11 @@ export class CreateProdutoDto {
     @IsOptional()
     outros_custos?: number;
 
+    @IsNotEmpty()
+    @IsNumber()
+    @IsOptional()
+    custo_total?: number;
+
     @IsNumber()
     @IsNotEmpty()
     tipo_produto_id: number;
