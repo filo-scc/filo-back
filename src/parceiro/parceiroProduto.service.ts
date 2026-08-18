@@ -39,7 +39,7 @@ export class ParceiroProdutoService {
             data: {
                 produto_id: produto_id,
                 parceiro_id: parceiro_id,
-                preco: data.preco,
+                preco: data.preco ?? null,
             },
         });
     }
@@ -100,7 +100,7 @@ export class ParceiroProdutoService {
 
         return await this.prisma.parceiroProduto.update({
             where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
-            data: { preco: data.preco },
+            data: { preco: data.preco ?? null },
         });
     }
 

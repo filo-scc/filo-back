@@ -228,25 +228,6 @@ describe("FichaTecnicaService", () => {
         });
     });
 
-    describe("remove", () => {
-        it("deve remover a ficha com sucesso", async () => {
-            jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
-            prismaService.fichaTecnica.delete.mockResolvedValue(fichaData);
-
-            const result = await service.remove(1);
-
-            expect(result).toBe("Ficha técnica excluída com sucesso");
-            expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
-        });
-
-        it("deve lançar NotFoundException se a ficha não existir", async () => {
-            jest.spyOn(service, "findOne").mockRejectedValue(new NotFoundException());
-
-            await expect(service.remove(99)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
-        });
-    });
-
     describe("findAllByFabricoId", () => {
         it("deve retornar lista de fichas por fabrico", async () => {
             prismaService.fichaTecnica.findMany.mockResolvedValue([fichaData]);
@@ -255,7 +236,7 @@ describe("FichaTecnicaService", () => {
             expect(result).toEqual([fichaData]);
             expect(prismaService.fichaTecnica.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { fabrico_id: 20 },
+                    where: { fabrico_id: 20, concluida: false },
                     include: expect.objectContaining({
                         ficha_parceiro: {
                             include: {
@@ -275,6 +256,25 @@ describe("FichaTecnicaService", () => {
             prismaService.fichaTecnica.findMany.mockRejectedValue(prismaError);
 
             await expect(service.findAllByFabricoId(20)).rejects.toThrow(BadRequestException);
+        });
+    });
+
+    describe("remove", () => {
+        it("deve remover a ficha com sucesso", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
+            prismaService.fichaTecnica.delete.mockResolvedValue(fichaData);
+
+            const result = await service.remove(1);
+
+            expect(result).toBe("Ficha técnica excluída com sucesso");
+            expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+        });
+
+        it("deve lançar NotFoundException se a ficha não existir", async () => {
+            jest.spyOn(service, "findOne").mockRejectedValue(new NotFoundException());
+
+            await expect(service.remove(99)).rejects.toThrow(NotFoundException);
+            expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
         });
     });
 
