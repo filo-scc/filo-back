@@ -516,7 +516,7 @@ model Aviamento {
 
   nome String
   unidade_de_medida UnidadeDeMedida
-  custo_unitario Decimal? @db.Decimal(10, 4)
+  custo_unitario Decimal? @db.Decimal(10, 3)
 
   fabrico_id Int
 
