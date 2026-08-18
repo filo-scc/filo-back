@@ -322,7 +322,7 @@ model parceiroProduto {
   produto  Produto  @relation(fields: [produto_id], references: [id], onDelete: Cascade)
   parceiro Parceiro @relation(fields: [parceiro_id], references: [id], onDelete: Cascade)
 
-  preco Float
+  preco Float?
 
   @@id([produto_id, parceiro_id])
   @@map("parceiro_produto")
