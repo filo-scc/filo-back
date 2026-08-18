@@ -40,6 +40,23 @@ describe("ParceiroProdutoService", () => {
         });
     });
 
+    it("cria vínculo com preço nulo quando o preço não é informado", async () => {
+        produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        parceiroService.getById.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.parceiroProduto.findUnique.mockResolvedValue(null);
+        prisma.parceiroProduto.create.mockResolvedValue({
+            parceiro_id: 1,
+            produto_id: 2,
+            preco: null,
+        });
+
+        await service.createParceiroProduto(1, 2, { preco: null });
+
+        expect(prisma.parceiroProduto.create).toHaveBeenCalledWith({
+            data: { produto_id: 2, parceiro_id: 1, preco: null },
+        });
+    });
+
     it("rejeita fabrico divergente no create", async () => {
         produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 10 });
         parceiroService.getById.mockResolvedValue({ id: 1, fabrico_id: 11 });
@@ -119,6 +136,20 @@ describe("ParceiroProdutoService", () => {
         expect(prisma.parceiroProduto.update).toHaveBeenCalledWith({
             where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
             data: { preco: 20 },
+        });
+    });
+
+    it("atualiza o vínculo com preço nulo quando o preço não é informado", async () => {
+        produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        parceiroService.getById.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.parceiroProduto.findUnique.mockResolvedValue({ parceiro_id: 1, produto_id: 2 });
+        prisma.parceiroProduto.update.mockResolvedValue({ preco: null });
+
+        await service.updateParceiroProduto(1, 2, { preco: null });
+
+        expect(prisma.parceiroProduto.update).toHaveBeenCalledWith({
+            where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
+            data: { preco: null },
         });
     });
 
