@@ -26,12 +26,12 @@ export class CreateFichaTecnicaDto {
     defeitos_costura: number;
 
     @IsOptional()
-    @IsInt() 
+    @IsInt()
     defeitos_tecido: number;
-    
+
     @IsOptional()
     @IsInt()
-    retiradas: number; 
+    retiradas: number;
 
     @IsOptional()
     @IsInt()
