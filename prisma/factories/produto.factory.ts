@@ -3,8 +3,14 @@ import { fakerPT_BR as faker } from "@faker-js/faker";
 
 export const ProdutoFactory = {
     build(overrides: any = {}) {
-        const { fabrico_id, tipo_produto_id, tipo_nome, tecido_id, grade_versao_id, ...restOverrides } =
-            overrides;
+        const {
+            fabrico_id,
+            tipo_produto_id,
+            tipo_nome,
+            tecido_id,
+            grade_versao_id,
+            ...restOverrides
+        } = overrides;
 
         const custo_operacional = parseFloat(faker.commerce.price({ min: 5, max: 500, dec: 2 }));
         const outros_custos = parseFloat(faker.commerce.price({ min: 15, max: 1500, dec: 2 }));

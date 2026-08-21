@@ -244,7 +244,11 @@ async function criarAviamentosDoFabrico(fabricoId: number) {
     return aviamentosCriados;
 }
 
-async function criarFichaEtapas(ficha: { id: number; concluida: boolean }, etapas: any[], etapaAtual: any) {
+async function criarFichaEtapas(
+    ficha: { id: number; concluida: boolean },
+    etapas: any[],
+    etapaAtual: any,
+) {
     const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
     const indiceAtual = etapasOrdenadas.findIndex((etapa) => etapa.id === etapaAtual.id);
     const ultimoIndice = indiceAtual >= 0 ? indiceAtual : 0;
@@ -260,7 +264,9 @@ async function criarFichaEtapas(ficha: { id: number; concluida: boolean }, etapa
                 etapa_id: etapasOrdenadas[i].id,
                 data_inicio: dataInicio,
                 data_fim: deveEncerrar
-                    ? new Date(dataInicio.getTime() + faker.number.int({ min: 1, max: 3 }) * 86_400_000)
+                    ? new Date(
+                          dataInicio.getTime() + faker.number.int({ min: 1, max: 3 }) * 86_400_000,
+                      )
                     : null,
                 observacoes: faker.datatype.boolean() ? faker.lorem.sentence() : null,
             },
