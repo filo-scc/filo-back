@@ -54,6 +54,7 @@ describe("FichaTecnicaService", () => {
             nome: "Produto Teste",
             parceiro_produto: [],
         },
+        ficha_parceiro: [],
         pedido: {
             id: 100,
             data_prevista: new Date(),
@@ -227,6 +228,37 @@ describe("FichaTecnicaService", () => {
         });
     });
 
+    describe("findAllByFabricoId", () => {
+        it("deve retornar lista de fichas por fabrico", async () => {
+            prismaService.fichaTecnica.findMany.mockResolvedValue([fichaData]);
+            const result = await service.findAllByFabricoId(20);
+
+            expect(result).toEqual([fichaData]);
+            expect(prismaService.fichaTecnica.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { fabrico_id: 20, concluida: false },
+                    include: expect.objectContaining({
+                        ficha_parceiro: {
+                            include: {
+                                parceiro: true,
+                            },
+                        },
+                    }),
+                }),
+            );
+        });
+
+        it("deve capturar PrismaClientValidationError e lançar BadRequestException", async () => {
+            const prismaError = new Error("Erro de validação");
+
+            Object.setPrototypeOf(prismaError, Prisma.PrismaClientValidationError.prototype);
+
+            prismaService.fichaTecnica.findMany.mockRejectedValue(prismaError);
+
+            await expect(service.findAllByFabricoId(20)).rejects.toThrow(BadRequestException);
+        });
+    });
+
     describe("remove", () => {
         it("deve remover a ficha com sucesso", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
@@ -243,24 +275,6 @@ describe("FichaTecnicaService", () => {
 
             await expect(service.remove(99)).rejects.toThrow(NotFoundException);
             expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
-        });
-    });
-
-    describe("findAllByFabricoId", () => {
-        it("deve retornar lista de fichas por fabrico", async () => {
-            prismaService.fichaTecnica.findMany.mockResolvedValue([fichaData]);
-            const result = await service.findAllByFabricoId(20);
-            expect(result).toEqual([fichaData]);
-        });
-
-        it("deve capturar PrismaClientValidationError e lançar BadRequestException", async () => {
-            const prismaError = new Error("Erro de validação");
-
-            Object.setPrototypeOf(prismaError, Prisma.PrismaClientValidationError.prototype);
-
-            prismaService.fichaTecnica.findMany.mockRejectedValue(prismaError);
-
-            await expect(service.findAllByFabricoId(20)).rejects.toThrow(BadRequestException);
         });
     });
 

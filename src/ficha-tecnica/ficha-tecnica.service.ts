@@ -97,7 +97,7 @@ export class FichaTecnicaService {
     async findAllByFabricoId(id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { fabrico_id: Number(id) },
+                where: { fabrico_id: Number(id), concluida: false },
                 include: {
                     produto: {
                         include: {
@@ -112,6 +112,11 @@ export class FichaTecnicaService {
                     pedido: {
                         include: {
                             cliente: true,
+                        },
+                    },
+                    ficha_parceiro: {
+                        include: {
+                            parceiro: true,
                         },
                     },
                     grade_versao: {
