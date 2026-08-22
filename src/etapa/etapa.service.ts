@@ -17,18 +17,15 @@ export class EtapaService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    private async recalcularProdutosDosFabricos(
+    private async obterProdutosDosFabricos(
         fabricoIds: number[],
         tx: Prisma.TransactionClient,
-    ) {
+    ): Promise<number[]> {
         const produtos = await tx.produto.findMany({
             where: { fabrico_id: { in: [...new Set(fabricoIds)] } },
             select: { id: true },
         });
-        await this.produtoService.recalcularCustosTotais(
-            produtos.map((produto) => produto.id),
-            tx,
-        );
+        return produtos.map((produto) => produto.id);
     }
 
     async create(data: CreateEtapaDto) {
@@ -44,12 +41,14 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
+                const produtoIds = await this.obterProdutosDosFabricos([data.fabrico_id], tx);
+                await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.create({
                     data: {
                         ...data,
                     },
                 });
-                await this.recalcularProdutosDosFabricos([data.fabrico_id], tx);
+                await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
         } catch (error) {
@@ -121,16 +120,18 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
+                const produtoIds = await this.obterProdutosDosFabricos(
+                    [etapaAtual.fabrico_id, data.fabrico_id ?? etapaAtual.fabrico_id],
+                    tx,
+                );
+                await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.update({
                     where: { id },
                     data: {
                         ...data,
                     },
                 });
-                await this.recalcularProdutosDosFabricos(
-                    [etapaAtual.fabrico_id, etapa.fabrico_id],
-                    tx,
-                );
+                await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
         } catch (error) {
@@ -152,10 +153,12 @@ export class EtapaService {
         const etapa = await this.getById(id);
 
         return this.prisma.$transaction(async (tx) => {
+            const produtoIds = await this.obterProdutosDosFabricos([etapa.fabrico_id], tx);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
             const etapaRemovida = await tx.etapa.delete({
                 where: { id },
             });
-            await this.recalcularProdutosDosFabricos([etapa.fabrico_id], tx);
+            await this.produtoService.recalcularCustosTotais(produtoIds, tx);
             return etapaRemovida;
         });
     }

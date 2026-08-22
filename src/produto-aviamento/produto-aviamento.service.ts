@@ -33,6 +33,10 @@ export class ProdutoAviamentoService {
         }
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo(
+                [createProdutoAviamentoDto.produto_id],
+                tx,
+            );
             const vinculo = await tx.produtoAviamento.create({
                 data: createProdutoAviamentoDto,
             });
@@ -110,6 +114,10 @@ export class ProdutoAviamentoService {
             quantidadeMudou && payload.custo === undefined ? { ...payload, custo: null } : payload;
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo(
+                [vinculoExistente.produto_id],
+                tx,
+            );
             const vinculo = await tx.produtoAviamento.update({
                 where: { id },
                 data: dadosAtualizados,
@@ -123,6 +131,10 @@ export class ProdutoAviamentoService {
         const vinculoExistente = await this.findOne(id);
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo(
+                [vinculoExistente.produto_id],
+                tx,
+            );
             const vinculo = await tx.produtoAviamento.delete({
                 where: { id },
             });

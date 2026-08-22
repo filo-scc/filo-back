@@ -110,14 +110,13 @@ export class ParceiroService {
         }
 
         await this.prisma.$transaction(async (tx) => {
+            const produtoIds = parceiroAtual.parceiro_produto.map((vinculo) => vinculo.produto_id);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
             await tx.parceiro.update({
                 where: { id },
                 data: { ...dadosparceiro },
             });
-            await this.produtoService.recalcularCustosTotais(
-                parceiroAtual.parceiro_produto.map((vinculo) => vinculo.produto_id),
-                tx,
-            );
+            await this.produtoService.recalcularCustosTotais(produtoIds, tx);
         });
 
         return { message: "Parceiro atualizado com sucesso" };
@@ -132,6 +131,7 @@ export class ParceiroService {
 
         await this.prisma.$transaction(async (tx) => {
             const produtoIds = parceiro.parceiro_produto.map((vinculo) => vinculo.produto_id);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
             await tx.parceiro.delete({
                 where: { id },
             });

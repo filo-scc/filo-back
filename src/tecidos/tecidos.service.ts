@@ -74,16 +74,20 @@ export class TecidosService {
         }
 
         return this.prisma.$transaction(async (tx) => {
-            const tecidoAtualizado = await tx.tecido.update({
-                where: { id },
-                data,
-            });
             const produtos = await tx.produto.findMany({
                 where: {
                     tecido_id: id,
                     custo_tecido: null,
                 },
                 select: { id: true },
+            });
+            await this.produtoService.bloquearProdutosParaRecalculo(
+                produtos.map((produto) => produto.id),
+                tx,
+            );
+            const tecidoAtualizado = await tx.tecido.update({
+                where: { id },
+                data,
             });
             await this.produtoService.recalcularCustosTotais(
                 produtos.map((produto) => produto.id),

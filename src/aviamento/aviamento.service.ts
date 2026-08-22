@@ -72,6 +72,10 @@ export class AviamentoService {
                     where: { aviamento_id: id },
                     select: { produto_id: true },
                 });
+                await this.produtoService.bloquearProdutosParaRecalculo(
+                    vinculos.map((vinculo) => vinculo.produto_id),
+                    tx,
+                );
                 await tx.aviamento.delete({ where: { id } });
                 await this.produtoService.recalcularCustosTotais(
                     vinculos.map((vinculo) => vinculo.produto_id),
@@ -95,6 +99,14 @@ export class AviamentoService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
+                const vinculos = await tx.produtoAviamento.findMany({
+                    where: { aviamento_id: id },
+                    select: { produto_id: true },
+                });
+                await this.produtoService.bloquearProdutosParaRecalculo(
+                    vinculos.map((vinculo) => vinculo.produto_id),
+                    tx,
+                );
                 const aviamentoAtualizado = await tx.aviamento.update({
                     where: { id },
                     data: {
@@ -103,10 +115,6 @@ export class AviamentoService {
                         custo_unitario: dados.custo_unitario,
                         unidade_de_medida: dados.unidade_de_medida,
                     },
-                });
-                const vinculos = await tx.produtoAviamento.findMany({
-                    where: { aviamento_id: id },
-                    select: { produto_id: true },
                 });
                 await this.produtoService.recalcularCustosTotais(
                     vinculos.map((vinculo) => vinculo.produto_id),

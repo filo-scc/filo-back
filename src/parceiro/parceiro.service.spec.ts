@@ -30,6 +30,7 @@ describe("ParceiroService", () => {
     };
 
     const mockProdutoService = {
+        bloquearProdutosParaRecalculo: jest.fn<any>(),
         recalcularCustosTotais: jest.fn<any>(),
     };
 

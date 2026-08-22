@@ -23,6 +23,7 @@ const mockPrismaService = {
 };
 
 const mockProdutoService = {
+    bloquearProdutosParaRecalculo: jest.fn(),
     recalcularCustosTotais: jest.fn(),
 };
 

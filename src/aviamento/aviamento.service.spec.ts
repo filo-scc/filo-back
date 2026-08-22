@@ -25,6 +25,7 @@ describe("AviamentoService", () => {
         };
         prisma.$transaction = jest.fn((callback) => callback(prisma));
         produtoService = {
+            bloquearProdutosParaRecalculo: jest.fn().mockResolvedValue(undefined),
             recalcularCustosTotais: jest.fn().mockResolvedValue(undefined),
         };
         service = new AviamentoService(prisma, produtoService);

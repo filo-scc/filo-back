@@ -36,6 +36,7 @@ export class ParceiroProdutoService {
         }
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
             const vinculo = await tx.parceiroProduto.create({
                 data: {
                     produto_id: produto_id,
@@ -57,6 +58,7 @@ export class ParceiroProdutoService {
         if (!vinculo) throw new NotFoundException("Vínculo não encontrado");
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
             const vinculoRemovido = await tx.parceiroProduto.delete({
                 where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
             });
@@ -109,6 +111,7 @@ export class ParceiroProdutoService {
         }
 
         return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
             const vinculoAtualizado = await tx.parceiroProduto.update({
                 where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
                 data: { preco: data.preco ?? null },

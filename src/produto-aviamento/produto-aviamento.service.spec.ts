@@ -19,6 +19,7 @@ const mockPrismaService = {
 };
 
 const mockProdutoService = {
+    bloquearProdutosParaRecalculo: jest.fn(),
     recalcularCustoTotal: jest.fn(),
 };
 
@@ -78,6 +79,9 @@ describe("ProdutoAviamentoService", () => {
                 mockProdutoAviamento.produto_id,
                 mockPrismaService,
             );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.create.mock.invocationCallOrder[0]);
         });
 
         it("deve lançar NotFoundException se o produto não existir", async () => {
@@ -198,6 +202,9 @@ describe("ProdutoAviamentoService", () => {
                 mockProdutoAviamento.produto_id,
                 mockPrismaService,
             );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.update.mock.invocationCallOrder[0]);
         });
 
         it("invalida o custo salvo quando a quantidade muda sem um novo custo", async () => {
@@ -255,6 +262,9 @@ describe("ProdutoAviamentoService", () => {
                 mockProdutoAviamento.produto_id,
                 mockPrismaService,
             );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.delete.mock.invocationCallOrder[0]);
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {

@@ -22,14 +22,25 @@ export class ProdutoService {
             .replace(/\s+/g, " ");
     }
 
+    async bloquearProdutosParaRecalculo(
+        produtoIds: number[],
+        db: Prisma.TransactionClient,
+    ): Promise<void> {
+        const idsUnicos = [...new Set(produtoIds)].sort((a, b) => a - b);
+
+        for (const produtoId of idsUnicos) {
+            await db.$queryRaw(
+                Prisma.sql`SELECT "id" FROM "produtos" WHERE "id" = ${produtoId} FOR UPDATE`,
+            );
+        }
+    }
+
     async recalcularCustoTotal(produtoId: number, db?: Prisma.TransactionClient): Promise<number> {
         if (!db) {
             return this.prisma.$transaction((tx) => this.recalcularCustoTotal(produtoId, tx));
         }
 
-        await db.$queryRaw(
-            Prisma.sql`SELECT "id" FROM "produtos" WHERE "id" = ${produtoId} FOR UPDATE`,
-        );
+        await this.bloquearProdutosParaRecalculo([produtoId], db);
 
         const produto = await db.produto.findUnique({
             where: { id: produtoId },
@@ -115,6 +126,8 @@ export class ProdutoService {
         }
 
         const idsUnicos = [...new Set(produtoIds)].sort((a, b) => a - b);
+
+        await this.bloquearProdutosParaRecalculo(idsUnicos, db);
 
         for (const produtoId of idsUnicos) {
             await this.recalcularCustoTotal(produtoId, db);
