@@ -21,6 +21,7 @@ describe("AviamentoService", () => {
             },
             produtoAviamento: {
                 findMany: jest.fn().mockResolvedValue([]),
+                updateMany: jest.fn(),
             },
         };
         prisma.$transaction = jest.fn((callback) => callback(prisma));
@@ -230,7 +231,7 @@ describe("AviamentoService", () => {
         });
 
         it("envia os dados corretamente ao prisma", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1 });
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, custo_unitario: 5 });
             prisma.aviamento.update.mockResolvedValue({ id: 1 });
 
             await service.update(1, {
@@ -249,6 +250,37 @@ describe("AviamentoService", () => {
                     custo_unitario: 8,
                 },
             });
+        });
+
+        it("invalida custos positivos persistidos quando o custo unitário muda", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, custo_unitario: 5 });
+            prisma.produtoAviamento.findMany.mockResolvedValue([
+                { id: 10, produto_id: 2, quantidade: 3, custo: 12 },
+                { id: 11, produto_id: 3, quantidade: 2, custo: null },
+            ]);
+            prisma.aviamento.update.mockResolvedValue({ id: 1, custo_unitario: 8 });
+
+            await service.update(1, { custo_unitario: 8 });
+
+            expect(prisma.produtoAviamento.updateMany).toHaveBeenCalledWith({
+                where: { id: { in: [10] } },
+                data: { custo: null },
+            });
+            expect(produtoService.recalcularCustosTotais).toHaveBeenCalledWith([2, 3], prisma);
+        });
+
+        it("preserva custo zero explícito ao mudar o custo unitário", async () => {
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, custo_unitario: 5 });
+            prisma.produtoAviamento.findMany.mockResolvedValue([
+                { id: 10, produto_id: 2, quantidade: 3, custo: 0 },
+                { id: 11, produto_id: 3, quantidade: 2, custo: null },
+            ]);
+            prisma.aviamento.update.mockResolvedValue({ id: 1, custo_unitario: 8 });
+
+            await service.update(1, { custo_unitario: 8 });
+
+            expect(prisma.produtoAviamento.updateMany).not.toHaveBeenCalled();
+            expect(produtoService.recalcularCustosTotais).toHaveBeenCalledWith([2, 3], prisma);
         });
 
         it("rejeita atualização de aviamento inexistente", async () => {
