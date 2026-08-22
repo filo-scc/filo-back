@@ -19,7 +19,11 @@ describe("ParceiroProdutoService", () => {
             parceiro: { findUnique: jest.fn() },
             produto: { findUnique: jest.fn() },
         };
-        produtoService = { getById: jest.fn() };
+        prisma.$transaction = jest.fn((callback) => callback(prisma));
+        produtoService = {
+            getById: jest.fn(),
+            recalcularCustoTotal: jest.fn().mockResolvedValue(100),
+        };
         parceiroService = { getById: jest.fn() };
         service = new ParceiroProdutoService(prisma, produtoService, parceiroService);
     });
@@ -38,6 +42,7 @@ describe("ParceiroProdutoService", () => {
         expect(prisma.parceiroProduto.create).toHaveBeenCalledWith({
             data: { produto_id: 2, parceiro_id: 1, preco: 15 },
         });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
     });
 
     it("cria vínculo com preço nulo quando o preço não é informado", async () => {
@@ -84,6 +89,7 @@ describe("ParceiroProdutoService", () => {
             parceiro_id: 1,
             produto_id: 2,
         });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
     });
 
     it("rejeita delete sem vinculo", async () => {
@@ -137,6 +143,7 @@ describe("ParceiroProdutoService", () => {
             where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
             data: { preco: 20 },
         });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
     });
 
     it("atualiza o vínculo com preço nulo quando o preço não é informado", async () => {

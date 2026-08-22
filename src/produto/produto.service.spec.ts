@@ -18,6 +18,9 @@ const mockPrismaService = {
     gradeVersao: {
         findFirst: jest.fn(),
     },
+    etapa: {
+        findMany: jest.fn(),
+    },
 };
 
 describe("ProdutoService", () => {
@@ -165,6 +168,59 @@ describe("ProdutoService", () => {
 
             expect(prismaService.produto.findMany).toHaveBeenCalled();
             expect(result).toEqual(produtos);
+        });
+    });
+
+    describe("recalcularCustoTotal", () => {
+        it("atualiza o produto com as médias das etapas ativas, exceto a última", async () => {
+            prismaService.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                custo_tecido: 30,
+                quantidade_tecido: 2,
+                custo_operacional: 5,
+                outros_custos: 3,
+                tecido: { custo_unitario: 20 },
+                produtoAviamentos: [
+                    { custo: 10, quantidade: 1, aviamento: { custo_unitario: 99 } },
+                    { custo: null, quantidade: 2, aviamento: { custo_unitario: 4 } },
+                ],
+                parceiro_produto: [
+                    { preco: 10, parceiro: { categoria: "corte" } },
+                    { preco: 20, parceiro: { categoria: "CORTE" } },
+                    { preco: 6, parceiro: { categoria: "Faccao" } },
+                    { preco: null, parceiro: { categoria: "Facção" } },
+                    { preco: 100, parceiro: { categoria: "Finalizado" } },
+                ],
+            });
+            prismaService.etapa.findMany.mockResolvedValue([
+                { id: 1, nome: "Corte", ordem: 1 },
+                { id: 2, nome: "Facção", ordem: 2 },
+                { id: 3, nome: "Finalizado", ordem: 3 },
+            ]);
+            prismaService.produto.update.mockResolvedValue({ id: 1, custo_total: 77 });
+
+            await expect(service.recalcularCustoTotal(1)).resolves.toBe(77);
+
+            expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10, ativa: true },
+                orderBy: { ordem: "asc" },
+            });
+            expect(prismaService.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { custo_total: 77 },
+            });
+        });
+
+        it("rejeita o recálculo de produto inexistente", async () => {
+            prismaService.produto.findUnique.mockResolvedValue(null);
+
+            await expect(service.recalcularCustoTotal(999)).rejects.toThrow(
+                new NotFoundException("Produto não encontrado"),
+            );
+
+            expect(prismaService.etapa.findMany).not.toHaveBeenCalled();
+            expect(prismaService.produto.update).not.toHaveBeenCalled();
         });
     });
 

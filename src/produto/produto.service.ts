@@ -13,6 +13,93 @@ import { Prisma } from "@prisma/client";
 export class ProdutoService {
     constructor(private prisma: PrismaService) {}
 
+    private normalizarNome(valor: string | null | undefined) {
+        return String(valor ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLocaleLowerCase("pt-BR")
+            .replace(/\s+/g, " ");
+    }
+
+    async recalcularCustoTotal(
+        produtoId: number,
+        db: Prisma.TransactionClient = this.prisma,
+    ): Promise<number> {
+        const produto = await db.produto.findUnique({
+            where: { id: produtoId },
+            include: {
+                tecido: true,
+                produtoAviamentos: {
+                    include: { aviamento: true },
+                },
+                parceiro_produto: {
+                    include: { parceiro: true },
+                },
+            },
+        });
+
+        if (!produto) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
+        const etapasAtivas = await db.etapa.findMany({
+            where: {
+                fabrico_id: produto.fabrico_id,
+                ativa: true,
+            },
+            orderBy: { ordem: "asc" },
+        });
+
+        const etapasParaCusto = etapasAtivas.slice(0, -1);
+        const custoEtapas = etapasParaCusto.reduce((total, etapa) => {
+            const nomeEtapa = this.normalizarNome(etapa.nome);
+            const precos = produto.parceiro_produto
+                .filter((vinculo) => this.normalizarNome(vinculo.parceiro?.categoria) === nomeEtapa)
+                .map((vinculo) => Number(vinculo.preco))
+                .filter((preco) => Number.isFinite(preco) && preco > 0);
+
+            if (!precos.length) return total;
+
+            const media = precos.reduce((soma, preco) => soma + preco, 0) / precos.length;
+            return total + media;
+        }, 0);
+
+        const custoTecidoSalvo = Number(produto.custo_tecido);
+        const custoTecido =
+            Number.isFinite(custoTecidoSalvo) && custoTecidoSalvo > 0
+                ? custoTecidoSalvo
+                : Number(produto.quantidade_tecido || 0) *
+                  Number(produto.tecido?.custo_unitario || 0);
+
+        const custoAviamentos = produto.produtoAviamentos.reduce((total, vinculo) => {
+            const custoSalvo = Number(vinculo.custo);
+            if (Number.isFinite(custoSalvo) && custoSalvo > 0) return total + custoSalvo;
+
+            return (
+                total +
+                Number(vinculo.quantidade || 0) * Number(vinculo.aviamento?.custo_unitario || 0)
+            );
+        }, 0);
+
+        const custoTotal = Number(
+            (
+                custoTecido +
+                custoAviamentos +
+                custoEtapas +
+                Number(produto.custo_operacional || 0) +
+                Number(produto.outros_custos || 0)
+            ).toFixed(2),
+        );
+
+        await db.produto.update({
+            where: { id: produtoId },
+            data: { custo_total: custoTotal },
+        });
+
+        return custoTotal;
+    }
+
     async create(data: CreateProdutoDto) {
         if (data.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
