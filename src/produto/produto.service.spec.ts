@@ -21,6 +21,7 @@ const mockPrismaService = {
     etapa: {
         findMany: jest.fn(),
     },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
 };
 
@@ -206,6 +207,7 @@ describe("ProdutoService", () => {
 
             await expect(service.recalcularCustoTotal(1)).resolves.toBe(77);
 
+            expect(prismaService.$queryRaw).toHaveBeenCalledTimes(1);
             expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 10, ativa: true },
                 orderBy: { ordem: "asc" },

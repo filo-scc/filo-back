@@ -31,6 +31,7 @@ describe("ProdutoAviamentoService", () => {
         produto_id: 1,
         aviamento_id: 2,
         custo: 15.5,
+        quantidade: 1,
     };
 
     beforeEach(async () => {
@@ -197,6 +198,38 @@ describe("ProdutoAviamentoService", () => {
                 mockProdutoAviamento.produto_id,
                 mockPrismaService,
             );
+        });
+
+        it("invalida o custo salvo quando a quantidade muda sem um novo custo", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue({
+                ...mockProdutoAviamento,
+                quantidade: 2,
+                custo: null,
+            });
+
+            await service.update(1, { quantidade: 2 });
+
+            expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { quantidade: 2, custo: null },
+            });
+        });
+
+        it("preserva um novo custo zero enviado explicitamente com a quantidade", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue({
+                ...mockProdutoAviamento,
+                quantidade: 2,
+                custo: 0,
+            });
+
+            await service.update(1, { quantidade: 2, custo: 0 });
+
+            expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { quantidade: 2, custo: 0 },
+            });
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {

@@ -103,11 +103,16 @@ export class ProdutoAviamentoService {
 
     async update(id: number, payload: UpdateProdutoAviamentoDto) {
         const vinculoExistente = await this.findOne(id);
+        const quantidadeMudou =
+            payload.quantidade !== undefined &&
+            Number(payload.quantidade) !== Number(vinculoExistente.quantidade);
+        const dadosAtualizados =
+            quantidadeMudou && payload.custo === undefined ? { ...payload, custo: null } : payload;
 
         return this.prisma.$transaction(async (tx) => {
             const vinculo = await tx.produtoAviamento.update({
                 where: { id },
-                data: payload,
+                data: dadosAtualizados,
             });
             await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
             return vinculo;
