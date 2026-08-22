@@ -21,6 +21,7 @@ const mockPrismaService = {
     etapa: {
         findMany: jest.fn(),
     },
+    $transaction: jest.fn(),
 };
 
 describe("ProdutoService", () => {
@@ -29,6 +30,9 @@ describe("ProdutoService", () => {
     let produtoData: any;
 
     beforeEach(async () => {
+        mockPrismaService.$transaction.mockImplementation((callback) =>
+            callback(mockPrismaService),
+        );
         const module: TestingModule = await Test.createTestingModule({
             providers: [ProdutoService, { provide: PrismaService, useValue: mockPrismaService }],
         }).compile();
@@ -222,6 +226,28 @@ describe("ProdutoService", () => {
             expect(prismaService.etapa.findMany).not.toHaveBeenCalled();
             expect(prismaService.produto.update).not.toHaveBeenCalled();
         });
+
+        it("preserva custos explicitamente salvos como zero", async () => {
+            prismaService.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                custo_tecido: 0,
+                quantidade_tecido: 2,
+                custo_operacional: 0,
+                outros_custos: 0,
+                tecido: { custo_unitario: 20 },
+                produtoAviamentos: [{ custo: 0, quantidade: 3, aviamento: { custo_unitario: 5 } }],
+                parceiro_produto: [],
+            });
+            prismaService.etapa.findMany.mockResolvedValue([]);
+
+            await expect(service.recalcularCustoTotal(1)).resolves.toBe(0);
+
+            expect(prismaService.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { custo_total: 0 },
+            });
+        });
     });
 
     describe("getById", () => {
@@ -313,22 +339,30 @@ describe("ProdutoService", () => {
             expect(prismaService.produto.update).toHaveBeenCalledTimes(1);
         });
 
-        it("Deve atualizar o custo_total de um produto com sucesso", async () => {
+        it("Deve recalcular o custo_total recebido na atualização", async () => {
             const produtoCriado = { id: 1, ...produtoData };
             const dadosAtualizados = { custo_total: 150.0 };
 
-            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-            prismaService.produto.update.mockResolvedValue({
-                ...produtoCriado,
-                ...dadosAtualizados,
-            });
+            prismaService.produto.findUnique
+                .mockResolvedValueOnce(produtoCriado)
+                .mockResolvedValueOnce({
+                    ...produtoCriado,
+                    tecido: null,
+                    produtoAviamentos: [],
+                    parceiro_produto: [],
+                });
+            prismaService.etapa.findMany.mockResolvedValue([]);
 
             const resultado = await service.update(1, dadosAtualizados);
 
             expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-            expect(prismaService.produto.update).toHaveBeenCalledWith({
+            expect(prismaService.produto.update).toHaveBeenNthCalledWith(1, {
                 where: { id: 1 },
-                data: { custo_total: 150.0 },
+                data: { custo_total: 150 },
+            });
+            expect(prismaService.produto.update).toHaveBeenNthCalledWith(2, {
+                where: { id: 1 },
+                data: { custo_total: 80 },
             });
             expect(resultado).toEqual("O produto com o id 1 foi atualizado");
         });

@@ -7,6 +7,7 @@ const { PrismaClientKnownRequestError } = Prisma;
 describe("AviamentoService", () => {
     let service: AviamentoService;
     let prisma: any;
+    let produtoService: any;
 
     beforeEach(() => {
         prisma = {
@@ -18,8 +19,15 @@ describe("AviamentoService", () => {
                 delete: jest.fn(),
                 update: jest.fn(),
             },
+            produtoAviamento: {
+                findMany: jest.fn().mockResolvedValue([]),
+            },
         };
-        service = new AviamentoService(prisma);
+        prisma.$transaction = jest.fn((callback) => callback(prisma));
+        produtoService = {
+            recalcularCustosTotais: jest.fn().mockResolvedValue(undefined),
+        };
+        service = new AviamentoService(prisma, produtoService);
     });
 
     describe("create", () => {

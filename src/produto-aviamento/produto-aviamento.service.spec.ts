@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ProdutoAviamentoService } from "./produto-aviamento.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotFoundException, ConflictException } from "@nestjs/common";
+import { ProdutoService } from "../produto/produto.service";
 
 const mockPrismaService = {
     produto: { findUnique: jest.fn() },
@@ -14,6 +15,11 @@ const mockPrismaService = {
         update: jest.fn(),
         delete: jest.fn(),
     },
+    $transaction: jest.fn(),
+};
+
+const mockProdutoService = {
+    recalcularCustoTotal: jest.fn(),
 };
 
 describe("ProdutoAviamentoService", () => {
@@ -28,6 +34,9 @@ describe("ProdutoAviamentoService", () => {
     };
 
     beforeEach(async () => {
+        mockPrismaService.$transaction.mockImplementation((callback) =>
+            callback(mockPrismaService),
+        );
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ProdutoAviamentoService,
@@ -35,6 +44,7 @@ describe("ProdutoAviamentoService", () => {
                     provide: PrismaService,
                     useValue: mockPrismaService,
                 },
+                { provide: ProdutoService, useValue: mockProdutoService },
             ],
         }).compile();
 
@@ -63,6 +73,10 @@ describe("ProdutoAviamentoService", () => {
 
             expect(result).toEqual(mockProdutoAviamento);
             expect(prisma.produtoAviamento.create).toHaveBeenCalledWith({ data: dto });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
         });
 
         it("deve lançar NotFoundException se o produto não existir", async () => {
@@ -179,6 +193,10 @@ describe("ProdutoAviamentoService", () => {
                 where: { id: 1 },
                 data: dto,
             });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {
@@ -200,6 +218,10 @@ describe("ProdutoAviamentoService", () => {
             expect(prisma.produtoAviamento.delete).toHaveBeenCalledWith({
                 where: { id: 1 },
             });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {

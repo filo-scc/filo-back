@@ -3,10 +3,14 @@ import { Prisma, Aviamento } from "@prisma/client";
 import { CreateAviamentoDto } from "./dto/create-aviamento.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UpdateAviamentoDto } from "./dto/update-aviamento.dto";
+import { ProdutoService } from "src/produto/produto.service";
 
 @Injectable()
 export class AviamentoService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private readonly produtoService: ProdutoService,
+    ) {}
 
     async create(data: CreateAviamentoDto): Promise<Aviamento> {
         const fabricoExists = await this.prisma.fabrico.findUnique({
@@ -63,7 +67,17 @@ export class AviamentoService {
     async delete(id: number) {
         const aviamento = await this.prisma.aviamento.findUnique({ where: { id } });
         if (aviamento) {
-            await this.prisma.aviamento.delete({ where: { id } });
+            await this.prisma.$transaction(async (tx) => {
+                const vinculos = await tx.produtoAviamento.findMany({
+                    where: { aviamento_id: id },
+                    select: { produto_id: true },
+                });
+                await tx.aviamento.delete({ where: { id } });
+                await this.produtoService.recalcularCustosTotais(
+                    vinculos.map((vinculo) => vinculo.produto_id),
+                    tx,
+                );
+            });
             return `O aviamento com o id ${id} foi deletado com sucesso`;
         } else {
             throw new NotFoundException("Aviamento não encontrado");
@@ -80,14 +94,25 @@ export class AviamentoService {
         }
 
         try {
-            return await this.prisma.aviamento.update({
-                where: { id },
-                data: {
-                    nome: dados.nome,
-                    fabrico_id: dados.fabrico_id,
-                    custo_unitario: dados.custo_unitario,
-                    unidade_de_medida: dados.unidade_de_medida,
-                },
+            return await this.prisma.$transaction(async (tx) => {
+                const aviamentoAtualizado = await tx.aviamento.update({
+                    where: { id },
+                    data: {
+                        nome: dados.nome,
+                        fabrico_id: dados.fabrico_id,
+                        custo_unitario: dados.custo_unitario,
+                        unidade_de_medida: dados.unidade_de_medida,
+                    },
+                });
+                const vinculos = await tx.produtoAviamento.findMany({
+                    where: { aviamento_id: id },
+                    select: { produto_id: true },
+                });
+                await this.produtoService.recalcularCustosTotais(
+                    vinculos.map((vinculo) => vinculo.produto_id),
+                    tx,
+                );
+                return aviamentoAtualizado;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

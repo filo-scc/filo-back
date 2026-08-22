@@ -2,10 +2,14 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";
 import { UpdateProdutoAviamentoDto } from "./dto/update-produto-aviamento.dto";
+import { ProdutoService } from "../produto/produto.service";
 
 @Injectable()
 export class ProdutoAviamentoService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly produtoService: ProdutoService,
+    ) {}
 
     async create(createProdutoAviamentoDto: CreateProdutoAviamentoDto) {
         const produtoExiste = await this.prisma.produto.findUnique({
@@ -28,8 +32,15 @@ export class ProdutoAviamentoService {
             throw new ConflictException("Esse aviamento já está vinculado a este produto");
         }
 
-        return this.prisma.produtoAviamento.create({
-            data: createProdutoAviamentoDto,
+        return this.prisma.$transaction(async (tx) => {
+            const vinculo = await tx.produtoAviamento.create({
+                data: createProdutoAviamentoDto,
+            });
+            await this.produtoService.recalcularCustoTotal(
+                createProdutoAviamentoDto.produto_id,
+                tx,
+            );
+            return vinculo;
         });
     }
 
@@ -91,19 +102,27 @@ export class ProdutoAviamentoService {
     }
 
     async update(id: number, payload: UpdateProdutoAviamentoDto) {
-        await this.findOne(id);
+        const vinculoExistente = await this.findOne(id);
 
-        return this.prisma.produtoAviamento.update({
-            where: { id },
-            data: payload,
+        return this.prisma.$transaction(async (tx) => {
+            const vinculo = await tx.produtoAviamento.update({
+                where: { id },
+                data: payload,
+            });
+            await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
+            return vinculo;
         });
     }
 
     async remove(id: number) {
-        await this.findOne(id);
+        const vinculoExistente = await this.findOne(id);
 
-        return this.prisma.produtoAviamento.delete({
-            where: { id },
+        return this.prisma.$transaction(async (tx) => {
+            const vinculo = await tx.produtoAviamento.delete({
+                where: { id },
+            });
+            await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
+            return vinculo;
         });
     }
 }

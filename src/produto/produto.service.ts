@@ -65,16 +65,16 @@ export class ProdutoService {
             return total + media;
         }, 0);
 
-        const custoTecidoSalvo = Number(produto.custo_tecido);
         const custoTecido =
-            Number.isFinite(custoTecidoSalvo) && custoTecidoSalvo > 0
-                ? custoTecidoSalvo
+            produto.custo_tecido !== null && produto.custo_tecido !== undefined
+                ? Number(produto.custo_tecido)
                 : Number(produto.quantidade_tecido || 0) *
                   Number(produto.tecido?.custo_unitario || 0);
 
         const custoAviamentos = produto.produtoAviamentos.reduce((total, vinculo) => {
-            const custoSalvo = Number(vinculo.custo);
-            if (Number.isFinite(custoSalvo) && custoSalvo > 0) return total + custoSalvo;
+            if (vinculo.custo !== null && vinculo.custo !== undefined) {
+                return total + Number(vinculo.custo);
+            }
 
             return (
                 total +
@@ -98,6 +98,17 @@ export class ProdutoService {
         });
 
         return custoTotal;
+    }
+
+    async recalcularCustosTotais(
+        produtoIds: number[],
+        db: Prisma.TransactionClient = this.prisma,
+    ): Promise<void> {
+        const idsUnicos = [...new Set(produtoIds)];
+
+        for (const produtoId of idsUnicos) {
+            await this.recalcularCustoTotal(produtoId, db);
+        }
     }
 
     async create(data: CreateProdutoDto) {
@@ -176,10 +187,31 @@ export class ProdutoService {
         }
 
         try {
-            await this.prisma.produto.update({
-                where: { id },
-                data: { ...dados },
-            });
+            const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
+                "custo_tecido",
+                "quantidade_tecido",
+                "tecido_id",
+                "custo_operacional",
+                "outros_custos",
+                "custo_total",
+                "fabrico_id",
+            ];
+            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dados);
+
+            if (deveRecalcular) {
+                await this.prisma.$transaction(async (tx) => {
+                    await tx.produto.update({
+                        where: { id },
+                        data: { ...dados },
+                    });
+                    await this.recalcularCustoTotal(id, tx);
+                });
+            } else {
+                await this.prisma.produto.update({
+                    where: { id },
+                    data: { ...dados },
+                });
+            }
 
             return `O produto com o id ${id} foi atualizado`;
         } catch (error) {
