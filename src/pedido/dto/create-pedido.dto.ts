@@ -30,4 +30,8 @@ export class CreatePedidoDto {
     @IsOptional()
     @IsNumber()
     valor_total?: number;
+
+    @IsOptional()
+    @IsNumber()
+    custo_total?: number;
 }

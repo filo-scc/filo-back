@@ -66,6 +66,7 @@ export class PedidoService {
                     cor: corPedido,
                     quantidade: data.quantidade,
                     valor_total: data.valor_total,
+                    custo_total: data.custo_total,
                 },
             });
         } catch (error) {
@@ -128,6 +129,7 @@ export class PedidoService {
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,
                 valor_total: data.valor_total,
+                custo_total: data.custo_total,
             },
         });
     }
