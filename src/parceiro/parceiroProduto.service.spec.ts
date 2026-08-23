@@ -19,7 +19,12 @@ describe("ParceiroProdutoService", () => {
             parceiro: { findUnique: jest.fn() },
             produto: { findUnique: jest.fn() },
         };
-        produtoService = { getById: jest.fn() };
+        prisma.$transaction = jest.fn((callback) => callback(prisma));
+        produtoService = {
+            getById: jest.fn(),
+            bloquearProdutosParaRecalculo: jest.fn().mockResolvedValue(undefined),
+            recalcularCustoTotal: jest.fn().mockResolvedValue(100),
+        };
         parceiroService = { getById: jest.fn() };
         service = new ParceiroProdutoService(prisma, produtoService, parceiroService);
     });
@@ -37,6 +42,27 @@ describe("ParceiroProdutoService", () => {
 
         expect(prisma.parceiroProduto.create).toHaveBeenCalledWith({
             data: { produto_id: 2, parceiro_id: 1, preco: 15 },
+        });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
+        expect(
+            produtoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+        ).toBeLessThan(prisma.parceiroProduto.create.mock.invocationCallOrder[0]);
+    });
+
+    it("cria vínculo com preço nulo quando o preço não é informado", async () => {
+        produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        parceiroService.getById.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.parceiroProduto.findUnique.mockResolvedValue(null);
+        prisma.parceiroProduto.create.mockResolvedValue({
+            parceiro_id: 1,
+            produto_id: 2,
+            preco: null,
+        });
+
+        await service.createParceiroProduto(1, 2, { preco: null });
+
+        expect(prisma.parceiroProduto.create).toHaveBeenCalledWith({
+            data: { produto_id: 2, parceiro_id: 1, preco: null },
         });
     });
 
@@ -67,6 +93,10 @@ describe("ParceiroProdutoService", () => {
             parceiro_id: 1,
             produto_id: 2,
         });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
+        expect(
+            produtoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+        ).toBeLessThan(prisma.parceiroProduto.delete.mock.invocationCallOrder[0]);
     });
 
     it("rejeita delete sem vinculo", async () => {
@@ -119,6 +149,24 @@ describe("ParceiroProdutoService", () => {
         expect(prisma.parceiroProduto.update).toHaveBeenCalledWith({
             where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
             data: { preco: 20 },
+        });
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(2, prisma);
+        expect(
+            produtoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+        ).toBeLessThan(prisma.parceiroProduto.update.mock.invocationCallOrder[0]);
+    });
+
+    it("atualiza o vínculo com preço nulo quando o preço não é informado", async () => {
+        produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        parceiroService.getById.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.parceiroProduto.findUnique.mockResolvedValue({ parceiro_id: 1, produto_id: 2 });
+        prisma.parceiroProduto.update.mockResolvedValue({ preco: null });
+
+        await service.updateParceiroProduto(1, 2, { preco: null });
+
+        expect(prisma.parceiroProduto.update).toHaveBeenCalledWith({
+            where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
+            data: { preco: null },
         });
     });
 

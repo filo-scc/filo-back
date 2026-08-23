@@ -199,6 +199,7 @@ model Produto {
   quantidade_tecido Decimal? @db.Decimal(10, 2)
   custo_operacional Decimal? @db.Decimal(10, 2)
   outros_custos Decimal? @db.Decimal(10, 2)
+  custo_total Decimal? @db.Decimal(10, 2)
 
   cliente_produto ClienteProduto[]
 
@@ -258,6 +259,10 @@ model FichaTecnica {
   concluida Boolean
   quantidade Int @default(0)
   numero Int @default(0)
+  defeitos_costura Int? @default(0)
+  defeitos_tecido Int? @default(0)
+  retiradas Int? @default(0)
+  sobras Int? @default(0)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -321,7 +326,7 @@ model parceiroProduto {
   produto  Produto  @relation(fields: [produto_id], references: [id], onDelete: Cascade)
   parceiro Parceiro @relation(fields: [parceiro_id], references: [id], onDelete: Cascade)
 
-  preco Float
+  preco Float?
 
   @@id([produto_id, parceiro_id])
   @@map("parceiro_produto")
@@ -515,7 +520,7 @@ model Aviamento {
 
   nome String
   unidade_de_medida UnidadeDeMedida
-  custo_unitario Decimal? @db.Decimal(10, 2)
+  custo_unitario Decimal? @db.Decimal(10, 3)
 
   fabrico_id Int
 
@@ -542,6 +547,7 @@ model Pedido {
   cor String
   quantidade Int @default(0)
   valor_total Float?
+  custo_total Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

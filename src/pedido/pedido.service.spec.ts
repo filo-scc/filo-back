@@ -67,13 +67,19 @@ describe("PedidoService", () => {
                     finalizado: false,
                     cor: "#FFFFFF",
                     quantidade: 10,
+                    custo_total: 125.5,
                 },
                 1,
             );
 
             expect(result).toEqual(pedido);
 
-            expect(mockPrismaService.pedido.create).toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    quantidade: 10,
+                    custo_total: 125.5,
+                }),
+            });
         });
     });
 
@@ -157,13 +163,20 @@ describe("PedidoService", () => {
                 1,
                 {
                     finalizado: true,
+                    custo_total: 140.75,
                 },
                 1,
             );
 
             expect(result).toEqual(pedidoAtualizado);
 
-            expect(mockPrismaService.pedido.update).toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: expect.objectContaining({
+                    finalizado: true,
+                    custo_total: 140.75,
+                }),
+            });
         });
 
         it("deve lançar erro se pedido não existir", async () => {

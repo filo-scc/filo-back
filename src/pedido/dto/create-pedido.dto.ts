@@ -16,6 +16,11 @@ export class CreatePedidoDto {
     @IsInt()
     cliente_id?: number;
 
+    @IsOptional()
+    @IsBoolean()
+    usarCorPaleta?: boolean;
+
+    @IsOptional()
     @IsString()
     cor: string;
 
@@ -25,4 +30,8 @@ export class CreatePedidoDto {
     @IsOptional()
     @IsNumber()
     valor_total?: number;
+
+    @IsOptional()
+    @IsNumber()
+    custo_total?: number;
 }

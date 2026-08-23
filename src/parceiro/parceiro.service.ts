@@ -3,12 +3,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
 import { CreateParceiroDto } from "./dto/create-parceiro.dto";
 import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
+import { ProdutoService } from "src/produto/produto.service";
 
 @Injectable()
 export class ParceiroService {
     constructor(
         private prisma: PrismaService,
         private enderecoService: EnderecoService,
+        private readonly produtoService: ProdutoService,
     ) {}
 
     async getAll() {
@@ -107,9 +109,14 @@ export class ParceiroService {
             await this.enderecoService.update(parceiroAtual.endereco.id, endereco);
         }
 
-        await this.prisma.parceiro.update({
-            where: { id },
-            data: { ...dadosparceiro },
+        await this.prisma.$transaction(async (tx) => {
+            const produtoIds = parceiroAtual.parceiro_produto.map((vinculo) => vinculo.produto_id);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+            await tx.parceiro.update({
+                where: { id },
+                data: { ...dadosparceiro },
+            });
+            await this.produtoService.recalcularCustosTotais(produtoIds, tx);
         });
 
         return { message: "Parceiro atualizado com sucesso" };
@@ -122,8 +129,13 @@ export class ParceiroService {
             throw new NotFoundException("Parceiro não encontrado");
         }
 
-        await this.prisma.parceiro.delete({
-            where: { id },
+        await this.prisma.$transaction(async (tx) => {
+            const produtoIds = parceiro.parceiro_produto.map((vinculo) => vinculo.produto_id);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+            await tx.parceiro.delete({
+                where: { id },
+            });
+            await this.produtoService.recalcularCustosTotais(produtoIds, tx);
         });
 
         return { message: "Parceiro foi removido com sucesso" };

@@ -1,4 +1,4 @@
-import { PrismaClient, TipoCor, TipoProduto } from "@prisma/client";
+import { PrismaClient, TipoCor, TipoProduto, UnidadeDeMedida } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 import { fakerPT_BR as faker } from "@faker-js/faker";
@@ -125,6 +125,8 @@ async function criarCoresDoFabrico(fabricoId: number) {
         "Rosa",
     ];
 
+    const nomesEstampas = ["Floral", "Listrado", "Poá", "Camuflado"];
+
     const coresCriadas: any[] = [];
 
     for (const nome of nomesCores) {
@@ -138,6 +140,20 @@ async function criarCoresDoFabrico(fabricoId: number) {
         });
 
         coresCriadas.push(cor);
+    }
+
+    for (const nome of nomesEstampas) {
+        const estampa = await prisma.cor.create({
+            data: {
+                fabrico_id: fabricoId,
+                nome,
+                codigo_hex: faker.color.rgb(),
+                tipo: TipoCor.ESTAMPA,
+                foto: faker.image.url(),
+            },
+        });
+
+        coresCriadas.push(estampa);
     }
 
     return coresCriadas;
@@ -174,6 +190,90 @@ async function criarTiposProduto(fabricoId: number) {
     return tiposCriados;
 }
 
+async function criarTecidosDoFabrico(fabricoId: number) {
+    const tecidosBase = [
+        { nome: "Malha", unidade_de_medida: UnidadeDeMedida.METRO },
+        { nome: "Algodão", unidade_de_medida: UnidadeDeMedida.METRO },
+        { nome: "Jeans", unidade_de_medida: UnidadeDeMedida.METRO },
+        { nome: "Linho", unidade_de_medida: UnidadeDeMedida.METRO },
+        { nome: "Moletom", unidade_de_medida: UnidadeDeMedida.QUILOGRAMA },
+    ];
+
+    const tecidosCriados: any[] = [];
+
+    for (const tecido of tecidosBase) {
+        const criado = await prisma.tecido.create({
+            data: {
+                fabrico_id: fabricoId,
+                nome: tecido.nome,
+                unidade_de_medida: tecido.unidade_de_medida,
+                custo_unitario: parseFloat(faker.commerce.price({ min: 8, max: 80, dec: 2 })),
+            },
+        });
+
+        tecidosCriados.push(criado);
+    }
+
+    return tecidosCriados;
+}
+
+async function criarAviamentosDoFabrico(fabricoId: number) {
+    const aviamentosBase = [
+        { nome: "Botão", unidade_de_medida: UnidadeDeMedida.UNIDADE },
+        { nome: "Zíper", unidade_de_medida: UnidadeDeMedida.UNIDADE },
+        { nome: "Linha", unidade_de_medida: UnidadeDeMedida.METRO },
+        { nome: "Etiqueta", unidade_de_medida: UnidadeDeMedida.UNIDADE },
+        { nome: "Elástico", unidade_de_medida: UnidadeDeMedida.METRO },
+    ];
+
+    const aviamentosCriados: any[] = [];
+
+    for (const aviamento of aviamentosBase) {
+        const criado = await prisma.aviamento.create({
+            data: {
+                fabrico_id: fabricoId,
+                nome: aviamento.nome,
+                unidade_de_medida: aviamento.unidade_de_medida,
+                custo_unitario: parseFloat(faker.commerce.price({ min: 0.1, max: 15, dec: 3 })),
+            },
+        });
+
+        aviamentosCriados.push(criado);
+    }
+
+    return aviamentosCriados;
+}
+
+async function criarFichaEtapas(
+    ficha: { id: number; concluida: boolean },
+    etapas: any[],
+    etapaAtual: any,
+) {
+    const etapasOrdenadas = [...etapas].sort((a, b) => a.ordem - b.ordem);
+    const indiceAtual = etapasOrdenadas.findIndex((etapa) => etapa.id === etapaAtual.id);
+    const ultimoIndice = indiceAtual >= 0 ? indiceAtual : 0;
+
+    for (let i = 0; i <= ultimoIndice; i++) {
+        const isAtual = i === ultimoIndice;
+        const dataInicio = faker.date.recent({ days: 20 - i * 2 });
+        const deveEncerrar = !isAtual || ficha.concluida;
+
+        await prisma.fichaEtapa.create({
+            data: {
+                ficha_tecnica_id: ficha.id,
+                etapa_id: etapasOrdenadas[i].id,
+                data_inicio: dataInicio,
+                data_fim: deveEncerrar
+                    ? new Date(
+                          dataInicio.getTime() + faker.number.int({ min: 1, max: 3 }) * 86_400_000,
+                      )
+                    : null,
+                observacoes: faker.datatype.boolean() ? faker.lorem.sentence() : null,
+            },
+        });
+    }
+}
+
 async function main() {
     // Verifica se já existem dados para evitar duplicação
     const fabricosExistentes = await prisma.fabrico.count();
@@ -196,6 +296,8 @@ async function main() {
         // --- BASE VISUAL E RELAÇÕES DO FABRICO ---
         const coresCriadas = await criarCoresDoFabrico(fabricoAtual.id);
         const tiposProdutoCriados = await criarTiposProduto(fabricoAtual.id);
+        const tecidosCriados = await criarTecidosDoFabrico(fabricoAtual.id);
+        const aviamentosCriados = await criarAviamentosDoFabrico(fabricoAtual.id);
         await criarLinksFabricoGrades(fabricoAtual.id, gradesCriadas);
 
         // --- PARCEIROS ---
@@ -254,85 +356,40 @@ async function main() {
         }
 
         // --- PRODUTOS, FICHAS TÉCNICAS E ITENS ---
+        let numeroPedido = 1;
+        let numeroFicha = 1;
+
         for (let p = 1; p <= 5; p++) {
             const tipoEscolhido = faker.helpers.arrayElement(tiposProdutoCriados);
+            const tecidoSorteado = faker.helpers.arrayElement(tecidosCriados);
+            const gradeVersaoEscolhida = faker.helpers.arrayElement(versoesCriadas);
+            const etapaAleatoria = faker.helpers.arrayElement(etapasCriadas);
+            const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
+            const parceiroSorteado = faker.helpers.arrayElement(parceirosCriados);
+
             const produto = await ProdutoFactory.create(prisma, {
                 fabrico_id: fabricoAtual.id,
                 tipo_produto_id: tipoEscolhido.id,
                 tipo_nome: tipoEscolhido.nome,
+                tecido_id: tecidoSorteado.id,
+                grade_versao_id: gradeVersaoEscolhida.id,
             });
 
-            const gradeVersaoEscolhida = faker.helpers.arrayElement(versoesCriadas);
-            const etapaAleatoria = faker.helpers.arrayElement(etapasCriadas);
+            const aviamentosDoProduto = faker.helpers.arrayElements(
+                aviamentosCriados,
+                faker.number.int({ min: 1, max: Math.min(3, aviamentosCriados.length) }),
+            );
 
-            await prisma.produto.update({
-                where: { id: produto.id },
-                data: {
-                    grade_versao_id: gradeVersaoEscolhida.id,
-                },
-            });
-
-            const clienteSorteado = faker.helpers.arrayElement(clientesCriados);
-
-            const pedido = await prisma.pedido.create({
-                data: {
-                    finalizado: false,
-                    observacoes: faker.lorem.sentence(),
-                    data_prevista: faker.date.soon(),
-                    cor: faker.color.rgb(),
-                    quantidade: faker.number.int({ min: 10, max: 100 }),
-                    fabrico: {
-                        connect: {
-                            id: fabricoAtual.id,
-                        },
+            for (const aviamento of aviamentosDoProduto) {
+                await prisma.produtoAviamento.create({
+                    data: {
+                        produto_id: produto.id,
+                        aviamento_id: aviamento.id,
+                        quantidade: faker.number.float({ min: 1, max: 20, fractionDigits: 2 }),
+                        custo: parseFloat(faker.commerce.price({ min: 0.5, max: 25, dec: 2 })),
                     },
-
-                    cliente: {
-                        connect: {
-                            id: clienteSorteado.id,
-                        },
-                    },
-                },
-            });
-
-            const fichaTecnica = await prisma.fichaTecnica.create({
-                data: {
-                    observacoes: faker.lorem.sentence(),
-
-                    concluida:
-                        etapaAleatoria.nome === "Embalagem" ? faker.datatype.boolean() : false,
-
-                    fabrico: {
-                        connect: {
-                            id: fabricoAtual.id,
-                        },
-                    },
-
-                    produto: {
-                        connect: {
-                            id: produto.id,
-                        },
-                    },
-
-                    grade_versao: {
-                        connect: {
-                            id: gradeVersaoEscolhida.id,
-                        },
-                    },
-
-                    etapa_atual: {
-                        connect: {
-                            id: etapaAleatoria.id,
-                        },
-                    },
-
-                    pedido: {
-                        connect: {
-                            id: pedido.id,
-                        },
-                    },
-                },
-            });
+                });
+            }
 
             const quantidadeItens = faker.number.int({
                 min: 2,
@@ -344,20 +401,102 @@ async function main() {
                 quantidadeItens,
             );
 
-            for (const itemGrade of itensEscolhidos) {
-                const corSorteada = faker.helpers.arrayElement(coresCriadas);
+            const itensParaCriar = itensEscolhidos.map((itemGrade) => ({
+                grade_versao_item_id: itemGrade.id,
+                cor_id: faker.helpers.arrayElement(coresCriadas).id,
+                quantidade: faker.number.int({ min: 10, max: 250 }),
+            }));
 
+            const quantidadeTotal = itensParaCriar.reduce(
+                (total, item) => total + item.quantidade,
+                0,
+            );
+            const valorUnitario = parseFloat(faker.commerce.price({ min: 15, max: 80, dec: 2 }));
+            const valorTotal = Number((quantidadeTotal * valorUnitario).toFixed(2));
+
+            const pedido = await prisma.pedido.create({
+                data: {
+                    numero: numeroPedido,
+                    finalizado: false,
+                    observacoes: faker.lorem.sentence(),
+                    data_prevista: faker.date.soon(),
+                    cor: faker.color.rgb(),
+                    quantidade: quantidadeTotal,
+                    valor_total: valorTotal,
+                    fabrico: {
+                        connect: {
+                            id: fabricoAtual.id,
+                        },
+                    },
+                    cliente: {
+                        connect: {
+                            id: clienteSorteado.id,
+                        },
+                    },
+                },
+            });
+            numeroPedido += 1;
+
+            const fichaConcluida =
+                etapaAleatoria.nome === "Embalagem" ? faker.datatype.boolean() : false;
+
+            const fichaTecnica = await prisma.fichaTecnica.create({
+                data: {
+                    numero: numeroFicha,
+                    observacoes: faker.lorem.sentence(),
+                    concluida: fichaConcluida,
+                    quantidade: quantidadeTotal,
+                    fabrico: {
+                        connect: {
+                            id: fabricoAtual.id,
+                        },
+                    },
+                    produto: {
+                        connect: {
+                            id: produto.id,
+                        },
+                    },
+                    grade_versao: {
+                        connect: {
+                            id: gradeVersaoEscolhida.id,
+                        },
+                    },
+                    etapa_atual: {
+                        connect: {
+                            id: etapaAleatoria.id,
+                        },
+                    },
+                    pedido: {
+                        connect: {
+                            id: pedido.id,
+                        },
+                    },
+                },
+            });
+            numeroFicha += 1;
+
+            for (const item of itensParaCriar) {
                 await prisma.fichaTecnicaItem.create({
                     data: {
                         ficha_tecnica_id: fichaTecnica.id,
-                        cor_id: corSorteada.id,
-                        grade_versao_item_id: itemGrade.id,
-                        quantidade: faker.number.int({ min: 10, max: 250 }),
+                        cor_id: item.cor_id,
+                        grade_versao_item_id: item.grade_versao_item_id,
+                        quantidade: item.quantidade,
                     },
                 });
             }
 
-            const parceiroSorteado = faker.helpers.arrayElement(parceirosCriados);
+            await criarFichaEtapas(fichaTecnica, etapasCriadas, etapaAleatoria);
+
+            await prisma.fichaParceiro.create({
+                data: {
+                    ficha_id: fichaTecnica.id,
+                    parceiro_id: parceiroSorteado.id,
+                    operacao: faker.helpers.arrayElement(["Corte", "Costura", "Estamparia"]),
+                    valor: parseFloat(faker.commerce.price({ min: 50, max: 800, dec: 2 })),
+                    quantidade: faker.number.int({ min: 10, max: quantidadeTotal }),
+                },
+            });
 
             await ClienteProdutoFactory.create(prisma, {
                 produto_id: produto.id,

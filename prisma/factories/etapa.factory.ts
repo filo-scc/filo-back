@@ -4,7 +4,7 @@ import { fakerPT_BR as faker } from "@faker-js/faker";
 export const EtapaFactory = {
     build(overrides: any = {}) {
         // Extraímos fabrico_id e icone para tratá-los separadamente
-        const { fabrico_id, icone, ...restOverrides } = overrides;
+        const { fabrico_id, icone, icone_verde, icone_cinza, ...restOverrides } = overrides;
 
         return {
             nome: "Etapa Genérica",
@@ -16,6 +16,18 @@ export const EtapaFactory = {
 
             icone: {
                 create: icone || {
+                    link: faker.image.url(),
+                },
+            },
+
+            icone_verde: {
+                create: icone_verde || {
+                    link: faker.image.url(),
+                },
+            },
+
+            icone_cinza: {
+                create: icone_cinza || {
                     link: faker.image.url(),
                 },
             },
