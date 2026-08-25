@@ -289,7 +289,7 @@ model FichaTecnica {
 
 model FichaParceiro {
   operacao String?
-  valor Decimal?
+  valor Decimal? @db.Decimal(10, 2)
   quantidade Int?
   
   ficha_id Int
