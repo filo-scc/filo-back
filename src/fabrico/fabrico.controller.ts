@@ -1,4 +1,14 @@
-import { Controller, Post, Body, Get, Param, Put, Delete, ParseIntPipe, UseGuards } from "@nestjs/common";
+import {
+    Controller,
+    Post,
+    Body,
+    Get,
+    Param,
+    Put,
+    Delete,
+    ParseIntPipe,
+    UseGuards,
+} from "@nestjs/common";
 import { FabricoService } from "./fabrico.service";
 import { CreateFabricoDto } from "./dto/create-fabrico.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
