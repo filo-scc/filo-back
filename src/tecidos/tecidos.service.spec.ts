@@ -185,8 +185,8 @@ describe("TecidosService", () => {
             expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
                 where: { id: mockProduto.id },
                 data: {
-                    custo_tecido: 40.0, // 2 (qtd) * 20.0 (novo custo)
-                    custo_total: 45.0, // 40.0 + 5.0 (outros custos)
+                    custo_tecido: 40.0, 
+                    custo_total: 45.0, 
                 },
             });
         });

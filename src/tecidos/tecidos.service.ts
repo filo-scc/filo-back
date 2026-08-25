@@ -56,7 +56,6 @@ export class TecidosService {
 
     async update(id: number, data: UpdateTecidosDto) {
         return this.prisma.$transaction(async (tx) => {
-            // 1. Verificar se o tecido existe
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
@@ -65,7 +64,6 @@ export class TecidosService {
                 throw new NotFoundException("Tecido não encontrado");
             }
 
-            // 2. Verificar duplicidade de nome
             if (data.nome) {
                 const nomeExistente = await tx.tecido.findFirst({
                     where: {
@@ -80,20 +78,17 @@ export class TecidosService {
                 }
             }
 
-            // 3. Atualizar dados do tecido
             const tecidoAtualizado = await tx.tecido.update({
                 where: { id },
                 data,
             });
 
-            // 4. Extrair o novo custo unitário (trata null / Decimal)
             const novoCustoUnitario =
                 tecidoAtualizado.custo_unitario !== null &&
                 tecidoAtualizado.custo_unitario !== undefined
                     ? Number(tecidoAtualizado.custo_unitario)
                     : null;
 
-            // 5. Recalcular produtos vinculados
             await this.calculateNewTotalCost(id, tecidoExistente.fabrico_id, novoCustoUnitario, tx);
 
             return tecidoAtualizado;
@@ -106,7 +101,6 @@ export class TecidosService {
         novoCustoUnitario: number | null,
         tx: Prisma.TransactionClient,
     ): Promise<void> {
-        // Busca direta pelos produtos que usam este tecido_id
         const produtosAfetados = await tx.produto.findMany({
             where: {
                 fabrico_id: fabricoId,
@@ -115,7 +109,6 @@ export class TecidosService {
         });
 
         for (const produto of produtosAfetados) {
-            // Critério de Aceite: Custo nulo invalida o custo do produto
             if (novoCustoUnitario === null) {
                 await tx.produto.update({
                     where: { id: produto.id },
@@ -125,11 +118,9 @@ export class TecidosService {
                     },
                 });
             } else {
-                // Critério de Aceite: Preserva 0 e calcula valores positivos
                 const quantidade = Number(produto.quantidade_tecido ?? 0);
                 const custoTecidoFinal = Number((quantidade * novoCustoUnitario).toFixed(2));
 
-                // Caso seu produto tenha outros custos cadastrados
                 const outrosCustos = Number((produto as any).outros_custos ?? 0);
                 const custoTotalFinal = Number((custoTecidoFinal + outrosCustos).toFixed(2));
 
@@ -145,7 +136,6 @@ export class TecidosService {
     }
     async remove(id: number) {
         return this.prisma.$transaction(async (tx) => {
-            // 1. Verificar se o tecido existe
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
@@ -154,7 +144,6 @@ export class TecidosService {
                 throw new NotFoundException("Tecido não encontrado");
             }
 
-            // 2. Buscar produtos associados
             const produtosAfetados = await tx.produto.findMany({
                 where: {
                     fabrico_id: tecidoExistente.fabrico_id,
@@ -162,7 +151,6 @@ export class TecidosService {
                 },
             });
 
-            // 3. Desvincular tecido, resetar quantidade_tecido e zerar custo_tecido
             for (const produto of produtosAfetados) {
                 const outrosCustos = Number(produto.outros_custos ?? 0);
                 const custoTotalFinal = Number((0 + outrosCustos).toFixed(2));
