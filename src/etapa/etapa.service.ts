@@ -8,10 +8,25 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
 import { UpdateEtapaDto } from "./dto/update-etapa.dto";
 import { Prisma } from "@prisma/client";
+import { ProdutoService } from "src/produto/produto.service";
 
 @Injectable()
 export class EtapaService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private readonly produtoService: ProdutoService,
+    ) {}
+
+    private async obterProdutosDosFabricos(
+        fabricoIds: number[],
+        tx: Prisma.TransactionClient,
+    ): Promise<number[]> {
+        const produtos = await tx.produto.findMany({
+            where: { fabrico_id: { in: [...new Set(fabricoIds)] } },
+            select: { id: true },
+        });
+        return produtos.map((produto) => produto.id);
+    }
 
     async create(data: CreateEtapaDto) {
         if (data.icone_id) {
@@ -25,10 +40,16 @@ export class EtapaService {
         }
 
         try {
-            return await this.prisma.etapa.create({
-                data: {
-                    ...data,
-                },
+            return await this.prisma.$transaction(async (tx) => {
+                const produtoIds = await this.obterProdutosDosFabricos([data.fabrico_id], tx);
+                await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+                const etapa = await tx.etapa.create({
+                    data: {
+                        ...data,
+                    },
+                });
+                await this.produtoService.recalcularCustosTotais(produtoIds, tx);
+                return etapa;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -85,7 +106,7 @@ export class EtapaService {
     }
 
     async update(id: number, data: UpdateEtapaDto) {
-        await this.getById(id);
+        const etapaAtual = await this.getById(id);
 
         if (data.icone_id !== undefined && data.icone_id !== null) {
             const icone = await this.prisma.icone.findUnique({
@@ -98,11 +119,20 @@ export class EtapaService {
         }
 
         try {
-            return await this.prisma.etapa.update({
-                where: { id },
-                data: {
-                    ...data,
-                },
+            return await this.prisma.$transaction(async (tx) => {
+                const produtoIds = await this.obterProdutosDosFabricos(
+                    [etapaAtual.fabrico_id, data.fabrico_id ?? etapaAtual.fabrico_id],
+                    tx,
+                );
+                await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+                const etapa = await tx.etapa.update({
+                    where: { id },
+                    data: {
+                        ...data,
+                    },
+                });
+                await this.produtoService.recalcularCustosTotais(produtoIds, tx);
+                return etapa;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -120,10 +150,16 @@ export class EtapaService {
     }
 
     async delete(id: number) {
-        await this.getById(id);
+        const etapa = await this.getById(id);
 
-        return this.prisma.etapa.delete({
-            where: { id },
+        return this.prisma.$transaction(async (tx) => {
+            const produtoIds = await this.obterProdutosDosFabricos([etapa.fabrico_id], tx);
+            await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+            const etapaRemovida = await tx.etapa.delete({
+                where: { id },
+            });
+            await this.produtoService.recalcularCustosTotais(produtoIds, tx);
+            return etapaRemovida;
         });
     }
 }

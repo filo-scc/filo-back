@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ProdutoAviamentoService } from "./produto-aviamento.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotFoundException, ConflictException } from "@nestjs/common";
+import { ProdutoService } from "../produto/produto.service";
 
 const mockPrismaService = {
     produto: { findUnique: jest.fn() },
@@ -14,6 +15,12 @@ const mockPrismaService = {
         update: jest.fn(),
         delete: jest.fn(),
     },
+    $transaction: jest.fn(),
+};
+
+const mockProdutoService = {
+    bloquearProdutosParaRecalculo: jest.fn(),
+    recalcularCustoTotal: jest.fn(),
 };
 
 describe("ProdutoAviamentoService", () => {
@@ -25,9 +32,13 @@ describe("ProdutoAviamentoService", () => {
         produto_id: 1,
         aviamento_id: 2,
         custo: 15.5,
+        quantidade: 1,
     };
 
     beforeEach(async () => {
+        mockPrismaService.$transaction.mockImplementation((callback) =>
+            callback(mockPrismaService),
+        );
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ProdutoAviamentoService,
@@ -35,6 +46,7 @@ describe("ProdutoAviamentoService", () => {
                     provide: PrismaService,
                     useValue: mockPrismaService,
                 },
+                { provide: ProdutoService, useValue: mockProdutoService },
             ],
         }).compile();
 
@@ -63,6 +75,13 @@ describe("ProdutoAviamentoService", () => {
 
             expect(result).toEqual(mockProdutoAviamento);
             expect(prisma.produtoAviamento.create).toHaveBeenCalledWith({ data: dto });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.create.mock.invocationCallOrder[0]);
         });
 
         it("deve lançar NotFoundException se o produto não existir", async () => {
@@ -179,6 +198,45 @@ describe("ProdutoAviamentoService", () => {
                 where: { id: 1 },
                 data: dto,
             });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.update.mock.invocationCallOrder[0]);
+        });
+
+        it("invalida o custo salvo quando a quantidade muda sem um novo custo", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue({
+                ...mockProdutoAviamento,
+                quantidade: 2,
+                custo: null,
+            });
+
+            await service.update(1, { quantidade: 2 });
+
+            expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { quantidade: 2, custo: null },
+            });
+        });
+
+        it("preserva um novo custo zero enviado explicitamente com a quantidade", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue({
+                ...mockProdutoAviamento,
+                quantidade: 2,
+                custo: 0,
+            });
+
+            await service.update(1, { quantidade: 2, custo: 0 });
+
+            expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { quantidade: 2, custo: 0 },
+            });
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {
@@ -200,6 +258,13 @@ describe("ProdutoAviamentoService", () => {
             expect(prisma.produtoAviamento.delete).toHaveBeenCalledWith({
                 where: { id: 1 },
             });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProdutoAviamento.produto_id,
+                mockPrismaService,
+            );
+            expect(
+                mockProdutoService.bloquearProdutosParaRecalculo.mock.invocationCallOrder[0],
+            ).toBeLessThan(prisma.produtoAviamento.delete.mock.invocationCallOrder[0]);
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {

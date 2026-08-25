@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import { ProdutoService } from "../produto/produto.service";
 
 describe("ParceiroService", () => {
     let service: ParceiroService;
@@ -20,11 +21,17 @@ describe("ParceiroService", () => {
             update: jest.fn<any>(),
             delete: jest.fn<any>(),
         },
+        $transaction: jest.fn<any>(),
     };
 
     const mockEnderecoService = {
         create: jest.fn<any>(),
         update: jest.fn<any>(),
+    };
+
+    const mockProdutoService = {
+        bloquearProdutosParaRecalculo: jest.fn<any>(),
+        recalcularCustosTotais: jest.fn<any>(),
     };
 
     const mockparceiro = {
@@ -34,16 +41,21 @@ describe("ParceiroService", () => {
         responsavel: "Thiago",
         telefone: "11999999999",
         endereco: { id: 10, rua: "Rua T" },
+        parceiro_produto: [],
     };
 
     beforeEach(async () => {
         consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+        mockPrismaService.$transaction.mockImplementation((callback: any) =>
+            callback(mockPrismaService),
+        );
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ParceiroService,
                 { provide: PrismaService, useValue: mockPrismaService },
                 { provide: EnderecoService, useValue: mockEnderecoService },
+                { provide: ProdutoService, useValue: mockProdutoService },
             ],
         }).compile();
 

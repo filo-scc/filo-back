@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from "class-validator";
 
 export class CreateFichaTecnicaDto {
     @IsInt()
@@ -23,17 +23,21 @@ export class CreateFichaTecnicaDto {
 
     @IsOptional()
     @IsInt()
+    @Min(0)
     defeitos_costura: number;
 
     @IsOptional()
     @IsInt()
+    @Min(0)
     defeitos_tecido: number;
 
     @IsOptional()
     @IsInt()
+    @Min(0)
     retiradas: number;
 
     @IsOptional()
     @IsInt()
+    @Min(0)
     sobras: number;
 }

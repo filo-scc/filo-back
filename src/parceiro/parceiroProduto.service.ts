@@ -35,12 +35,18 @@ export class ParceiroProdutoService {
             throw new ConflictException("Este produto já está vinculado a este parceiro");
         }
 
-        return await this.prisma.parceiroProduto.create({
-            data: {
-                produto_id: produto_id,
-                parceiro_id: parceiro_id,
-                preco: data.preco ?? null,
-            },
+        return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
+            const vinculo = await tx.parceiroProduto.create({
+                data: {
+                    produto_id: produto_id,
+                    parceiro_id: parceiro_id,
+                    preco: data.preco ?? null,
+                },
+            });
+
+            await this.produtoService.recalcularCustoTotal(produto_id, tx);
+            return vinculo;
         });
     }
 
@@ -51,8 +57,14 @@ export class ParceiroProdutoService {
 
         if (!vinculo) throw new NotFoundException("Vínculo não encontrado");
 
-        return await this.prisma.parceiroProduto.delete({
-            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
+        return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
+            const vinculoRemovido = await tx.parceiroProduto.delete({
+                where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
+            });
+
+            await this.produtoService.recalcularCustoTotal(produto_id, tx);
+            return vinculoRemovido;
         });
     }
 
@@ -98,9 +110,15 @@ export class ParceiroProdutoService {
             throw new NotFoundException("Relacionamento não encontrado");
         }
 
-        return await this.prisma.parceiroProduto.update({
-            where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
-            data: { preco: data.preco ?? null },
+        return this.prisma.$transaction(async (tx) => {
+            await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
+            const vinculoAtualizado = await tx.parceiroProduto.update({
+                where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
+                data: { preco: data.preco ?? null },
+            });
+
+            await this.produtoService.recalcularCustoTotal(produto_id, tx);
+            return vinculoAtualizado;
         });
     }
 

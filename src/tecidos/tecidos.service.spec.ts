@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ConflictException } from "@nestjs/common";
 import { TecidosService } from "./tecidos.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { ProdutoService } from "../produto/produto.service";
 
 const mockPrismaService = {
     tecido: {
@@ -12,6 +13,15 @@ const mockPrismaService = {
         update: jest.fn(),
         delete: jest.fn(),
     },
+    produto: {
+        findMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
+};
+
+const mockProdutoService = {
+    bloquearProdutosParaRecalculo: jest.fn(),
+    recalcularCustosTotais: jest.fn(),
 };
 
 describe("TecidosService", () => {
@@ -26,8 +36,16 @@ describe("TecidosService", () => {
     };
 
     beforeEach(async () => {
+        mockPrismaService.$transaction.mockImplementation((callback) =>
+            callback(mockPrismaService),
+        );
+        mockPrismaService.produto.findMany.mockResolvedValue([]);
         const module: TestingModule = await Test.createTestingModule({
-            providers: [TecidosService, { provide: PrismaService, useValue: mockPrismaService }],
+            providers: [
+                TecidosService,
+                { provide: PrismaService, useValue: mockPrismaService },
+                { provide: ProdutoService, useValue: mockProdutoService },
+            ],
         }).compile();
 
         service = module.get<TecidosService>(TecidosService);

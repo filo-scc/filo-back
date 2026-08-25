@@ -3,6 +3,7 @@ import { EtapaService } from "./etapa.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { ProdutoService } from "../produto/produto.service";
 
 const mockPrismaService = {
     etapa: {
@@ -15,6 +16,15 @@ const mockPrismaService = {
     icone: {
         findUnique: jest.fn(),
     },
+    produto: {
+        findMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
+};
+
+const mockProdutoService = {
+    bloquearProdutosParaRecalculo: jest.fn(),
+    recalcularCustosTotais: jest.fn(),
 };
 
 describe("EtapaService", () => {
@@ -23,8 +33,16 @@ describe("EtapaService", () => {
     let etapaData: any;
 
     beforeEach(async () => {
+        mockPrismaService.$transaction.mockImplementation((callback) =>
+            callback(mockPrismaService),
+        );
+        mockPrismaService.produto.findMany.mockResolvedValue([]);
         const module: TestingModule = await Test.createTestingModule({
-            providers: [EtapaService, { provide: PrismaService, useValue: mockPrismaService }],
+            providers: [
+                EtapaService,
+                { provide: PrismaService, useValue: mockPrismaService },
+                { provide: ProdutoService, useValue: mockProdutoService },
+            ],
         }).compile();
 
         service = module.get<EtapaService>(EtapaService);

@@ -2,10 +2,14 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
+import { ProdutoService } from "src/produto/produto.service";
 
 @Injectable()
 export class TecidosService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly produtoService: ProdutoService,
+    ) {}
 
     async create(dataTecidos: CreateTecidosDto) {
         const tecido = dataTecidos;
@@ -69,9 +73,27 @@ export class TecidosService {
             throw new ConflictException("Tecido com esse nome já existe");
         }
 
-        return this.prisma.tecido.update({
-            where: { id },
-            data,
+        return this.prisma.$transaction(async (tx) => {
+            const produtos = await tx.produto.findMany({
+                where: {
+                    tecido_id: id,
+                    custo_tecido: null,
+                },
+                select: { id: true },
+            });
+            await this.produtoService.bloquearProdutosParaRecalculo(
+                produtos.map((produto) => produto.id),
+                tx,
+            );
+            const tecidoAtualizado = await tx.tecido.update({
+                where: { id },
+                data,
+            });
+            await this.produtoService.recalcularCustosTotais(
+                produtos.map((produto) => produto.id),
+                tx,
+            );
+            return tecidoAtualizado;
         });
     }
 
