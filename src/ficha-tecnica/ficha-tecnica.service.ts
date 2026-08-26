@@ -16,9 +16,53 @@ export class FichaTecnicaService {
         private readonly etapaService: EtapaService,
     ) {}
 
+    private validateProductionReport(
+        data: Partial<
+            Pick<
+                CreateFichaTecnicaDto,
+                "quantidade" | "defeitos_costura" | "defeitos_tecido" | "retiradas" | "sobras"
+            >
+        >,
+        current?: {
+            quantidade?: number | null;
+            defeitos_costura?: number | null;
+            defeitos_tecido?: number | null;
+            retiradas?: number | null;
+            sobras?: number | null;
+        },
+    ) {
+        const quantidade = Number(data.quantidade ?? current?.quantidade ?? 0);
+        const perdas = {
+            defeitos_costura: Number(data.defeitos_costura ?? current?.defeitos_costura ?? 0),
+            defeitos_tecido: Number(data.defeitos_tecido ?? current?.defeitos_tecido ?? 0),
+            retiradas: Number(data.retiradas ?? current?.retiradas ?? 0),
+            sobras: Number(data.sobras ?? current?.sobras ?? 0),
+        };
+
+        if (
+            !Number.isInteger(quantidade) ||
+            quantidade < 0 ||
+            Object.values(perdas).some((valor) => !Number.isInteger(valor) || valor < 0)
+        ) {
+            throw new BadRequestException(
+                "Quantidade e perdas devem ser números inteiros maiores ou iguais a zero",
+            );
+        }
+
+        const totalPerdas = Object.values(perdas).reduce((total, valor) => total + valor, 0);
+
+        if (totalPerdas > quantidade) {
+            throw new BadRequestException(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        }
+    }
+
     async create(data: CreateFichaTecnicaDto, fabricoId: number) {
         const produto_id = Number(data.produto_id);
         const fabrico_id = Number(fabricoId);
+
+        this.validateProductionReport(data);
 
         await Promise.all([
             this.produtoService.getById(produto_id),
@@ -261,6 +305,18 @@ export class FichaTecnicaService {
 
         if (data.produto_id && data.produto_id !== ficha.produto_id) {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
+        }
+
+        const reportOrQuantityChanged = [
+            data.quantidade,
+            data.defeitos_costura,
+            data.defeitos_tecido,
+            data.retiradas,
+            data.sobras,
+        ].some((value) => value !== undefined);
+
+        if (reportOrQuantityChanged) {
+            this.validateProductionReport(data, ficha);
         }
 
         const produto = await this.prisma.produto.findFirst({

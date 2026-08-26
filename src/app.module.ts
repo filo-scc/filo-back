@@ -21,6 +21,7 @@ import { PedidoModule } from "./pedido/pedido.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { CronjobsModule } from "./cronjobs/cronjobs.module";
 import { TipoProdutoModule } from "./tipo-produto/tipo-produto.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 
 @Module({
     imports: [
@@ -44,6 +45,7 @@ import { TipoProdutoModule } from "./tipo-produto/tipo-produto.module";
         ScheduleModule.forRoot(),
         CronjobsModule,
         TipoProdutoModule,
+        DashboardModule,
     ],
     controllers: [AppController],
     providers: [AppService],

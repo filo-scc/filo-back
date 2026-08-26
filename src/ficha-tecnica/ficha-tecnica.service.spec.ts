@@ -226,6 +226,49 @@ describe("FichaTecnicaService", () => {
                 "A nova versão de grade informada é inválida ou está inativa",
             );
         });
+
+        it("deve aceitar um relatório de perdas válido", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                quantidade: 100,
+                defeitos_costura: 10,
+                defeitos_tecido: 5,
+                retiradas: 3,
+                sobras: 2,
+            });
+
+            const result = await service.update(
+                1,
+                {
+                    quantidade: 100,
+                    defeitos_costura: 10,
+                    defeitos_tecido: 5,
+                    retiradas: 3,
+                    sobras: 2,
+                } as any,
+                20,
+            );
+
+            expect(result.defeitos_costura).toBe(10);
+        });
+
+        it("deve rejeitar quando a soma das perdas ultrapassar a quantidade", async () => {
+            await expect(
+                service.update(
+                    1,
+                    {
+                        quantidade: 10,
+                        defeitos_costura: 4,
+                        defeitos_tecido: 3,
+                        retiradas: 2,
+                        sobras: 2,
+                    } as any,
+                    20,
+                ),
+            ).rejects.toThrow("A soma das perdas não pode ser maior que a quantidade");
+
+            expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
+        });
     });
 
     describe("findAllByFabricoId", () => {
