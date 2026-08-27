@@ -248,7 +248,7 @@ model Icone {
   etapas Etapa[] @relation("EtapaIconePadrao")
   etapas_icone_verde Etapa[] @relation("EtapaIconeVerde")
   etapas_icone_cinza Etapa[] @relation("EtapaIconeCinza")
-  
+
   @@map("icones")
 }
 
@@ -263,6 +263,7 @@ model FichaTecnica {
   defeitos_tecido Int? @default(0)
   retiradas Int? @default(0)
   sobras Int? @default(0)
+  produzida_em DateTime?
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -284,6 +285,7 @@ model FichaTecnica {
 
   ficha_parceiro FichaParceiro[]
 
+  @@index([fabrico_id, produzida_em])
   @@map("fichas-tecnicas")
 }
 
@@ -291,7 +293,7 @@ model FichaParceiro {
   operacao String?
   valor Decimal?
   quantidade Int?
-  
+
   ficha_id Int
   ficha    FichaTecnica @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
 

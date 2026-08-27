@@ -12,6 +12,7 @@ describe("FichaEtapaService", () => {
 
     beforeEach(() => {
         prisma = {
+            $transaction: jest.fn(async (callback) => callback(prisma)),
             fichaEtapa: {
                 findUnique: jest.fn(),
                 findFirst: jest.fn(),
@@ -20,9 +21,12 @@ describe("FichaEtapaService", () => {
                 findMany: jest.fn(),
                 update: jest.fn(),
             },
+            fichaTecnica: { updateMany: jest.fn() },
+            etapa: { findFirst: jest.fn() },
         };
         fichaTecnicaService = { findOne: jest.fn() };
-        etapaService = { getById: jest.fn() };
+        etapaService = { getById: jest.fn().mockResolvedValue({ id: 20, fabrico_id: 30 }) };
+        prisma.etapa.findFirst.mockResolvedValue({ id: 999 });
         service = new FichaEtapaService(prisma, fichaTecnicaService, etapaService);
     });
 
@@ -37,6 +41,25 @@ describe("FichaEtapaService", () => {
         expect(etapaService.getById).toHaveBeenCalledWith(20);
         expect(prisma.fichaEtapa.create).toHaveBeenCalledWith({
             data: { ficha_tecnica_id: 10, etapa_id: 20 },
+        });
+        expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("registra uma única vez o instante de produção ao entrar na última etapa", async () => {
+        const dataInicio = "2026-08-25T10:00:00.000Z";
+        prisma.fichaEtapa.findUnique.mockResolvedValue(null);
+        prisma.fichaEtapa.create.mockResolvedValue({ id: 1 });
+        prisma.etapa.findFirst.mockResolvedValue({ id: 20 });
+
+        await service.createFichaEtapa({
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+            data_inicio: dataInicio,
+        });
+
+        expect(prisma.fichaTecnica.updateMany).toHaveBeenCalledWith({
+            where: { id: 10, produzida_em: null },
+            data: { produzida_em: new Date(dataInicio) },
         });
     });
 

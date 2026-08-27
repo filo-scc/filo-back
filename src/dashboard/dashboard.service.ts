@@ -201,27 +201,20 @@ export class DashboardService {
             throw new ForbiddenException("Usuário não possui um fabrico associado");
         }
 
-        const [fabrico, ultimaEtapa] = await Promise.all([
-            this.prisma.fabrico.findUnique({
-                where: { id: fabricoId },
-                select: { id: true, fabricacao_sob_demanda: true },
-            }),
-            this.prisma.etapa.findFirst({
-                where: { fabrico_id: fabricoId, ativa: true },
-                orderBy: { ordem: "desc" },
-                select: { id: true },
-            }),
-        ]);
+        const fabrico = await this.prisma.fabrico.findUnique({
+            where: { id: fabricoId },
+            select: { id: true, fabricacao_sob_demanda: true },
+        });
 
         if (!fabrico) {
             throw new NotFoundException("Fabrico não encontrado");
         }
 
-        return { fabrico, ultimaEtapa };
+        return fabrico;
     }
 
     async getOperationalSummary(fabricoId?: number | null, now = new Date()) {
-        const { fabrico, ultimaEtapa } = await this.getDashboardContext(fabricoId);
+        const fabrico = await this.getDashboardContext(fabricoId);
         const nowParts = getZonedParts(now);
         const today = { year: nowParts.year, month: nowParts.month, day: nowParts.day };
         const currentWeekStart = startOfWeek(today);
@@ -238,31 +231,22 @@ export class DashboardService {
                     id: true,
                     data_prevista: true,
                     fichas_tecnicas: {
-                        select: { concluida: true, etapa_atual_id: true },
+                        select: { concluida: true, produzida_em: true },
                     },
                 },
             }),
-            ultimaEtapa
-                ? this.prisma.fichaTecnica.findMany({
-                      where: {
-                          fabrico_id: fabrico.id,
-                          fichas_etapas: {
-                              some: {
-                                  etapa_id: ultimaEtapa.id,
-                                  data_inicio: { gte: periodStartAt, lt: periodEndAt },
-                              },
-                          },
-                      },
-                      select: { quantidade: true },
-                  })
-                : Promise.resolve([] as Array<{ quantidade: number }>),
+            this.prisma.fichaTecnica.findMany({
+                where: {
+                    fabrico_id: fabrico.id,
+                    produzida_em: { gte: periodStartAt, lt: periodEndAt },
+                },
+                select: { quantidade: true },
+            }),
         ]);
 
         const pedidosComFicha = pedidos.filter((pedido) => pedido.fichas_tecnicas.length > 0);
         const pedidosEmAndamento = pedidosComFicha.filter((pedido) =>
-            pedido.fichas_tecnicas.some(
-                (ficha) => !ficha.concluida && ficha.etapa_atual_id !== ultimaEtapa?.id,
-            ),
+            pedido.fichas_tecnicas.some((ficha) => !ficha.concluida && !ficha.produzida_em),
         );
         const pedidosEmAtraso = pedidosEmAndamento.filter(
             (pedido) => pedido.data_prevista && pedido.data_prevista < todayStartAt,
@@ -303,41 +287,30 @@ export class DashboardService {
         intervalCount = 7,
         now = new Date(),
     ) {
-        const { fabrico, ultimaEtapa } = await this.getDashboardContext(fabricoId);
+        const fabrico = await this.getDashboardContext(fabricoId);
         const normalizedIntervalCount = Math.min(24, Math.max(1, Math.trunc(intervalCount)));
         const intervals = buildIntervals(period, normalizedIntervalCount, now);
         const firstInterval = intervals[0];
         const lastInterval = intervals[intervals.length - 1];
 
-        const fichas = ultimaEtapa
-            ? await this.prisma.fichaTecnica.findMany({
-                  where: {
-                      fabrico_id: fabrico.id,
-                      fichas_etapas: {
-                          some: {
-                              etapa_id: ultimaEtapa.id,
-                              data_inicio: { gte: firstInterval.startAt, lt: lastInterval.endAt },
-                          },
-                      },
-                  },
-                  select: {
-                      quantidade: true,
-                      defeitos_costura: true,
-                      defeitos_tecido: true,
-                      retiradas: true,
-                      sobras: true,
-                      fichas_etapas: {
-                          where: { etapa_id: ultimaEtapa.id },
-                          select: { data_inicio: true },
-                          take: 1,
-                      },
-                  },
-              })
-            : [];
+        const fichas = await this.prisma.fichaTecnica.findMany({
+            where: {
+                fabrico_id: fabrico.id,
+                produzida_em: { gte: firstInterval.startAt, lt: lastInterval.endAt },
+            },
+            select: {
+                quantidade: true,
+                defeitos_costura: true,
+                defeitos_tecido: true,
+                retiradas: true,
+                sobras: true,
+                produzida_em: true,
+            },
+        });
 
         const data = intervals.map((interval) => {
             const fichasDoIntervalo = fichas.filter((ficha) => {
-                const producedAt = ficha.fichas_etapas[0]?.data_inicio;
+                const producedAt = ficha.produzida_em;
                 return producedAt && producedAt >= interval.startAt && producedAt < interval.endAt;
             });
             const production = fichasDoIntervalo.reduce(

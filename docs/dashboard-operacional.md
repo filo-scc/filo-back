@@ -6,7 +6,11 @@ Este documento define o contrato funcional dos indicadores operacionais da Home.
 
 ### Ficha produzida
 
-Uma ficha técnica passa a integrar os indicadores no instante em que entra na última etapa ativa da fábrica. A data oficial do evento é `FichaEtapa.data_inicio` dessa etapa. A ficha pode continuar visível no Kanban por 72 horas sem deixar de ser considerada operacionalmente concluída.
+Uma ficha técnica passa a integrar os indicadores no instante em que entra na etapa que é a última
+ativa da fábrica naquele momento. Esse evento é persistido uma única vez em
+`FichaTecnica.produzida_em`, usando `FichaEtapa.data_inicio` como instante oficial. Alterações
+posteriores na ordem, ativação ou criação de etapas não reinterpretam o histórico. A ficha pode
+continuar visível no Kanban por 72 horas sem deixar de ser considerada operacionalmente concluída.
 
 ### Peças e perdas
 
@@ -30,8 +34,9 @@ Os cards contam registros de `Pedido`, enquanto o gráfico contabiliza fichas t�
 Um pedido/produção:
 
 - sem fichas é desconsiderado;
-- está operacionalmente concluído quando todas as fichas estão concluídas ou já se encontram na última etapa ativa;
-- está em andamento quando ao menos uma ficha ainda não concluída está antes da última etapa;
+- está operacionalmente concluído quando todas as fichas estão concluídas ou possuem
+  `produzida_em`;
+- está em andamento quando ao menos uma ficha ainda não concluída não possui `produzida_em`;
 - parcialmente concluído permanece em andamento e é contado uma única vez.
 
 O campo `Pedido.finalizado` não é autoridade para esses cards.
@@ -63,10 +68,12 @@ O parâmetro `periodo` aceita:
 
 | Valor | Intervalos devolvidos |
 | --- | --- |
-| `semanal` | Semana atual e seis anteriores |
-| `mensal` | Mês atual e seis anteriores |
-| `trimestral` | Trimestre atual e seis anteriores |
-| `anual` | Ano atual e seis anteriores |
+| `semanal` | Semanas-calendário, incluindo a atual |
+| `mensal` | Meses-calendário, incluindo o atual |
+| `trimestral` | Trimestres-calendário, incluindo o atual |
+| `anual` | Anos-calendário, incluindo o atual |
+
+A quantidade é definida pelo parâmetro `quantidade`, entre 1 e 24, e usa 7 quando omitida.
 
 ## Endpoints
 

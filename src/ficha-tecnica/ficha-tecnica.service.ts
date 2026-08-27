@@ -32,11 +32,17 @@ export class FichaTecnicaService {
         },
     ) {
         const quantidade = Number(data.quantidade ?? current?.quantidade ?? 0);
+        const resolveLoss = (
+            field: "defeitos_costura" | "defeitos_tecido" | "retiradas" | "sobras",
+        ) =>
+            Object.prototype.hasOwnProperty.call(data, field)
+                ? Number(data[field] ?? 0)
+                : Number(current?.[field] ?? 0);
         const perdas = {
-            defeitos_costura: Number(data.defeitos_costura ?? current?.defeitos_costura ?? 0),
-            defeitos_tecido: Number(data.defeitos_tecido ?? current?.defeitos_tecido ?? 0),
-            retiradas: Number(data.retiradas ?? current?.retiradas ?? 0),
-            sobras: Number(data.sobras ?? current?.sobras ?? 0),
+            defeitos_costura: resolveLoss("defeitos_costura"),
+            defeitos_tecido: resolveLoss("defeitos_tecido"),
+            retiradas: resolveLoss("retiradas"),
+            sobras: resolveLoss("sobras"),
         };
 
         if (

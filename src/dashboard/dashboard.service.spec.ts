@@ -9,7 +9,6 @@ describe("DashboardService", () => {
 
     const prisma = {
         fabrico: { findUnique: jest.fn() },
-        etapa: { findFirst: jest.fn() },
         pedido: { findMany: jest.fn() },
         fichaTecnica: { findMany: jest.fn() },
     };
@@ -27,7 +26,6 @@ describe("DashboardService", () => {
             id: 7,
             fabricacao_sob_demanda: true,
         });
-        prisma.etapa.findFirst.mockResolvedValue({ id: 99 });
         prisma.pedido.findMany.mockResolvedValue([]);
         prisma.fichaTecnica.findMany.mockResolvedValue([]);
     });
@@ -42,17 +40,19 @@ describe("DashboardService", () => {
             {
                 id: 1,
                 data_prevista: new Date("2026-08-24T12:00:00.000Z"),
-                fichas_tecnicas: [{ concluida: false, etapa_atual_id: 10 }],
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
             },
             {
                 id: 2,
                 data_prevista: new Date("2026-08-20T12:00:00.000Z"),
-                fichas_tecnicas: [{ concluida: false, etapa_atual_id: 99 }],
+                fichas_tecnicas: [
+                    { concluida: false, produzida_em: new Date("2026-08-20T10:00:00.000Z") },
+                ],
             },
             {
                 id: 3,
                 data_prevista: null,
-                fichas_tecnicas: [{ concluida: true, etapa_atual_id: 10 }],
+                fichas_tecnicas: [{ concluida: true, produzida_em: null }],
             },
             {
                 id: 4,
@@ -63,8 +63,8 @@ describe("DashboardService", () => {
                 id: 5,
                 data_prevista: new Date("2026-08-30T12:00:00.000Z"),
                 fichas_tecnicas: [
-                    { concluida: false, etapa_atual_id: 99 },
-                    { concluida: false, etapa_atual_id: 20 },
+                    { concluida: false, produzida_em: new Date("2026-08-22T10:00:00.000Z") },
+                    { concluida: false, produzida_em: null },
                 ],
             },
         ]);
@@ -86,7 +86,15 @@ describe("DashboardService", () => {
             expect.objectContaining({ where: { fabrico_id: 7 } }),
         );
         expect(prisma.fichaTecnica.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: expect.objectContaining({ fabrico_id: 7 }) }),
+            expect.objectContaining({
+                where: {
+                    fabrico_id: 7,
+                    produzida_em: {
+                        gte: new Date("2026-08-03T03:00:00.000Z"),
+                        lt: new Date("2026-08-31T03:00:00.000Z"),
+                    },
+                },
+            }),
         );
     });
 
@@ -128,7 +136,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: 4,
                 retiradas: 5,
                 sobras: 3,
-                fichas_etapas: [{ data_inicio: new Date("2026-08-25T10:00:00.000Z") }],
+                produzida_em: new Date("2026-08-25T10:00:00.000Z"),
             },
             {
                 quantidade: 40,
@@ -136,7 +144,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: null,
                 retiradas: null,
                 sobras: null,
-                fichas_etapas: [{ data_inicio: new Date("2026-08-18T10:00:00.000Z") }],
+                produzida_em: new Date("2026-08-18T10:00:00.000Z"),
             },
         ]);
 
@@ -154,6 +162,18 @@ describe("DashboardService", () => {
             expect.objectContaining({ production: 100, losses: 15, netProduction: 85 }),
         );
         expect(result.hasData).toBe(true);
+        expect(prisma.fichaTecnica.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: {
+                    fabrico_id: 7,
+                    produzida_em: {
+                        gte: new Date("2026-07-13T03:00:00.000Z"),
+                        lt: new Date("2026-08-31T03:00:00.000Z"),
+                    },
+                },
+                select: expect.objectContaining({ produzida_em: true }),
+            }),
+        );
     });
 
     it("respeita a virada do dia e da semana no fuso America/Recife", async () => {
@@ -164,7 +184,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: 0,
                 retiradas: 0,
                 sobras: 0,
-                fichas_etapas: [{ data_inicio: new Date("2026-08-24T02:59:59.000Z") }],
+                produzida_em: new Date("2026-08-24T02:59:59.000Z"),
             },
             {
                 quantidade: 20,
@@ -172,7 +192,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: 0,
                 retiradas: 0,
                 sobras: 0,
-                fichas_etapas: [{ data_inicio: new Date("2026-08-24T03:00:00.000Z") }],
+                produzida_em: new Date("2026-08-24T03:00:00.000Z"),
             },
         ]);
 
@@ -191,7 +211,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: 0,
                 retiradas: 0,
                 sobras: 0,
-                fichas_etapas: [{ data_inicio: new Date("2027-01-01T02:59:59.000Z") }],
+                produzida_em: new Date("2027-01-01T02:59:59.000Z"),
             },
             {
                 quantidade: 18,
@@ -199,7 +219,7 @@ describe("DashboardService", () => {
                 defeitos_tecido: 0,
                 retiradas: 0,
                 sobras: 0,
-                fichas_etapas: [{ data_inicio: new Date("2027-01-01T03:00:00.000Z") }],
+                produzida_em: new Date("2027-01-01T03:00:00.000Z"),
             },
         ]);
 

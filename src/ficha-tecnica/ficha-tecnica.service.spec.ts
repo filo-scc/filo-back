@@ -252,6 +252,34 @@ describe("FichaTecnicaService", () => {
             expect(result.defeitos_costura).toBe(10);
         });
 
+        it("deve tratar perda explicitamente nula como zero durante a atualização", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                quantidade: 100,
+                defeitos_costura: 90,
+                defeitos_tecido: 0,
+                retiradas: 0,
+                sobras: 0,
+            } as any);
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                quantidade: 20,
+                defeitos_costura: null,
+            });
+
+            await expect(
+                service.update(1, { quantidade: 20, defeitos_costura: null } as any, 20),
+            ).resolves.toEqual(expect.objectContaining({ quantidade: 20, defeitos_costura: null }));
+            expect(prismaService.fichaTecnica.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({
+                        quantidade: 20,
+                        defeitos_costura: null,
+                    }),
+                }),
+            );
+        });
+
         it("deve rejeitar quando a soma das perdas ultrapassar a quantidade", async () => {
             await expect(
                 service.update(
