@@ -1,4 +1,210 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateNotificacaoDto } from "./dto/create-notificacao.dto";
+import { UpdateNotificacaoDto } from "./dto/update-notificacao.dto";
+
+const destinatariosInclude = {
+    destinatarios: {
+        include: {
+            usuario: {
+                select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                },
+            },
+        },
+    },
+} satisfies Prisma.NotificacaoInclude;
 
 @Injectable()
-export class NotificacoesService {}
+export class NotificacoesService {
+    constructor(private readonly prisma: PrismaService) {}
+
+    async create(data: CreateNotificacaoDto) {
+        const fabrico = await this.prisma.fabrico.findUnique({
+            where: { id: data.fabrico_id },
+        });
+
+        if (!fabrico) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        try {
+            const notificacao = await this.prisma.notificacao.create({
+                data: {
+                    fabrico_id: data.fabrico_id,
+                    tipo: data.tipo,
+                    categoria: data.categoria,
+                    severidade: data.severidade,
+                    fonte: data.fonte,
+                    titulo: data.titulo,
+                    mensagem: data.mensagem,
+                    metadados: data.metadados as Prisma.InputJsonValue | undefined,
+                    entidade_tipo: data.entidade_tipo,
+                    entidade_id: data.entidade_id,
+                    acao_url: data.acao_url,
+                    chave_deduplicacao: data.chave_deduplicacao,
+                    ocorreu_em: data.ocorreu_em ? new Date(data.ocorreu_em) : undefined,
+                    expira_em: data.expira_em ? new Date(data.expira_em) : undefined,
+                    destinatarios: data.destinatario_ids?.length
+                        ? {
+                              create: data.destinatario_ids.map((usuario_id) => ({
+                                  usuario_id,
+                              })),
+                          }
+                        : undefined,
+                },
+                include: destinatariosInclude,
+            });
+
+            return {
+                message: "Notificação criada com sucesso",
+                data: notificacao,
+            };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+                throw new BadRequestException("Destinatário ou referência inválida");
+            }
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados inválidos");
+            }
+            throw error;
+        }
+    }
+
+    async findAll() {
+        return this.prisma.notificacao.findMany({
+            include: destinatariosInclude,
+            orderBy: { ocorreu_em: "desc" },
+        });
+    }
+
+    async findAllByFabricoID(fabrico_id: number) {
+        return this.prisma.notificacao.findMany({
+            where: { fabrico_id },
+            include: destinatariosInclude,
+            orderBy: { ocorreu_em: "desc" },
+        });
+    }
+
+    async findMine(usuario_id: number) {
+        const notificacoes = await this.prisma.notificacao.findMany({
+            where: {
+                destinatarios: { some: { usuario_id } },
+            },
+            include: {
+                destinatarios: {
+                    where: { usuario_id },
+                    select: { lida_em: true },
+                },
+            },
+            orderBy: { ocorreu_em: "desc" },
+        });
+
+        return notificacoes.map(({ destinatarios, ...notificacao }) => ({
+            ...notificacao,
+            lida: destinatarios[0]?.lida_em != null,
+            lida_em: destinatarios[0]?.lida_em ?? null,
+        }));
+    }
+
+    async marcarComoLida(notificacao_id: number, usuario_id: number) {
+        const destinatario = await this.prisma.notificacaoDestinatario.findUnique({
+            where: {
+                notificacao_id_usuario_id: { notificacao_id, usuario_id },
+            },
+        });
+
+        if (!destinatario) {
+            throw new NotFoundException("Notificação não encontrada");
+        }
+
+        const atualizado = await this.prisma.notificacaoDestinatario.update({
+            where: { id: destinatario.id },
+            data: { lida_em: destinatario.lida_em ?? new Date() },
+            include: { notificacao: true },
+        });
+
+        return {
+            message: "Notificação marcada como lida",
+            data: atualizado,
+        };
+    }
+
+    async findOne(id: number) {
+        const notificacao = await this.prisma.notificacao.findUnique({
+            where: { id },
+            include: destinatariosInclude,
+        });
+
+        if (!notificacao) {
+            throw new NotFoundException("Notificação não encontrada");
+        }
+
+        return notificacao;
+    }
+
+    async update(id: number, data: UpdateNotificacaoDto) {
+        await this.findOne(id);
+
+        const { destinatario_ids, ocorreu_em, expira_em, metadados, ...rest } = data;
+
+        try {
+            const notificacao = await this.prisma.notificacao.update({
+                where: { id },
+                data: {
+                    ...rest,
+                    metadados: metadados as Prisma.InputJsonValue | undefined,
+                    ocorreu_em: ocorreu_em ? new Date(ocorreu_em) : undefined,
+                    expira_em: expira_em ? new Date(expira_em) : undefined,
+                    ...(destinatario_ids
+                        ? {
+                              destinatarios: {
+                                  deleteMany: {},
+                                  create: destinatario_ids.map((usuario_id) => ({
+                                      usuario_id,
+                                  })),
+                              },
+                          }
+                        : {}),
+                },
+                include: destinatariosInclude,
+            });
+
+            return {
+                message: "Notificação atualizada com sucesso",
+                data: notificacao,
+            };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+                throw new BadRequestException("Destinatário ou referência inválida");
+            }
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados inválidos");
+            }
+            throw error;
+        }
+    }
+
+    async remove(id: number) {
+        await this.findOne(id);
+
+        try {
+            const notificacao = await this.prisma.notificacao.delete({
+                where: { id },
+            });
+
+            return {
+                message: "Notificação removida com sucesso",
+                data: notificacao,
+            };
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Parâmetros inválidos");
+            }
+            throw error;
+        }
+    }
+}
