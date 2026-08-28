@@ -126,10 +126,24 @@ export class FichaEtapaService {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
 
-        return this.prisma.fichaEtapa.update({
-            where: { id },
+        if (fichaEtapa.data_fim) {
+            return fichaEtapa;
+        }
+
+        await this.prisma.fichaEtapa.updateMany({
+            where: { id, data_fim: null },
             data: { data_fim: new Date() },
         });
+
+        const fichaEtapaFinalizada = await this.prisma.fichaEtapa.findUnique({
+            where: { id },
+        });
+
+        if (!fichaEtapaFinalizada) {
+            throw new NotFoundException("FichaEtapa não encontrada");
+        }
+
+        return fichaEtapaFinalizada;
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto) {

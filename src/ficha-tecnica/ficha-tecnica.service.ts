@@ -411,6 +411,12 @@ export class FichaTecnicaService {
                 });
             });
         } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") {
+                throw new BadRequestException(
+                    "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+                );
+            }
+
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }

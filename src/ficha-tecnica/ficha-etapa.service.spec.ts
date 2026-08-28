@@ -20,6 +20,7 @@ describe("FichaEtapaService", () => {
                 delete: jest.fn(),
                 findMany: jest.fn(),
                 update: jest.fn(),
+                updateMany: jest.fn(),
             },
             fichaTecnica: { updateMany: jest.fn() },
             etapa: { findFirst: jest.fn() },
@@ -178,24 +179,43 @@ describe("FichaEtapaService", () => {
 
     it("usa o relógio do servidor ao encerrar uma etapa", async () => {
         const instanteServidor = new Date("2026-08-28T00:30:00.000Z");
-        jest.useFakeTimers().setSystemTime(instanteServidor);
-        prisma.fichaEtapa.findUnique.mockResolvedValue({
+        const fichaAberta = {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
-        });
-        prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+            data_fim: null,
+        };
+        const fichaFinalizada = { ...fichaAberta, data_fim: instanteServidor };
+        jest.useFakeTimers().setSystemTime(instanteServidor);
+        prisma.fichaEtapa.findUnique
+            .mockResolvedValueOnce(fichaAberta)
+            .mockResolvedValueOnce(fichaFinalizada);
 
         try {
-            await service.finalizarFichaEtapa(1);
+            await expect(service.finalizarFichaEtapa(1)).resolves.toEqual(fichaFinalizada);
         } finally {
             jest.useRealTimers();
         }
 
-        expect(prisma.fichaEtapa.update).toHaveBeenCalledWith({
-            where: { id: 1 },
+        expect(prisma.fichaEtapa.updateMany).toHaveBeenCalledWith({
+            where: { id: 1, data_fim: null },
             data: { data_fim: instanteServidor },
         });
+    });
+
+    it("preserva data_fim quando a etapa já está finalizada", async () => {
+        const dataFimOriginal = new Date("2026-08-28T00:30:00.000Z");
+        const fichaFinalizada = {
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+            data_fim: dataFimOriginal,
+        };
+        prisma.fichaEtapa.findUnique.mockResolvedValue(fichaFinalizada);
+
+        await expect(service.finalizarFichaEtapa(1)).resolves.toEqual(fichaFinalizada);
+
+        expect(prisma.fichaEtapa.updateMany).not.toHaveBeenCalled();
     });
 
     it("rejeita update de vínculo inexistente", async () => {

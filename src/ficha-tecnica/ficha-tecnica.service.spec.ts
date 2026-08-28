@@ -297,6 +297,19 @@ describe("FichaTecnicaService", () => {
 
             expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
         });
+
+        it("deve traduzir a violação atômica da constraint de perdas", async () => {
+            prismaService.fichaTecnica.update.mockRejectedValue(
+                new Prisma.PrismaClientKnownRequestError("constraint violada", {
+                    code: "P2004",
+                    clientVersion: "7.0.0",
+                }),
+            );
+
+            await expect(service.update(1, { quantidade: 100 } as any, 20)).rejects.toThrow(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        });
     });
 
     describe("findAllByFabricoId", () => {
