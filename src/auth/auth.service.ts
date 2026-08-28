@@ -72,7 +72,15 @@ export class AuthService {
     async getById(id: number) {
         const usuario = await this.prisma.usuario.findUnique({
             where: { id },
-            include: { endereco: true },
+            select: {
+                id: true,
+                email: true,
+                nome: true,
+                cargo: true,
+                fabrico_id: true,
+                foto_de_perfil: true,
+                endereco: true,
+            },
         });
 
         if (!usuario) {
