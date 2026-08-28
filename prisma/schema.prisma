@@ -289,7 +289,7 @@ model FichaTecnica {
 
 model FichaParceiro {
   operacao String?
-  valor Decimal?
+  valor Decimal? @db.Decimal(10, 2)
   quantidade Int?
   
   ficha_id Int
@@ -546,7 +546,7 @@ model Pedido {
   numero Int?
   cor String
   quantidade Int @default(0)
-  valor_total Float?
+  valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
