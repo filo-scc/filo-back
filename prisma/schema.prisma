@@ -263,7 +263,7 @@ model FichaTecnica {
   defeitos_tecido Int? @default(0)
   retiradas Int? @default(0)
   sobras Int? @default(0)
-  produzida_em DateTime?
+  produzida_em DateTime? @db.Timestamptz(3)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -337,8 +337,8 @@ model parceiroProduto {
 model FichaEtapa {
   id Int @id @default(autoincrement())
 
-  data_inicio DateTime?
-  data_fim    DateTime?
+  data_inicio DateTime? @db.Timestamptz(3)
+  data_fim    DateTime? @db.Timestamptz(3)
   observacoes String?
 
   ficha_tecnica_id Int

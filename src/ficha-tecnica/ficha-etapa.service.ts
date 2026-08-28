@@ -40,9 +40,11 @@ export class FichaEtapaService {
                     orderBy: { ordem: "desc" },
                     select: { id: true },
                 });
+                const dataInicio = new Date();
                 const fichaEtapa = await tx.fichaEtapa.create({
                     data: {
                         ...data,
+                        data_inicio: dataInicio,
                     },
                 });
 
@@ -53,9 +55,7 @@ export class FichaEtapaService {
                             produzida_em: null,
                         },
                         data: {
-                            produzida_em: data.data_inicio
-                                ? new Date(data.data_inicio)
-                                : new Date(),
+                            produzida_em: dataInicio,
                         },
                     });
                 }
@@ -115,6 +115,21 @@ export class FichaEtapaService {
         });
 
         return fichasEtapas;
+    }
+
+    async finalizarFichaEtapa(id: number) {
+        const fichaEtapa = await this.prisma.fichaEtapa.findUnique({
+            where: { id },
+        });
+
+        if (!fichaEtapa) {
+            throw new NotFoundException("FichaEtapa não encontrada");
+        }
+
+        return this.prisma.fichaEtapa.update({
+            where: { id },
+            data: { data_fim: new Date() },
+        });
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto) {
