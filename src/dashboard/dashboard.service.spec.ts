@@ -115,6 +115,41 @@ describe("DashboardService", () => {
         });
     });
 
+    it("compara a data prevista como data civil no calendário de Recife", async () => {
+        prisma.pedido.findMany.mockResolvedValue([
+            {
+                id: 1,
+                data_prevista: new Date("2026-08-25T00:00:00.000Z"),
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
+            },
+            {
+                id: 2,
+                data_prevista: new Date("2026-08-24T12:00:00.000Z"),
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
+            },
+            {
+                id: 3,
+                data_prevista: new Date("2026-08-26T00:00:00.000Z"),
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
+            },
+            {
+                id: 4,
+                data_prevista: null,
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
+            },
+            {
+                id: 5,
+                data_prevista: new Date("2026-08-25T12:00:00.000Z"),
+                fichas_tecnicas: [{ concluida: false, produzida_em: null }],
+            },
+        ]);
+
+        const result = await service.getOperationalSummary(7, now);
+
+        expect(result.inProgressCount).toBe(5);
+        expect(result.overdueCount).toBe(1);
+    });
+
     it("retorna zeros, sem erro, para fábrica sem dados", async () => {
         const result = await service.getOperationalSummary(7, now);
 

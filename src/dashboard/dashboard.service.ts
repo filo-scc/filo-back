@@ -106,6 +106,18 @@ function startOfWeek(date: CalendarDate): CalendarDate {
     return shiftCalendarDate(date, { days: -daysSinceMonday });
 }
 
+function calendarDateValue(date: CalendarDate) {
+    return date.year * 10_000 + date.month * 100 + date.day;
+}
+
+function getUtcCalendarDate(date: Date): CalendarDate {
+    return {
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+    };
+}
+
 function formatWeekLabel(start: CalendarDate, endExclusive: CalendarDate) {
     const end = shiftCalendarDate(endExclusive, { days: -1 });
     const startDay = String(start.day).padStart(2, "0");
@@ -220,7 +232,7 @@ export class DashboardService {
         const currentWeekStart = startOfWeek(today);
         const summaryStart = shiftCalendarDate(currentWeekStart, { days: -21 });
         const summaryEnd = shiftCalendarDate(currentWeekStart, { days: 7 });
-        const todayStartAt = zonedStartOfDay(today);
+        const todayValue = calendarDateValue(today);
         const periodStartAt = zonedStartOfDay(summaryStart);
         const periodEndAt = zonedStartOfDay(summaryEnd);
 
@@ -249,7 +261,9 @@ export class DashboardService {
             pedido.fichas_tecnicas.some((ficha) => !ficha.concluida && !ficha.produzida_em),
         );
         const pedidosEmAtraso = pedidosEmAndamento.filter(
-            (pedido) => pedido.data_prevista && pedido.data_prevista < todayStartAt,
+            (pedido) =>
+                pedido.data_prevista &&
+                calendarDateValue(getUtcCalendarDate(pedido.data_prevista)) < todayValue,
         );
         const totalProduzido = fichasProduzidas.reduce(
             (total, ficha) => total + Number(ficha.quantidade ?? 0),
