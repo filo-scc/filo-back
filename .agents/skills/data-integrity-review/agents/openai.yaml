@@ -1,0 +1,7 @@
+interface:
+    display_name: "Data Integrity Review"
+    short_description: "Audita atomicidade, precisão e concorrência de dados"
+    default_prompt: "Use $data-integrity-review para testar esta operação contra falha parcial, retry e concorrência."
+
+policy:
+    allow_implicit_invocation: true

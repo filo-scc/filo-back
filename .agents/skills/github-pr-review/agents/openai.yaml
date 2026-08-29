@@ -1,8 +1,7 @@
 interface:
-  display_name: "GitHub PR Review"
-  short_description: "Revisa PRs e cria relatório técnico em Markdown"
-  default_prompt: "Use $github-pr-review para revisar o PR informado como `gh pr checkout 75` e criar o documento local."
+    display_name: "GitHub PR Review"
+    short_description: "Revisa PRs e cria relatório técnico em Markdown"
+    default_prompt: "Use $github-pr-review para revisar o PR informado como `gh pr checkout 75` e criar o documento local."
 
 policy:
-  allow_implicit_invocation: false
-
+    allow_implicit_invocation: false

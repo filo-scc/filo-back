@@ -1,0 +1,7 @@
+interface:
+    display_name: "Kanban Transition Review"
+    short_description: "Audita estados, histórico e concorrência do Kanban"
+    default_prompt: "Use $kanban-transition-review para validar esta transferência e o comportamento sob retry e concorrência."
+
+policy:
+    allow_implicit_invocation: true
