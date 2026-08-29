@@ -382,7 +382,7 @@ export class FichaTecnicaService {
                     });
                 }
 
-                return tx.fichaTecnica.update({
+                const fichaAtualizada = await tx.fichaTecnica.update({
                     where: { id },
                     data: {
                         ...data,
@@ -409,6 +409,11 @@ export class FichaTecnicaService {
                         },
                     },
                 });
+
+                if (data.quantidade !== undefined && ficha.pedido_id) {
+                    await this.sincronizarPedido(tx, ficha.pedido_id);
+                }
+                return fichaAtualizada;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") {
@@ -422,6 +427,71 @@ export class FichaTecnicaService {
             }
             throw error;
         }
+    }
+
+    private async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
+        const pedido = await tx.pedido.findUnique({
+            where: { id: pedidoId },
+            select: { cliente_id: true },
+        });
+
+        if (!pedido) return;
+
+        const fichasDoPedido = await tx.fichaTecnica.findMany({
+            where: { pedido_id: pedidoId },
+            select: {
+                quantidade: true,
+                produto: {
+                    select: {
+                        id: true,
+                        custo_total: true,
+                    },
+                },
+            },
+        });
+
+        const quantidadeTotal = fichasDoPedido.reduce((soma, f) => soma + (f.quantidade ?? 0), 0);
+
+        const custoTotal = fichasDoPedido.reduce((soma, f) => {
+            const custo = Number(f.produto?.custo_total ?? 0);
+            return soma + (f.quantidade ?? 0) * custo;
+        }, 0);
+
+        let valorTotal: number | null = null;
+
+        if (pedido.cliente_id) {
+            const produtoIds = [
+                ...new Set(
+                    fichasDoPedido.map((f) => f.produto?.id).filter((id): id is number => !!id),
+                ),
+            ];
+
+            const precosCliente = await tx.clienteProduto.findMany({
+                where: {
+                    cliente_id: pedido.cliente_id,
+                    produto_id: { in: produtoIds },
+                },
+                select: { produto_id: true, preco_padrao: true },
+            });
+
+            const mapaPrecos = new Map(
+                precosCliente.map((p) => [p.produto_id, Number(p.preco_padrao) || 0]),
+            );
+
+            valorTotal = fichasDoPedido.reduce((soma, f) => {
+                const preco = mapaPrecos.get(f.produto?.id ?? -1) ?? 0;
+                return soma + (f.quantidade ?? 0) * preco;
+            }, 0);
+        }
+
+        await tx.pedido.update({
+            where: { id: pedidoId },
+            data: {
+                quantidade: quantidadeTotal,
+                custo_total: Number(custoTotal.toFixed(2)),
+                valor_total: valorTotal !== null ? Number(valorTotal.toFixed(2)) : null,
+            },
+        });
     }
 
     async remove(id: number) {
