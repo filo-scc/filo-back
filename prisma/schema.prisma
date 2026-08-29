@@ -343,7 +343,7 @@ model FichaParceiro {
 
 model ClienteProduto {
   nome_para_cliente String
-  preco_padrao      Float  @default(0)
+  preco_padrao      Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -365,7 +365,7 @@ model parceiroProduto {
   produto  Produto  @relation(fields: [produto_id], references: [id], onDelete: Cascade)
   parceiro Parceiro @relation(fields: [parceiro_id], references: [id], onDelete: Cascade)
 
-  preco Float?
+  preco Decimal? @db.Decimal(10, 2)
 
   @@id([produto_id, parceiro_id])
   @@map("parceiro_produto")
