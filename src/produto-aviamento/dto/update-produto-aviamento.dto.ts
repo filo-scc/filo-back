@@ -1,4 +1,13 @@
-import { PartialType } from "@nestjs/mapped-types";
-import { CreateProdutoAviamentoDto } from "./create-produto-aviamento.dto";
+import { IsNumber, IsOptional, Min } from "class-validator";
 
-export class UpdateProdutoAviamentoDto extends PartialType(CreateProdutoAviamentoDto) {}
+export class UpdateProdutoAviamentoDto {
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    quantidade?: number;
+
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    custo?: number;
+}
