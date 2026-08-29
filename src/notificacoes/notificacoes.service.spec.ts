@@ -26,6 +26,9 @@ describe("NotificacoesService", () => {
             fabrico: {
                 findUnique: jest.fn(),
             },
+            usuario: {
+                findMany: jest.fn(),
+            },
             notificacao: {
                 create: jest.fn(),
                 findMany: jest.fn(),
@@ -43,13 +46,28 @@ describe("NotificacoesService", () => {
 
     it("cria notificação com destinatários", async () => {
         prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         prisma.notificacao.create.mockResolvedValue({ id: 1, titulo: "Pedido atrasado" });
 
         await expect(service.create(createDto, usuarioFabricoId)).resolves.toEqual({
             message: "Notificação criada com sucesso",
             data: { id: 1, titulo: "Pedido atrasado" },
         });
+        expect(prisma.usuario.findMany).toHaveBeenCalledWith({
+            where: { id: { in: [1, 2] }, fabrico_id: 10 },
+            select: { id: true },
+        });
         expect(prisma.notificacao.create).toHaveBeenCalled();
+    });
+
+    it("rejeita create com destinatário de outro fabrico", async () => {
+        prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }]);
+
+        await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
+            new BadRequestException("Um ou mais destinatários não pertencem a este fabrico"),
+        );
+        expect(prisma.notificacao.create).not.toHaveBeenCalled();
     });
 
     it("rejeita create para fabrico de outro tenant", async () => {
@@ -69,6 +87,7 @@ describe("NotificacoesService", () => {
 
     it("traduz FK inválida no create", async () => {
         prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         prisma.notificacao.create.mockRejectedValue(
             new PrismaClientKnownRequestError("fk", {
                 code: "P2003",
@@ -122,6 +141,35 @@ describe("NotificacoesService", () => {
             message: "Notificação atualizada com sucesso",
             data: { id: 1, titulo: "Novo título" },
         });
+    });
+
+    it("atualiza destinatários válidos do fabrico", async () => {
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        prisma.notificacao.update.mockResolvedValue({ id: 1 });
+
+        await expect(
+            service.update(1, { destinatario_ids: [1, 2] }, usuarioFabricoId),
+        ).resolves.toEqual({
+            message: "Notificação atualizada com sucesso",
+            data: { id: 1 },
+        });
+        expect(prisma.usuario.findMany).toHaveBeenCalledWith({
+            where: { id: { in: [1, 2] }, fabrico_id: 10 },
+            select: { id: true },
+        });
+    });
+
+    it("rejeita update com destinatário de outro fabrico", async () => {
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }]);
+
+        await expect(
+            service.update(1, { destinatario_ids: [1, 99] }, usuarioFabricoId),
+        ).rejects.toThrow(
+            new BadRequestException("Um ou mais destinatários não pertencem a este fabrico"),
+        );
+        expect(prisma.notificacao.update).not.toHaveBeenCalled();
     });
 
     it("remove notificação existente", async () => {
@@ -250,6 +298,7 @@ describe("NotificacoesService", () => {
 
     it("traduz validação Prisma no create", async () => {
         prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         prisma.notificacao.create.mockRejectedValue(
             new PrismaClientValidationError("invalid", { clientVersion: "7.0.0" }),
         );

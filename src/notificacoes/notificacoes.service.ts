@@ -28,6 +28,23 @@ export class NotificacoesService {
         }
     }
 
+    private async assertDestinatariosDoFabrico(destinatario_ids: number[], fabrico_id: number) {
+        const uniqueIds = [...new Set(destinatario_ids)];
+        const usuarios = await this.prisma.usuario.findMany({
+            where: {
+                id: { in: uniqueIds },
+                fabrico_id,
+            },
+            select: { id: true },
+        });
+
+        if (usuarios.length !== uniqueIds.length) {
+            throw new BadRequestException(
+                "Um ou mais destinatários não pertencem a este fabrico",
+            );
+        }
+    }
+
     async create(data: CreateNotificacaoDto, usuario_fabrico_id: number) {
         this.assertFabricoAccess(data.fabrico_id, usuario_fabrico_id);
 
@@ -37,6 +54,10 @@ export class NotificacoesService {
 
         if (!fabrico) {
             throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        if (data.destinatario_ids?.length) {
+            await this.assertDestinatariosDoFabrico(data.destinatario_ids, data.fabrico_id);
         }
 
         try {
@@ -160,6 +181,10 @@ export class NotificacoesService {
 
         if (fabrico_id !== undefined) {
             this.assertFabricoAccess(fabrico_id, usuario_fabrico_id);
+        }
+
+        if (destinatario_ids?.length) {
+            await this.assertDestinatariosDoFabrico(destinatario_ids, usuario_fabrico_id);
         }
 
         try {
