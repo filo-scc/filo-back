@@ -25,42 +25,41 @@ export class NotificacoesController {
     constructor(private readonly notificacoesService: NotificacoesService) {}
 
     @Post()
-    create(@Body() data: CreateNotificacaoDto) {
-        return this.notificacoesService.create(data);
+    create(@Req() req: any, @Body() data: CreateNotificacaoDto) {
+        return this.notificacoesService.create(data, req.user.fabrico_id);
     }
 
     @Get()
-    findAll() {
-        return this.notificacoesService.findAll();
+    findAll(@Req() req: any) {
+        return this.notificacoesService.findAll(req.user.fabrico_id);
     }
 
     @Get("me")
     findMine(@Req() req: any) {
-        return this.notificacoesService.findMine(req.user.id);
-    }
-
-    @Get("fabrico/:fabrico_id")
-    findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.notificacoesService.findAllByFabricoID(fabrico_id);
+        return this.notificacoesService.findMine(req.user.id, req.user.fabrico_id);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.notificacoesService.findOne(id);
+    findOne(@Req() req: any, @Param("id", ParseIntPipe) id: number) {
+        return this.notificacoesService.findOne(id, req.user.fabrico_id);
     }
 
     @Patch(":id/lida")
-    marcarComoLida(@Param("id", ParseIntPipe) id: number, @Req() req: any) {
-        return this.notificacoesService.marcarComoLida(id, req.user.id);
+    marcarComoLida(@Req() req: any, @Param("id", ParseIntPipe) id: number) {
+        return this.notificacoesService.marcarComoLida(id, req.user.id, req.user.fabrico_id);
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateNotificacaoDto) {
-        return this.notificacoesService.update(id, data);
+    update(
+        @Req() req: any,
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateNotificacaoDto,
+    ) {
+        return this.notificacoesService.update(id, data, req.user.fabrico_id);
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.notificacoesService.remove(id);
+    remove(@Req() req: any, @Param("id", ParseIntPipe) id: number) {
+        return this.notificacoesService.remove(id, req.user.fabrico_id);
     }
 }

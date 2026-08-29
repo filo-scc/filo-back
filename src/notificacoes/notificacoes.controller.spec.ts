@@ -9,6 +9,8 @@ describe("NotificacoesController", () => {
         marcarComoLida: jest.Mock;
     };
 
+    const req = { user: { id: 7, fabrico_id: 10 } };
+
     beforeEach(async () => {
         service = {
             findMine: jest.fn(),
@@ -36,15 +38,15 @@ describe("NotificacoesController", () => {
         const notificacoes = [{ id: 1, lida: false }];
         service.findMine.mockResolvedValue(notificacoes);
 
-        await expect(controller.findMine({ user: { id: 7 } })).resolves.toEqual(notificacoes);
-        expect(service.findMine).toHaveBeenCalledWith(7);
+        await expect(controller.findMine(req)).resolves.toEqual(notificacoes);
+        expect(service.findMine).toHaveBeenCalledWith(7, 10);
     });
 
     it("marca notificação como lida para o usuário autenticado", async () => {
         const resultado = { message: "Notificação marcada como lida" };
         service.marcarComoLida.mockResolvedValue(resultado);
 
-        await expect(controller.marcarComoLida(1, { user: { id: 7 } })).resolves.toEqual(resultado);
-        expect(service.marcarComoLida).toHaveBeenCalledWith(1, 7);
+        await expect(controller.marcarComoLida(req, 1)).resolves.toEqual(resultado);
+        expect(service.marcarComoLida).toHaveBeenCalledWith(1, 7, 10);
     });
 });

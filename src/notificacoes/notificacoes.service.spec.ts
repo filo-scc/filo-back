@@ -8,6 +8,8 @@ describe("NotificacoesService", () => {
     let service: NotificacoesService;
     let prisma: any;
 
+    const usuarioFabricoId = 10;
+
     const createDto = {
         fabrico_id: 10,
         tipo: "PEDIDO_ATRASADO",
@@ -27,7 +29,7 @@ describe("NotificacoesService", () => {
             notificacao: {
                 create: jest.fn(),
                 findMany: jest.fn(),
-                findUnique: jest.fn(),
+                findFirst: jest.fn(),
                 update: jest.fn(),
                 delete: jest.fn(),
             },
@@ -43,17 +45,24 @@ describe("NotificacoesService", () => {
         prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
         prisma.notificacao.create.mockResolvedValue({ id: 1, titulo: "Pedido atrasado" });
 
-        await expect(service.create(createDto)).resolves.toEqual({
+        await expect(service.create(createDto, usuarioFabricoId)).resolves.toEqual({
             message: "Notificação criada com sucesso",
             data: { id: 1, titulo: "Pedido atrasado" },
         });
         expect(prisma.notificacao.create).toHaveBeenCalled();
     });
 
+    it("rejeita create para fabrico de outro tenant", async () => {
+        await expect(service.create(createDto, 99)).rejects.toThrow(
+            new NotFoundException("Fabrico não encontrado"),
+        );
+        expect(prisma.fabrico.findUnique).not.toHaveBeenCalled();
+    });
+
     it("rejeita create sem fabrico", async () => {
         prisma.fabrico.findUnique.mockResolvedValue(null);
 
-        await expect(service.create(createDto)).rejects.toThrow(
+        await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
             new NotFoundException("Fabrico não encontrado"),
         );
     });
@@ -67,24 +76,15 @@ describe("NotificacoesService", () => {
             }),
         );
 
-        await expect(service.create(createDto)).rejects.toThrow(
+        await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
             new BadRequestException("Destinatário ou referência inválida"),
         );
     });
 
-    it("lista notificações", async () => {
+    it("lista notificações do fabrico do usuário", async () => {
         prisma.notificacao.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.findAll()).resolves.toEqual([{ id: 1 }]);
-        expect(prisma.notificacao.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ orderBy: { ocorreu_em: "desc" } }),
-        );
-    });
-
-    it("lista notificações por fabrico", async () => {
-        prisma.notificacao.findMany.mockResolvedValue([{ id: 1 }]);
-
-        await expect(service.findAllByFabricoID(10)).resolves.toEqual([{ id: 1 }]);
+        await expect(service.findAll(usuarioFabricoId)).resolves.toEqual([{ id: 1 }]);
         expect(prisma.notificacao.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: { fabrico_id: 10 },
@@ -93,16 +93,21 @@ describe("NotificacoesService", () => {
         );
     });
 
-    it("busca notificação existente", async () => {
-        prisma.notificacao.findUnique.mockResolvedValue({ id: 1 });
+    it("busca notificação existente do fabrico do usuário", async () => {
+        prisma.notificacao.findFirst.mockResolvedValue({ id: 1 });
 
-        await expect(service.findOne(1)).resolves.toEqual({ id: 1 });
+        await expect(service.findOne(1, usuarioFabricoId)).resolves.toEqual({ id: 1 });
+        expect(prisma.notificacao.findFirst).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 1, fabrico_id: 10 },
+            }),
+        );
     });
 
-    it("rejeita notificação inexistente", async () => {
-        prisma.notificacao.findUnique.mockResolvedValue(null);
+    it("rejeita notificação inexistente ou de outro fabrico", async () => {
+        prisma.notificacao.findFirst.mockResolvedValue(null);
 
-        await expect(service.findOne(1)).rejects.toThrow(
+        await expect(service.findOne(1, usuarioFabricoId)).rejects.toThrow(
             new NotFoundException("Notificação não encontrada"),
         );
     });
@@ -111,7 +116,9 @@ describe("NotificacoesService", () => {
         jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
         prisma.notificacao.update.mockResolvedValue({ id: 1, titulo: "Novo título" });
 
-        await expect(service.update(1, { titulo: "Novo título" })).resolves.toEqual({
+        await expect(
+            service.update(1, { titulo: "Novo título" }, usuarioFabricoId),
+        ).resolves.toEqual({
             message: "Notificação atualizada com sucesso",
             data: { id: 1, titulo: "Novo título" },
         });
@@ -121,13 +128,13 @@ describe("NotificacoesService", () => {
         jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
         prisma.notificacao.delete.mockResolvedValue({ id: 1 });
 
-        await expect(service.remove(1)).resolves.toEqual({
+        await expect(service.remove(1, usuarioFabricoId)).resolves.toEqual({
             message: "Notificação removida com sucesso",
             data: { id: 1 },
         });
     });
 
-    it("lista notificações do usuário logado", async () => {
+    it("lista notificações do usuário logado no fabrico", async () => {
         const lidaEm = new Date("2026-08-28T12:00:00.000Z");
         prisma.notificacao.findMany.mockResolvedValue([
             {
@@ -142,7 +149,7 @@ describe("NotificacoesService", () => {
             },
         ]);
 
-        await expect(service.findMine(7)).resolves.toEqual([
+        await expect(service.findMine(7, usuarioFabricoId)).resolves.toEqual([
             {
                 id: 1,
                 titulo: "Pedido atrasado",
@@ -158,7 +165,10 @@ describe("NotificacoesService", () => {
         ]);
         expect(prisma.notificacao.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: { destinatarios: { some: { usuario_id: 7 } } },
+                where: {
+                    fabrico_id: 10,
+                    destinatarios: { some: { usuario_id: 7 } },
+                },
                 orderBy: { ocorreu_em: "desc" },
             }),
         );
@@ -170,6 +180,7 @@ describe("NotificacoesService", () => {
             notificacao_id: 1,
             usuario_id: 7,
             lida_em: null,
+            notificacao: { fabrico_id: 10 },
         });
         prisma.notificacaoDestinatario.update.mockResolvedValue({
             id: 5,
@@ -177,7 +188,7 @@ describe("NotificacoesService", () => {
             notificacao: { id: 1 },
         });
 
-        await expect(service.marcarComoLida(1, 7)).resolves.toEqual({
+        await expect(service.marcarComoLida(1, 7, usuarioFabricoId)).resolves.toEqual({
             message: "Notificação marcada como lida",
             data: {
                 id: 5,
@@ -198,6 +209,7 @@ describe("NotificacoesService", () => {
         prisma.notificacaoDestinatario.findUnique.mockResolvedValue({
             id: 5,
             lida_em: lidaEm,
+            notificacao: { fabrico_id: 10 },
         });
         prisma.notificacaoDestinatario.update.mockResolvedValue({
             id: 5,
@@ -205,7 +217,7 @@ describe("NotificacoesService", () => {
             notificacao: { id: 1 },
         });
 
-        await service.marcarComoLida(1, 7);
+        await service.marcarComoLida(1, 7, usuarioFabricoId);
 
         expect(prisma.notificacaoDestinatario.update).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -217,7 +229,20 @@ describe("NotificacoesService", () => {
     it("rejeita marcar como lida se o usuário não for destinatário", async () => {
         prisma.notificacaoDestinatario.findUnique.mockResolvedValue(null);
 
-        await expect(service.marcarComoLida(1, 7)).rejects.toThrow(
+        await expect(service.marcarComoLida(1, 7, usuarioFabricoId)).rejects.toThrow(
+            new NotFoundException("Notificação não encontrada"),
+        );
+        expect(prisma.notificacaoDestinatario.update).not.toHaveBeenCalled();
+    });
+
+    it("rejeita marcar como lida se a notificação for de outro fabrico", async () => {
+        prisma.notificacaoDestinatario.findUnique.mockResolvedValue({
+            id: 5,
+            lida_em: null,
+            notificacao: { fabrico_id: 99 },
+        });
+
+        await expect(service.marcarComoLida(1, 7, usuarioFabricoId)).rejects.toThrow(
             new NotFoundException("Notificação não encontrada"),
         );
         expect(prisma.notificacaoDestinatario.update).not.toHaveBeenCalled();
@@ -229,7 +254,7 @@ describe("NotificacoesService", () => {
             new PrismaClientValidationError("invalid", { clientVersion: "7.0.0" }),
         );
 
-        await expect(service.create(createDto)).rejects.toThrow(
+        await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
             new BadRequestException("Dados inválidos"),
         );
     });

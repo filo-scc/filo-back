@@ -22,7 +22,15 @@ const destinatariosInclude = {
 export class NotificacoesService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async create(data: CreateNotificacaoDto) {
+    private assertFabricoAccess(fabrico_id: number, usuario_fabrico_id: number) {
+        if (fabrico_id !== usuario_fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+    }
+
+    async create(data: CreateNotificacaoDto, usuario_fabrico_id: number) {
+        this.assertFabricoAccess(data.fabrico_id, usuario_fabrico_id);
+
         const fabrico = await this.prisma.fabrico.findUnique({
             where: { id: data.fabrico_id },
         });
@@ -74,24 +82,18 @@ export class NotificacoesService {
         }
     }
 
-    async findAll() {
+    async findAll(usuario_fabrico_id: number) {
         return this.prisma.notificacao.findMany({
+            where: { fabrico_id: usuario_fabrico_id },
             include: destinatariosInclude,
             orderBy: { ocorreu_em: "desc" },
         });
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
-        return this.prisma.notificacao.findMany({
-            where: { fabrico_id },
-            include: destinatariosInclude,
-            orderBy: { ocorreu_em: "desc" },
-        });
-    }
-
-    async findMine(usuario_id: number) {
+    async findMine(usuario_id: number, usuario_fabrico_id: number) {
         const notificacoes = await this.prisma.notificacao.findMany({
             where: {
+                fabrico_id: usuario_fabrico_id,
                 destinatarios: { some: { usuario_id } },
             },
             include: {
@@ -110,14 +112,19 @@ export class NotificacoesService {
         }));
     }
 
-    async marcarComoLida(notificacao_id: number, usuario_id: number) {
+    async marcarComoLida(notificacao_id: number, usuario_id: number, usuario_fabrico_id: number) {
         const destinatario = await this.prisma.notificacaoDestinatario.findUnique({
             where: {
                 notificacao_id_usuario_id: { notificacao_id, usuario_id },
             },
+            include: {
+                notificacao: {
+                    select: { fabrico_id: true },
+                },
+            },
         });
 
-        if (!destinatario) {
+        if (!destinatario || destinatario.notificacao.fabrico_id !== usuario_fabrico_id) {
             throw new NotFoundException("Notificação não encontrada");
         }
 
@@ -133,9 +140,9 @@ export class NotificacoesService {
         };
     }
 
-    async findOne(id: number) {
-        const notificacao = await this.prisma.notificacao.findUnique({
-            where: { id },
+    async findOne(id: number, usuario_fabrico_id: number) {
+        const notificacao = await this.prisma.notificacao.findFirst({
+            where: { id, fabrico_id: usuario_fabrico_id },
             include: destinatariosInclude,
         });
 
@@ -146,10 +153,14 @@ export class NotificacoesService {
         return notificacao;
     }
 
-    async update(id: number, data: UpdateNotificacaoDto) {
-        await this.findOne(id);
+    async update(id: number, data: UpdateNotificacaoDto, usuario_fabrico_id: number) {
+        await this.findOne(id, usuario_fabrico_id);
 
-        const { destinatario_ids, ocorreu_em, expira_em, metadados, ...rest } = data;
+        const { destinatario_ids, ocorreu_em, expira_em, metadados, fabrico_id, ...rest } = data;
+
+        if (fabrico_id !== undefined) {
+            this.assertFabricoAccess(fabrico_id, usuario_fabrico_id);
+        }
 
         try {
             const notificacao = await this.prisma.notificacao.update({
@@ -188,8 +199,8 @@ export class NotificacoesService {
         }
     }
 
-    async remove(id: number) {
-        await this.findOne(id);
+    async remove(id: number, usuario_fabrico_id: number) {
+        await this.findOne(id, usuario_fabrico_id);
 
         try {
             const notificacao = await this.prisma.notificacao.delete({
