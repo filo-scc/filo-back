@@ -30,6 +30,11 @@ export class NotificacoesService {
 
     private async assertDestinatariosDoFabrico(destinatario_ids: number[], fabrico_id: number) {
         const uniqueIds = [...new Set(destinatario_ids)];
+
+        if (uniqueIds.length !== destinatario_ids.length) {
+            throw new BadRequestException("Destinatários duplicados não são permitidos");
+        }
+
         const usuarios = await this.prisma.usuario.findMany({
             where: {
                 id: { in: uniqueIds },
@@ -93,8 +98,13 @@ export class NotificacoesService {
                 data: notificacao,
             };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
-                throw new BadRequestException("Destinatário ou referência inválida");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2003") {
+                    throw new BadRequestException("Destinatário ou referência inválida");
+                }
+                if (error.code === "P2002") {
+                    throw new BadRequestException("Destinatários duplicados não são permitidos");
+                }
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
@@ -214,8 +224,13 @@ export class NotificacoesService {
                 data: notificacao,
             };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
-                throw new BadRequestException("Destinatário ou referência inválida");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2003") {
+                    throw new BadRequestException("Destinatário ou referência inválida");
+                }
+                if (error.code === "P2002") {
+                    throw new BadRequestException("Destinatários duplicados não são permitidos");
+                }
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");

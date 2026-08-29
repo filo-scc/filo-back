@@ -70,6 +70,18 @@ describe("NotificacoesService", () => {
         expect(prisma.notificacao.create).not.toHaveBeenCalled();
     });
 
+    it("rejeita create com destinatários duplicados", async () => {
+        prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+
+        await expect(
+            service.create({ ...createDto, destinatario_ids: [7, 7] }, usuarioFabricoId),
+        ).rejects.toThrow(
+            new BadRequestException("Destinatários duplicados não são permitidos"),
+        );
+        expect(prisma.usuario.findMany).not.toHaveBeenCalled();
+        expect(prisma.notificacao.create).not.toHaveBeenCalled();
+    });
+
     it("rejeita create para fabrico de outro tenant", async () => {
         await expect(service.create(createDto, 99)).rejects.toThrow(
             new NotFoundException("Fabrico não encontrado"),
@@ -97,6 +109,21 @@ describe("NotificacoesService", () => {
 
         await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
             new BadRequestException("Destinatário ou referência inválida"),
+        );
+    });
+
+    it("traduz destinatário duplicado no create (P2002)", async () => {
+        prisma.fabrico.findUnique.mockResolvedValue({ id: 10 });
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        prisma.notificacao.create.mockRejectedValue(
+            new PrismaClientKnownRequestError("unique", {
+                code: "P2002",
+                clientVersion: "7.0.0",
+            }),
+        );
+
+        await expect(service.create(createDto, usuarioFabricoId)).rejects.toThrow(
+            new BadRequestException("Destinatários duplicados não são permitidos"),
         );
     });
 
@@ -169,6 +196,18 @@ describe("NotificacoesService", () => {
         ).rejects.toThrow(
             new BadRequestException("Um ou mais destinatários não pertencem a este fabrico"),
         );
+        expect(prisma.notificacao.update).not.toHaveBeenCalled();
+    });
+
+    it("rejeita update com destinatários duplicados", async () => {
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+
+        await expect(
+            service.update(1, { destinatario_ids: [7, 7] }, usuarioFabricoId),
+        ).rejects.toThrow(
+            new BadRequestException("Destinatários duplicados não são permitidos"),
+        );
+        expect(prisma.usuario.findMany).not.toHaveBeenCalled();
         expect(prisma.notificacao.update).not.toHaveBeenCalled();
     });
 

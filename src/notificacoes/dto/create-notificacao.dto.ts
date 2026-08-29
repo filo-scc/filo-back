@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import {
+    ArrayUnique,
     IsArray,
     IsDateString,
     IsEnum,
@@ -72,6 +73,7 @@ export class CreateNotificacaoDto {
 
     @IsOptional()
     @IsArray()
+    @ArrayUnique()
     @Type(() => Number)
     @IsInt({ each: true })
     destinatario_ids?: number[];
