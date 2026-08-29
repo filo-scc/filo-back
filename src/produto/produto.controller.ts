@@ -18,7 +18,7 @@ import { Roles } from "src/common/decorators/roles.decorator";
 
 @Controller("produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("PROORIETARIO", "GERENTE")
+@Roles("PROPRIETARIO", "GERENTE")
 export class ProdutoController {
     constructor(private service: ProdutoService) {}
 

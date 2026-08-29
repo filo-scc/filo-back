@@ -47,6 +47,12 @@ export class FichaEtapaController {
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
+    @Put(":ficha_etapa_id/finalizar")
+    finalizarFichaEtapa(@Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number) {
+        return this.fichaEtapaService.finalizarFichaEtapa(idFichaEtapa);
+    }
+
+    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":ficha_etapa_id")
     updateFichaEtapa(
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
