@@ -22,6 +22,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { CronjobsModule } from "./cronjobs/cronjobs.module";
 import { TipoProdutoModule } from "./tipo-produto/tipo-produto.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { NotificacoesModule } from "./notificacoes/notificacoes.module";
 
 @Module({
     imports: [
@@ -46,6 +47,7 @@ import { DashboardModule } from "./dashboard/dashboard.module";
         CronjobsModule,
         TipoProdutoModule,
         DashboardModule,
+        NotificacoesModule,
     ],
     controllers: [AppController],
     providers: [AppService],

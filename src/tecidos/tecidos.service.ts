@@ -1,4 +1,5 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
@@ -41,7 +42,7 @@ export class TecidosService {
             where: { id },
         });
         if (!tecido) {
-            throw new ConflictException("Tecido não encontrado");
+            throw new NotFoundException("Tecido não encontrado");
         }
         return tecido;
     }
@@ -54,60 +55,87 @@ export class TecidosService {
     }
 
     async update(id: number, data: UpdateTecidosDto) {
-        const tecidoExistente = await this.prisma.tecido.findUnique({
-            where: { id },
-        });
-
-        if (!tecidoExistente) {
-            throw new ConflictException("Tecido não encontrado");
-        }
-
-        const nomeExistente = await this.prisma.tecido.findFirst({
-            where: {
-                nome: data.nome,
-                id: { not: id },
-            },
-        });
-
-        if (nomeExistente) {
-            throw new ConflictException("Tecido com esse nome já existe");
-        }
-
         return this.prisma.$transaction(async (tx) => {
-            const produtos = await tx.produto.findMany({
-                where: {
-                    tecido_id: id,
-                    custo_tecido: null,
-                },
-                select: { id: true },
+            const tecidoExistente = await tx.tecido.findUnique({
+                where: { id },
             });
-            await this.produtoService.bloquearProdutosParaRecalculo(
-                produtos.map((produto) => produto.id),
-                tx,
-            );
+
+            if (!tecidoExistente) {
+                throw new NotFoundException("Tecido não encontrado");
+            }
+
+            if (data.nome) {
+                const nomeExistente = await tx.tecido.findFirst({
+                    where: {
+                        nome: data.nome,
+                        fabrico_id: tecidoExistente.fabrico_id,
+                        id: { not: id },
+                    },
+                });
+
+                if (nomeExistente) {
+                    throw new ConflictException("Tecido com esse nome já existe");
+                }
+            }
+
             const tecidoAtualizado = await tx.tecido.update({
                 where: { id },
                 data,
             });
-            await this.produtoService.recalcularCustosTotais(
-                produtos.map((produto) => produto.id),
-                tx,
-            );
+
+            const produtosAfetados = await tx.produto.findMany({
+                where: {
+                    fabrico_id: tecidoExistente.fabrico_id,
+                    tecido_id: id,
+                },
+                select: { id: true },
+            });
+
+            for (const produto of produtosAfetados) {
+                await this.produtoService.recalcularCustoTotal(produto.id, tx);
+            }
+
             return tecidoAtualizado;
         });
     }
 
     async remove(id: number) {
-        const tecidoExistente = await this.prisma.tecido.findUnique({
-            where: { id },
-        });
+        return this.prisma.$transaction(async (tx) => {
+            const tecidoExistente = await tx.tecido.findUnique({
+                where: { id },
+            });
 
-        if (!tecidoExistente) {
-            throw new ConflictException("Tecido não encontrado");
-        }
+            if (!tecidoExistente) {
+                throw new NotFoundException("Tecido não encontrado");
+            }
 
-        return this.prisma.tecido.delete({
-            where: { id },
+            const produtosAfetados = await tx.produto.findMany({
+                where: {
+                    fabrico_id: tecidoExistente.fabrico_id,
+                    tecido_id: id,
+                },
+                select: { id: true },
+            });
+
+            await tx.produto.updateMany({
+                where: {
+                    fabrico_id: tecidoExistente.fabrico_id,
+                    tecido_id: id,
+                },
+                data: {
+                    tecido_id: null,
+                    quantidade_tecido: null,
+                    custo_tecido: 0,
+                },
+            });
+
+            for (const produto of produtosAfetados) {
+                await this.produtoService.recalcularCustoTotal(produto.id, tx);
+            }
+
+            return tx.tecido.delete({
+                where: { id },
+            });
         });
     }
 }
