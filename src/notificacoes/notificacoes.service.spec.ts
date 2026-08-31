@@ -75,9 +75,7 @@ describe("NotificacoesService", () => {
 
         await expect(
             service.create({ ...createDto, destinatario_ids: [7, 7] }, usuarioFabricoId),
-        ).rejects.toThrow(
-            new BadRequestException("Destinatários duplicados não são permitidos"),
-        );
+        ).rejects.toThrow(new BadRequestException("Destinatários duplicados não são permitidos"));
         expect(prisma.usuario.findMany).not.toHaveBeenCalled();
         expect(prisma.notificacao.create).not.toHaveBeenCalled();
     });
@@ -204,9 +202,7 @@ describe("NotificacoesService", () => {
 
         await expect(
             service.update(1, { destinatario_ids: [7, 7] }, usuarioFabricoId),
-        ).rejects.toThrow(
-            new BadRequestException("Destinatários duplicados não são permitidos"),
-        );
+        ).rejects.toThrow(new BadRequestException("Destinatários duplicados não são permitidos"));
         expect(prisma.usuario.findMany).not.toHaveBeenCalled();
         expect(prisma.notificacao.update).not.toHaveBeenCalled();
     });

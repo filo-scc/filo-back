@@ -44,9 +44,7 @@ export class NotificacoesService {
         });
 
         if (usuarios.length !== uniqueIds.length) {
-            throw new BadRequestException(
-                "Um ou mais destinatários não pertencem a este fabrico",
-            );
+            throw new BadRequestException("Um ou mais destinatários não pertencem a este fabrico");
         }
     }
 
