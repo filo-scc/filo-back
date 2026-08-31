@@ -68,7 +68,7 @@ describe("AuthService", () => {
     it("deve estar definido", () => {
         expect(service).toBeDefined();
     });
-    //validado
+
     describe("Criando um usario", () => {
         const createDto: any = {
             email: "teste@teste.com",
@@ -117,7 +117,7 @@ describe("AuthService", () => {
             await expect(service.create(createDto)).rejects.toThrow("Este e-mail já está em uso!");
         });
     });
-    //validado
+
     describe("Requisitando usuairo por ID / Reqisitando usuários pelo ID do fabrico", () => {
         it("deve retornar todos os usuários vinculados a um determinado fabrico_id", async () => {
             mockPrismaService.usuario.findMany.mockResolvedValue([mockUsuario]);
@@ -139,8 +139,8 @@ describe("AuthService", () => {
                 where: { id: 1 },
                 select: {
                     id: true,
-                    email: true,
                     nome: true,
+                    email: true,
                     cargo: true,
                     fabrico_id: true,
                     foto_de_perfil: true,
@@ -155,7 +155,7 @@ describe("AuthService", () => {
             await expect(service.getById(99)).rejects.toThrow(NotFoundException);
         });
     });
-    //validado
+
     describe("Atualizar usuário e endereço", () => {
         const updateDto: any = {
             nome: "Nome Atualizado",
@@ -214,7 +214,7 @@ describe("AuthService", () => {
             await expect(service.update(1, updateDto)).rejects.toThrow("Email já cadastrado");
         });
     });
-    //validado
+
     describe("Deletar um usario", () => {
         it("deve deletar um usuário com sucesso quando o ID for válido", async () => {
             mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
@@ -233,7 +233,7 @@ describe("AuthService", () => {
             expect(mockPrismaService.usuario.delete).not.toHaveBeenCalled();
         });
     });
-    //validado
+
     describe("Métodos de Autenticação para validar usuário, gerar token e login", () => {
         it("deve retornar os dados do usuário se as credenciais estiverem corretas", async () => {
             mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
@@ -287,7 +287,7 @@ describe("AuthService", () => {
             expect(resultado).toHaveProperty("refreshToken");
         });
     });
-    //valido
+
     describe("Métodos de Sessão para refresh e logout", () => {
         it("deve gerar novos tokens de acesso caso o usuário exista no banco", async () => {
             mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
