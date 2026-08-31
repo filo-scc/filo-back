@@ -35,6 +35,7 @@ export class ProdutoService {
         }
     }
 
+    // No ProdutoService.ts
     async recalcularCustoTotal(produtoId: number, db?: Prisma.TransactionClient): Promise<number> {
         if (!db) {
             return this.prisma.$transaction((tx) => this.recalcularCustoTotal(produtoId, tx));
@@ -46,12 +47,8 @@ export class ProdutoService {
             where: { id: produtoId },
             include: {
                 tecido: true,
-                produtoAviamentos: {
-                    include: { aviamento: true },
-                },
-                parceiro_produto: {
-                    include: { parceiro: true },
-                },
+                produtoAviamentos: { include: { aviamento: true } },
+                parceiro_produto: { include: { parceiro: true } },
             },
         });
 
@@ -59,11 +56,17 @@ export class ProdutoService {
             throw new NotFoundException("Produto não encontrado");
         }
 
+        // 1. Calcula o custo do tecido atualizado com base no preço atual do tecido
+        let custoTecido = 0;
+        if (produto.tecido && produto.quantidade_tecido) {
+            custoTecido = Number(produto.quantidade_tecido) * Number(produto.tecido.custo_unitario);
+        } else if (produto.custo_tecido !== null && produto.custo_tecido !== undefined) {
+            custoTecido = Number(produto.custo_tecido);
+        }
+
+        // (Cálculo de etapas e aviamentos mantido...)
         const etapasAtivas = await db.etapa.findMany({
-            where: {
-                fabrico_id: produto.fabrico_id,
-                ativa: true,
-            },
+            where: { fabrico_id: produto.fabrico_id, ativa: true },
             orderBy: { ordem: "asc" },
         });
 
@@ -76,22 +79,13 @@ export class ProdutoService {
                 .filter((preco) => Number.isFinite(preco) && preco > 0);
 
             if (!precos.length) return total;
-
-            const media = precos.reduce((soma, preco) => soma + preco, 0) / precos.length;
-            return total + media;
+            return total + precos.reduce((soma, preco) => soma + preco, 0) / precos.length;
         }, 0);
-
-        const custoTecido =
-            produto.custo_tecido !== null && produto.custo_tecido !== undefined
-                ? Number(produto.custo_tecido)
-                : Number(produto.quantidade_tecido || 0) *
-                  Number(produto.tecido?.custo_unitario || 0);
 
         const custoAviamentos = produto.produtoAviamentos.reduce((total, vinculo) => {
             if (vinculo.custo !== null && vinculo.custo !== undefined) {
                 return total + Number(vinculo.custo);
             }
-
             return (
                 total +
                 Number(vinculo.quantidade || 0) * Number(vinculo.aviamento?.custo_unitario || 0)
@@ -108,9 +102,13 @@ export class ProdutoService {
             ).toFixed(2),
         );
 
+        // 2. Atualiza CUSTO_TECIDO e CUSTO_TOTAL no produto
         await db.produto.update({
             where: { id: produtoId },
-            data: { custo_total: custoTotal },
+            data: {
+                custo_tecido: custoTecido,
+                custo_total: custoTotal,
+            },
         });
 
         return custoTotal;

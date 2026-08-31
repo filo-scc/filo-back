@@ -55,12 +55,17 @@ export class TecidosService {
     }
 
     async update(id: number, data: UpdateTecidosDto) {
+        console.log(`\n========================================`);
+        console.log(`>>> [UPDATE TECIDO] Método chamado para ID: ${id}`);
+        console.log(`>>> Dados recebidos:`, data);
+
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
             if (!tecidoExistente) {
+                console.log(`❌ [UPDATE TECIDO] Tecido ID ${id} não encontrado.`);
                 throw new NotFoundException("Tecido não encontrado");
             }
 
@@ -83,66 +88,47 @@ export class TecidosService {
                 data,
             });
 
-            const novoCustoUnitario =
-                tecidoAtualizado.custo_unitario !== null &&
-                tecidoAtualizado.custo_unitario !== undefined
-                    ? Number(tecidoAtualizado.custo_unitario)
-                    : null;
+            console.log(
+                `🔍 Buscando produtos afetados para fabrico_id: ${tecidoExistente.fabrico_id} e tecido_id: ${id}`,
+            );
+            const produtosAfetados = await tx.produto.findMany({
+                where: {
+                    fabrico_id: tecidoExistente.fabrico_id,
+                    tecido_id: id,
+                },
+                select: { id: true },
+            });
 
-            await this.calculateNewTotalCost(id, tecidoExistente.fabrico_id, novoCustoUnitario, tx);
+            console.log(`📊 Total de produtos encontrados: ${produtosAfetados.length}`);
 
+            if (produtosAfetados.length === 0) {
+                console.log(
+                    `⚠️ Nenhum produto vinculado a este tecido. O recálculo não será executado.`,
+                );
+            }
+
+            for (const produto of produtosAfetados) {
+                console.log(`🔄 Chamando recalcularCustoTotal para Produto ID: ${produto.id}...`);
+                await this.produtoService.recalcularCustoTotal(produto.id, tx);
+                console.log(`✅ Recálculo concluído para Produto ID: ${produto.id}`);
+            }
+
+            console.log(`========================================\n`);
             return tecidoAtualizado;
         });
     }
 
-    private async calculateNewTotalCost(
-        tecidoId: number,
-        fabricoId: number,
-        novoCustoUnitario: number | null,
-        tx: Prisma.TransactionClient,
-    ): Promise<void> {
-        const produtosAfetados = await tx.produto.findMany({
-            where: {
-                fabrico_id: fabricoId,
-                tecido_id: tecidoId,
-            },
-        });
-
-        for (const produto of produtosAfetados) {
-            if (novoCustoUnitario === null) {
-                await tx.produto.update({
-                    where: { id: produto.id },
-                    data: {
-                        custo_tecido: null,
-                        custo_total: null,
-                    },
-                });
-            } else {
-                const quantidade = Number(produto.quantidade_tecido ?? 0);
-                const custoTecidoFinal = Number((quantidade * novoCustoUnitario).toFixed(2));
-                const custo_operacional = Number((produto as any).custo_operacional ?? 0);
-                const outrosCustos = Number((produto as any).outros_custos ?? 0);
-                const custoTotalFinal = Number(
-                    (custoTecidoFinal + outrosCustos + custo_operacional).toFixed(2),
-                );
-
-                await tx.produto.update({
-                    where: { id: produto.id },
-                    data: {
-                        custo_tecido: custoTecidoFinal,
-                        custo_total: custoTotalFinal,
-                    },
-                });
-            }
-        }
-    }
     async remove(id: number) {
+        console.log(`\n========================================`);
+        console.log(`>>> [REMOVE TECIDO] Método chamado para ID: ${id}`);
+
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
             if (!tecidoExistente) {
+                console.log(`❌ [REMOVE TECIDO] Tecido ID ${id} não encontrado.`);
                 throw new NotFoundException("Tecido não encontrado");
             }
 
@@ -151,23 +137,30 @@ export class TecidosService {
                     fabrico_id: tecidoExistente.fabrico_id,
                     tecido_id: id,
                 },
+                select: { id: true },
+            });
+
+            console.log(`📊 Total de produtos que usavam este tecido: ${produtosAfetados.length}`);
+
+            await tx.produto.updateMany({
+                where: {
+                    fabrico_id: tecidoExistente.fabrico_id,
+                    tecido_id: id,
+                },
+                data: {
+                    tecido_id: null,
+                    quantidade_tecido: null,
+                    custo_tecido: 0,
+                },
             });
 
             for (const produto of produtosAfetados) {
-                const outrosCustos = Number(produto.outros_custos ?? 0);
-                const custoTotalFinal = Number((0 + outrosCustos).toFixed(2));
-
-                await tx.produto.update({
-                    where: { id: produto.id },
-                    data: {
-                        tecido_id: null,
-                        quantidade_tecido: null,
-                        custo_tecido: 0,
-                        custo_total: custoTotalFinal,
-                    },
-                });
+                console.log(`🔄 Chamando recalcularCustoTotal para Produto ID: ${produto.id}...`);
+                await this.produtoService.recalcularCustoTotal(produto.id, tx);
+                console.log(`✅ Recálculo concluído para Produto ID: ${produto.id}`);
             }
 
+            console.log(`========================================\n`);
             return tx.tecido.delete({
                 where: { id },
             });
