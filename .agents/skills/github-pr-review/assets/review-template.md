@@ -1,4 +1,4 @@
-# Revisão do PR {{PR_NUMBER}} - sugestões
+# Revisão do PR {{PR_NUMBER}} - findings
 
 PR: {{PR_URL}}  
 Título: {{PR_TITLE}}  
@@ -8,11 +8,20 @@ Head revisado: `{{HEAD_SHA}}`
 
 Escopo: {{REVIEW_SCOPE}}
 
-## Resumo
+## Resumo executivo
 
 {{KEPT_FINDINGS_SUMMARY_OR_NO_FINDINGS}}
 
-## Impacto no que já existe
+## Cobertura de risco
+
+- Isolamento entre fábricas: {{TENANT_ISOLATION_COVERAGE}}
+- Autenticação e autorização: {{AUTHORIZATION_COVERAGE}}
+- Pedidos e fichas técnicas: {{ORDERS_AND_TECHNICAL_SHEETS_COVERAGE}}
+- Kanban, etapas e concorrência: {{KANBAN_AND_CONCURRENCY_COVERAGE}}
+- Integridade, precisão e migrations: {{DATA_AND_MIGRATIONS_COVERAGE}}
+- Contrato entre frontend e backend: {{API_CONTRACT_COVERAGE}}
+
+## Impacto no comportamento existente
 
 {{OVERALL_COMPATIBILITY_AND_REGRESSION_ASSESSMENT}}
 
@@ -22,31 +31,49 @@ Escopo: {{REVIEW_SCOPE}}
 {{COMMANDS_RUN}}
 ```
 
-{{CHECK_RESULTS_AND_LIMITATIONS}}
+{{CHECK_RESULTS}}
 
-## 1. {{ACTION_ORIENTED_FINDING_TITLE}}
+## Limitações globais
+
+- {{GLOBAL_LIMITATION_OR_NONE}}
+
+## 1. {{EFFECT_ORIENTED_FINDING_TITLE}}
 
 Severidade: {{CRITICA_ALTA_MEDIA_OU_BAIXA}}.
+
+Confiança: {{CONFIRMADA_ALTA_OU_MEDIA}}.
 
 Onde:
 
 - `{{FILE_PATH}}:{{START_LINE}}-{{END_LINE}}`
 
-Trecho:
+Evidência:
 
 ```{{LANGUAGE}}
 {{MINIMAL_RELEVANT_CODE}}
 ```
 
+{{EVIDENCE_CONNECTING_CODE_TO_BEHAVIOR}}
+
 Problema: {{OBSERVED_INCORRECT_BEHAVIOR}}
 
-Por que ocorre: {{TECHNICAL_CAUSE}}
+Causa técnica: {{TECHNICAL_CAUSE}}
+
+Exploração possível: {{ACTOR_PRECONDITIONS_AND_SEQUENCE_OR_NOT_APPLICABLE_WITH_TRIGGER}}
+
+Impacto nos clientes: {{CUSTOMER_IMPACT}}
+
+Escopo afetado: {{AFFECTED_FACTORIES_ROLES_RECORDS_VERSIONS_OR_FLOWS}}
 
 Impacto no existente: {{REGRESSION_COMPATIBILITY_OR_DATA_IMPACT}}
 
-Exemplo: {{CONCRETE_SCENARIO}}
+Exemplo concreto: {{CONCRETE_SCENARIO}}
 
-Sugestão: {{PROPORTIONAL_RESOLUTION_ACTION}}
+Correção mínima segura: {{MINIMUM_SAFE_FIX}}
+
+Teste de regressão: {{TEST_PRECONDITIONS_ACTION_AND_EXPECTED_RESULT}}
+
+Limitações do finding: {{MISSING_EVIDENCE_UNRUN_CHECKS_OR_NONE}}
 
 Mensagem curta para o PR:
 
