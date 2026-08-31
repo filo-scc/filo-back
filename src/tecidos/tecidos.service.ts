@@ -120,9 +120,11 @@ export class TecidosService {
             } else {
                 const quantidade = Number(produto.quantidade_tecido ?? 0);
                 const custoTecidoFinal = Number((quantidade * novoCustoUnitario).toFixed(2));
-
+                const custo_operacional = Number((produto as any).custo_operacional ?? 0);
                 const outrosCustos = Number((produto as any).outros_custos ?? 0);
-                const custoTotalFinal = Number((custoTecidoFinal + outrosCustos).toFixed(2));
+                const custoTotalFinal = Number(
+                    (custoTecidoFinal + outrosCustos + custo_operacional).toFixed(2),
+                );
 
                 await tx.produto.update({
                     where: { id: produto.id },
