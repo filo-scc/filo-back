@@ -56,7 +56,6 @@ export class ProdutoService {
             throw new NotFoundException("Produto não encontrado");
         }
 
-        // 1. Calcula o custo do tecido atualizado com base no preço atual do tecido
         let custoTecido = 0;
         if (produto.tecido && produto.quantidade_tecido) {
             custoTecido = Number(produto.quantidade_tecido) * Number(produto.tecido.custo_unitario);
@@ -64,7 +63,6 @@ export class ProdutoService {
             custoTecido = Number(produto.custo_tecido);
         }
 
-        // (Cálculo de etapas e aviamentos mantido...)
         const etapasAtivas = await db.etapa.findMany({
             where: { fabrico_id: produto.fabrico_id, ativa: true },
             orderBy: { ordem: "asc" },
@@ -102,7 +100,6 @@ export class ProdutoService {
             ).toFixed(2),
         );
 
-        // 2. Atualiza CUSTO_TECIDO e CUSTO_TOTAL no produto
         await db.produto.update({
             where: { id: produtoId },
             data: {

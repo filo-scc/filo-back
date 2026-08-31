@@ -55,17 +55,12 @@ export class TecidosService {
     }
 
     async update(id: number, data: UpdateTecidosDto) {
-        console.log(`\n========================================`);
-        console.log(`>>> [UPDATE TECIDO] Método chamado para ID: ${id}`);
-        console.log(`>>> Dados recebidos:`, data);
-
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
             if (!tecidoExistente) {
-                console.log(`❌ [UPDATE TECIDO] Tecido ID ${id} não encontrado.`);
                 throw new NotFoundException("Tecido não encontrado");
             }
 
@@ -88,9 +83,6 @@ export class TecidosService {
                 data,
             });
 
-            console.log(
-                `🔍 Buscando produtos afetados para fabrico_id: ${tecidoExistente.fabrico_id} e tecido_id: ${id}`,
-            );
             const produtosAfetados = await tx.produto.findMany({
                 where: {
                     fabrico_id: tecidoExistente.fabrico_id,
@@ -99,36 +91,21 @@ export class TecidosService {
                 select: { id: true },
             });
 
-            console.log(`📊 Total de produtos encontrados: ${produtosAfetados.length}`);
-
-            if (produtosAfetados.length === 0) {
-                console.log(
-                    `⚠️ Nenhum produto vinculado a este tecido. O recálculo não será executado.`,
-                );
-            }
-
             for (const produto of produtosAfetados) {
-                console.log(`🔄 Chamando recalcularCustoTotal para Produto ID: ${produto.id}...`);
                 await this.produtoService.recalcularCustoTotal(produto.id, tx);
-                console.log(`✅ Recálculo concluído para Produto ID: ${produto.id}`);
             }
 
-            console.log(`========================================\n`);
             return tecidoAtualizado;
         });
     }
 
     async remove(id: number) {
-        console.log(`\n========================================`);
-        console.log(`>>> [REMOVE TECIDO] Método chamado para ID: ${id}`);
-
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
             if (!tecidoExistente) {
-                console.log(`❌ [REMOVE TECIDO] Tecido ID ${id} não encontrado.`);
                 throw new NotFoundException("Tecido não encontrado");
             }
 
@@ -139,8 +116,6 @@ export class TecidosService {
                 },
                 select: { id: true },
             });
-
-            console.log(`📊 Total de produtos que usavam este tecido: ${produtosAfetados.length}`);
 
             await tx.produto.updateMany({
                 where: {
@@ -155,12 +130,9 @@ export class TecidosService {
             });
 
             for (const produto of produtosAfetados) {
-                console.log(`🔄 Chamando recalcularCustoTotal para Produto ID: ${produto.id}...`);
                 await this.produtoService.recalcularCustoTotal(produto.id, tx);
-                console.log(`✅ Recálculo concluído para Produto ID: ${produto.id}`);
             }
 
-            console.log(`========================================\n`);
             return tx.tecido.delete({
                 where: { id },
             });
