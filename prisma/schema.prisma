@@ -248,7 +248,7 @@ model Icone {
   etapas Etapa[] @relation("EtapaIconePadrao")
   etapas_icone_verde Etapa[] @relation("EtapaIconeVerde")
   etapas_icone_cinza Etapa[] @relation("EtapaIconeCinza")
-  
+
   @@map("icones")
 }
 
@@ -263,6 +263,7 @@ model FichaTecnica {
   defeitos_tecido Int? @default(0)
   retiradas Int? @default(0)
   sobras Int? @default(0)
+  produzida_em DateTime? @db.Timestamptz(3)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -284,14 +285,15 @@ model FichaTecnica {
 
   ficha_parceiro FichaParceiro[]
 
+  @@index([fabrico_id, produzida_em])
   @@map("fichas-tecnicas")
 }
 
 model FichaParceiro {
   operacao String?
-  valor Decimal?
+  valor Decimal? @db.Decimal(10, 2)
   quantidade Int?
-  
+
   ficha_id Int
   ficha    FichaTecnica @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
 
@@ -335,8 +337,8 @@ model parceiroProduto {
 model FichaEtapa {
   id Int @id @default(autoincrement())
 
-  data_inicio DateTime?
-  data_fim    DateTime?
+  data_inicio DateTime? @db.Timestamptz(3)
+  data_fim    DateTime? @db.Timestamptz(3)
   observacoes String?
 
   ficha_tecnica_id Int
@@ -546,7 +548,7 @@ model Pedido {
   numero Int?
   cor String
   quantidade Int @default(0)
-  valor_total Float?
+  valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
