@@ -1,0 +1,16 @@
+interface:
+  display_name: "Release PR Sync"
+  short_description: "Cria e sincroniza PRs de develop para master"
+  default_prompt: "Use $release-pr-sync para criar ou atualizar o PR de release de develop para master com uma descrição consolidada."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "github"
+      description: "GitHub MCP server"
+      transport: "streamable_http"
+      url: "https://api.githubcopilot.com/mcp/"
+
+policy:
+  allow_implicit_invocation: true
+
