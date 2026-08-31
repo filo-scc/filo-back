@@ -137,7 +137,15 @@ describe("AuthService", () => {
             expect(resultado).toEqual(mockUsuario);
             expect(mockPrismaService.usuario.findUnique).toHaveBeenCalledWith({
                 where: { id: 1 },
-                include: { endereco: true },
+                select: {
+                    id: true,
+                    email: true,
+                    nome: true,
+                    cargo: true,
+                    fabrico_id: true,
+                    foto_de_perfil: true,
+                    endereco: true,
+                },
             });
         });
 
