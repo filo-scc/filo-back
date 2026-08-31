@@ -226,6 +226,90 @@ describe("FichaTecnicaService", () => {
                 "A nova versão de grade informada é inválida ou está inativa",
             );
         });
+
+        it("deve aceitar um relatório de perdas válido", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                quantidade: 100,
+                defeitos_costura: 10,
+                defeitos_tecido: 5,
+                retiradas: 3,
+                sobras: 2,
+            });
+
+            const result = await service.update(
+                1,
+                {
+                    quantidade: 100,
+                    defeitos_costura: 10,
+                    defeitos_tecido: 5,
+                    retiradas: 3,
+                    sobras: 2,
+                } as any,
+                20,
+            );
+
+            expect(result.defeitos_costura).toBe(10);
+        });
+
+        it("deve tratar perda explicitamente nula como zero durante a atualização", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                quantidade: 100,
+                defeitos_costura: 90,
+                defeitos_tecido: 0,
+                retiradas: 0,
+                sobras: 0,
+            } as any);
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                quantidade: 20,
+                defeitos_costura: null,
+            });
+
+            await expect(
+                service.update(1, { quantidade: 20, defeitos_costura: null } as any, 20),
+            ).resolves.toEqual(expect.objectContaining({ quantidade: 20, defeitos_costura: null }));
+            expect(prismaService.fichaTecnica.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({
+                        quantidade: 20,
+                        defeitos_costura: null,
+                    }),
+                }),
+            );
+        });
+
+        it("deve rejeitar quando a soma das perdas ultrapassar a quantidade", async () => {
+            await expect(
+                service.update(
+                    1,
+                    {
+                        quantidade: 10,
+                        defeitos_costura: 4,
+                        defeitos_tecido: 3,
+                        retiradas: 2,
+                        sobras: 2,
+                    } as any,
+                    20,
+                ),
+            ).rejects.toThrow("A soma das perdas não pode ser maior que a quantidade");
+
+            expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
+        });
+
+        it("deve traduzir a violação atômica da constraint de perdas", async () => {
+            prismaService.fichaTecnica.update.mockRejectedValue(
+                new Prisma.PrismaClientKnownRequestError("constraint violada", {
+                    code: "P2004",
+                    clientVersion: "7.0.0",
+                }),
+            );
+
+            await expect(service.update(1, { quantidade: 100 } as any, 20)).rejects.toThrow(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        });
     });
 
     describe("findAllByFabricoId", () => {

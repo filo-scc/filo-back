@@ -15,7 +15,7 @@ export class FichaEtapaService {
     ) {}
 
     async createFichaEtapa(data: CreateFichaEtapaDto) {
-        await Promise.all([
+        const [, etapa] = await Promise.all([
             this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
             this.etapaService.getById(data.etapa_id),
         ]);
@@ -34,10 +34,33 @@ export class FichaEtapaService {
         }
 
         try {
-            return await this.prisma.fichaEtapa.create({
-                data: {
-                    ...data,
-                },
+            return await this.prisma.$transaction(async (tx) => {
+                const ultimaEtapa = await tx.etapa.findFirst({
+                    where: { fabrico_id: etapa.fabrico_id, ativa: true },
+                    orderBy: { ordem: "desc" },
+                    select: { id: true },
+                });
+                const dataInicio = new Date();
+                const fichaEtapa = await tx.fichaEtapa.create({
+                    data: {
+                        ...data,
+                        data_inicio: dataInicio,
+                    },
+                });
+
+                if (ultimaEtapa?.id === data.etapa_id) {
+                    await tx.fichaTecnica.updateMany({
+                        where: {
+                            id: data.ficha_tecnica_id,
+                            produzida_em: null,
+                        },
+                        data: {
+                            produzida_em: dataInicio,
+                        },
+                    });
+                }
+
+                return fichaEtapa;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -92,6 +115,35 @@ export class FichaEtapaService {
         });
 
         return fichasEtapas;
+    }
+
+    async finalizarFichaEtapa(id: number) {
+        const fichaEtapa = await this.prisma.fichaEtapa.findUnique({
+            where: { id },
+        });
+
+        if (!fichaEtapa) {
+            throw new NotFoundException("FichaEtapa não encontrada");
+        }
+
+        if (fichaEtapa.data_fim) {
+            return fichaEtapa;
+        }
+
+        await this.prisma.fichaEtapa.updateMany({
+            where: { id, data_fim: null },
+            data: { data_fim: new Date() },
+        });
+
+        const fichaEtapaFinalizada = await this.prisma.fichaEtapa.findUnique({
+            where: { id },
+        });
+
+        if (!fichaEtapaFinalizada) {
+            throw new NotFoundException("FichaEtapa não encontrada");
+        }
+
+        return fichaEtapaFinalizada;
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto) {

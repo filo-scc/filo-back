@@ -32,67 +32,38 @@ export class ConcluirFichasCronService implements OnModuleInit {
         this.logger.log(`Iniciando Job de conclusão de fichas (${origem})...`);
 
         try {
-            const fabricos = await this.prisma.fabrico.findMany({
-                where: { ativo: true },
-                select: { id: true },
-            });
-
             const setentaEDuasHorasAtras = new Date();
             setentaEDuasHorasAtras.setHours(setentaEDuasHorasAtras.getHours() - 72);
 
             const agora = new Date();
-            let totalAtualizado = 0;
+            const fichasParaConcluir = await this.prisma.fichaTecnica.findMany({
+                where: {
+                    concluida: false,
+                    produzida_em: { lte: setentaEDuasHorasAtras },
+                    fabrico: { ativo: true },
+                },
+                select: { id: true },
+            });
+            const idsFichas = fichasParaConcluir.map((ficha) => ficha.id);
 
-            for (const fabrico of fabricos) {
-                const ultimaEtapa = await this.prisma.etapa.findFirst({
-                    where: { fabrico_id: fabrico.id, ativa: true },
-                    orderBy: { ordem: "desc" },
-                    select: { id: true },
-                });
-
-                if (!ultimaEtapa) continue;
-
-                const fichasParaConcluir = await this.prisma.fichaEtapa.findMany({
-                    where: {
-                        etapa_id: ultimaEtapa.id,
-                        data_inicio: { lte: setentaEDuasHorasAtras },
-                        data_fim: null,
-                        ficha_tecnica: {
-                            concluida: false,
-                            fabrico_id: fabrico.id,
-                            etapa_atual_id: ultimaEtapa.id,
-                        },
-                    },
-                    select: {
-                        id: true, // Pega o id do vínculo da etapa
-                        ficha_tecnica_id: true,
-                    },
-                });
-
-                if (fichasParaConcluir.length === 0) continue;
-
-                const idsFichasEtapas = fichasParaConcluir.map((f) => f.id);
-                const idsFichas = fichasParaConcluir.map((f) => f.ficha_tecnica_id);
-
-                // Atualiza ambas as tabelas de forma atômica e segura
+            if (idsFichas.length > 0) {
                 await this.prisma.$transaction([
-                    // 1. Conclui a Ficha Técnica
                     this.prisma.fichaTecnica.updateMany({
-                        where: { id: { in: idsFichas } },
+                        where: { id: { in: idsFichas }, concluida: false },
                         data: { concluida: true },
                     }),
-                    // 2. Atualiza a data_fim da última etapa dela
                     this.prisma.fichaEtapa.updateMany({
-                        where: { id: { in: idsFichasEtapas } },
+                        where: {
+                            ficha_tecnica_id: { in: idsFichas },
+                            data_fim: null,
+                        },
                         data: { data_fim: agora },
                     }),
                 ]);
-
-                totalAtualizado += idsFichas.length;
             }
 
             this.logger.log(
-                `Job finalizado com sucesso (${origem}). Total de ${totalAtualizado} fichas técnicas concluídas em ${Date.now() - inicio}ms.`,
+                `Job finalizado com sucesso (${origem}). Total de ${idsFichas.length} fichas técnicas concluídas em ${Date.now() - inicio}ms.`,
             );
         } catch (error) {
             const detalhe = error instanceof Error ? error.stack : String(error);
