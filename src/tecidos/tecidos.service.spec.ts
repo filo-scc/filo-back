@@ -22,10 +22,13 @@ const mockPrismaService = {
     produto: {
         findMany: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
     },
 };
 
-const mockProdutoService = {};
+const mockProdutoService = {
+    recalcularCustoTotal: jest.fn(),
+};
 
 describe("TecidosService", () => {
     let service: TecidosService;
@@ -169,7 +172,8 @@ describe("TecidosService", () => {
             mockPrismaService.tecido.findUnique.mockResolvedValue(mockTecido);
             mockPrismaService.tecido.findFirst.mockResolvedValue(null);
             mockPrismaService.tecido.update.mockResolvedValue(tecidoAtualizado);
-            mockPrismaService.produto.findMany.mockResolvedValue([mockProduto]);
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: mockProduto.id }]);
+            mockProdutoService.recalcularCustoTotal.mockResolvedValue(45.0);
 
             const result = await service.update(1, updateDto);
 
@@ -181,63 +185,57 @@ describe("TecidosService", () => {
             });
             expect(mockPrismaService.produto.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: mockTecido.fabrico_id, tecido_id: 1 },
+                select: { id: true },
             });
-            expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
-                where: { id: mockProduto.id },
-                data: {
-                    custo_tecido: 40.0, 
-                    custo_total: 45.0, 
-                },
-            });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProduto.id,
+                expect.anything(),
+            );
         });
 
-        it("deve definir custo como null quando o novo custo unitário for null", async () => {
+        it("deve chamar o recalculo de custo ao atualizar custo_unitario para null", async () => {
             const updateDto = { custo_unitario: null };
             const tecidoAtualizado = { ...mockTecido, custo_unitario: null };
 
             mockPrismaService.tecido.findUnique.mockResolvedValue(mockTecido);
             mockPrismaService.tecido.update.mockResolvedValue(tecidoAtualizado);
-            mockPrismaService.produto.findMany.mockResolvedValue([mockProduto]);
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: mockProduto.id }]);
+            mockProdutoService.recalcularCustoTotal.mockResolvedValue(0);
 
             await service.update(1, updateDto);
 
-            expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
-                where: { id: mockProduto.id },
-                data: {
-                    custo_tecido: null,
-                    custo_total: null,
-                },
-            });
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProduto.id,
+                expect.anything(),
+            );
         });
     });
 
     describe("Removendo Tecidos em transação", () => {
         it("deve desvincular o tecido, resetar quantidade, zerar custo_tecido e deletar o tecido", async () => {
             mockPrismaService.tecido.findUnique.mockResolvedValue(mockTecido);
-            mockPrismaService.produto.findMany.mockResolvedValue([mockProduto]);
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: mockProduto.id }]);
             mockPrismaService.tecido.delete.mockResolvedValue(mockTecido);
 
             const result = await service.remove(1);
 
             expect(result).toEqual(mockTecido);
             expect(mockPrismaService.$transaction).toHaveBeenCalled();
-            expect(mockPrismaService.produto.findMany).toHaveBeenCalledWith({
+            expect(mockPrismaService.produto.updateMany).toHaveBeenCalledWith({
                 where: {
                     fabrico_id: mockTecido.fabrico_id,
-                    tecido_id: mockTecido.id,
+                    tecido_id: 1,
                 },
-            });
-
-            expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
-                where: { id: mockProduto.id },
                 data: {
                     tecido_id: null,
                     quantidade_tecido: null,
                     custo_tecido: 0,
-                    custo_total: 5.0,
                 },
             });
-
+            expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
+                mockProduto.id,
+                expect.anything(),
+            );
             expect(mockPrismaService.tecido.delete).toHaveBeenCalledWith({ where: { id: 1 } });
         });
 
