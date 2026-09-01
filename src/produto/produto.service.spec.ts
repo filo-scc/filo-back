@@ -1,5 +1,5 @@
-import { PrismaService } from "../prisma/prisma.service";
 import { Test, TestingModule } from "@nestjs/testing";
+import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "./produto.service";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
 import { Prisma } from "@prisma/client";
@@ -203,9 +203,9 @@ describe("ProdutoService", () => {
                 { id: 2, nome: "Facção", ordem: 2 },
                 { id: 3, nome: "Finalizado", ordem: 3 },
             ]);
-            prismaService.produto.update.mockResolvedValue({ id: 1, custo_total: 77 });
+            prismaService.produto.update.mockResolvedValue({ id: 1, custo_total: 87 });
 
-            await expect(service.recalcularCustoTotal(1)).resolves.toBe(77);
+            await expect(service.recalcularCustoTotal(1)).resolves.toBe(87);
 
             expect(prismaService.$queryRaw).toHaveBeenCalledTimes(1);
             expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
@@ -214,7 +214,10 @@ describe("ProdutoService", () => {
             });
             expect(prismaService.produto.update).toHaveBeenCalledWith({
                 where: { id: 1 },
-                data: { custo_total: 77 },
+                data: {
+                    custo_tecido: 40,
+                    custo_total: 87,
+                },
             });
         });
 
@@ -237,7 +240,7 @@ describe("ProdutoService", () => {
                 quantidade_tecido: 2,
                 custo_operacional: 0,
                 outros_custos: 0,
-                tecido: { custo_unitario: 20 },
+                tecido: { custo_unitario: 0 },
                 produtoAviamentos: [{ custo: 0, quantidade: 3, aviamento: { custo_unitario: 5 } }],
                 parceiro_produto: [],
             });
@@ -247,7 +250,10 @@ describe("ProdutoService", () => {
 
             expect(prismaService.produto.update).toHaveBeenCalledWith({
                 where: { id: 1 },
-                data: { custo_total: 0 },
+                data: {
+                    custo_tecido: 0,
+                    custo_total: 0,
+                },
             });
         });
     });
@@ -266,6 +272,7 @@ describe("ProdutoService", () => {
             });
             expect(result).toEqual(produtoCriado);
         });
+
         it("Deve lançar um erro ao tentar obter um produto que não existe", async () => {
             prismaService.produto.findUnique.mockResolvedValue(null);
 
@@ -318,6 +325,7 @@ describe("ProdutoService", () => {
             expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
         });
     });
+
     describe("update", () => {
         it("Deve atualizar um produto com sucesso", async () => {
             const produtoCriado = { id: 1, ...produtoData };
@@ -364,7 +372,10 @@ describe("ProdutoService", () => {
             });
             expect(prismaService.produto.update).toHaveBeenNthCalledWith(2, {
                 where: { id: 1 },
-                data: { custo_total: 80 },
+                data: {
+                    custo_tecido: 50,
+                    custo_total: 80,
+                },
             });
             expect(resultado).toEqual("O produto com o id 1 foi atualizado");
         });
@@ -383,6 +394,7 @@ describe("ProdutoService", () => {
             expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
             expect(prismaService.produto.update).toHaveBeenCalledTimes(0);
         });
+
         it("Deve lançar um erro ao tentar atualizar um produto com uma grade de versão inválida", async () => {
             const produtoCriado = { id: 1, ...produtoData };
             const dadosAtualizados = { grade_versao_id: 999 };

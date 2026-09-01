@@ -31,6 +31,42 @@ enum TipoCor{
   ESTAMPA
 }
 
+enum CategoriaNotificacao {
+  OPERACIONAL
+  FINANCEIRA
+  INSIGHT
+  SISTEMA
+}
+
+enum SeveridadeNotificacao {
+  INFO
+  SUCESSO
+  ALERTA
+  CRITICA
+}
+
+enum FonteNotificacao {
+  SISTEMA
+  REGRA
+  ANALYTICS
+  MODELO_PREDITIVO
+  MANUAL
+}
+
+enum CanalNotificacao {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+enum StatusEntregaNotificacao {
+  PENDENTE
+  ENVIADA
+  ENTREGUE
+  FALHOU
+  CANCELADA
+}
+
 model Fabrico {
   id Int @id @default(autoincrement())
 
@@ -56,6 +92,7 @@ model Fabrico {
   tecidos Tecido[]
   aviamentos Aviamento[]
   pedidos Pedido[]
+  notificacoes Notificacao[]
 
   @@map("fabricos")
 }
@@ -77,6 +114,8 @@ model Usuario {
   fabrico    Fabrico? @relation(fields: [fabrico_id], references: [id])
 
   endereco Endereco?
+  notificacoes_destinatarios NotificacaoDestinatario[]
+preferencias_notificacoes  PreferenciaNotificacao[]
 
   @@map("usuarios")
 }
@@ -248,7 +287,7 @@ model Icone {
   etapas Etapa[] @relation("EtapaIconePadrao")
   etapas_icone_verde Etapa[] @relation("EtapaIconeVerde")
   etapas_icone_cinza Etapa[] @relation("EtapaIconeCinza")
-  
+
   @@map("icones")
 }
 
@@ -263,6 +302,7 @@ model FichaTecnica {
   defeitos_tecido Int? @default(0)
   retiradas Int? @default(0)
   sobras Int? @default(0)
+  produzida_em DateTime? @db.Timestamptz(3)
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
@@ -284,14 +324,15 @@ model FichaTecnica {
 
   ficha_parceiro FichaParceiro[]
 
+  @@index([fabrico_id, produzida_em])
   @@map("fichas-tecnicas")
 }
 
 model FichaParceiro {
   operacao String?
-  valor Decimal?
+  valor Decimal? @db.Decimal(10, 2)
   quantidade Int?
-  
+
   ficha_id Int
   ficha    FichaTecnica @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
 
@@ -304,7 +345,7 @@ model FichaParceiro {
 
 model ClienteProduto {
   nome_para_cliente String
-  preco_padrao      Float  @default(0)
+  preco_padrao      Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -326,7 +367,7 @@ model parceiroProduto {
   produto  Produto  @relation(fields: [produto_id], references: [id], onDelete: Cascade)
   parceiro Parceiro @relation(fields: [parceiro_id], references: [id], onDelete: Cascade)
 
-  preco Float?
+  preco Decimal? @db.Decimal(10, 2)
 
   @@id([produto_id, parceiro_id])
   @@map("parceiro_produto")
@@ -335,8 +376,8 @@ model parceiroProduto {
 model FichaEtapa {
   id Int @id @default(autoincrement())
 
-  data_inicio DateTime?
-  data_fim    DateTime?
+  data_inicio DateTime? @db.Timestamptz(3)
+  data_fim    DateTime? @db.Timestamptz(3)
   observacoes String?
 
   ficha_tecnica_id Int
@@ -546,7 +587,7 @@ model Pedido {
   numero Int?
   cor String
   quantidade Int @default(0)
-  valor_total Float?
+  valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
 
   created_at DateTime @default(now())
@@ -578,4 +619,82 @@ model TipoProduto {
   @@index([fabrico_id])
 
   @@map("tipo_produto")
+}
+model Notificacao {
+  id                  Int      @id @default(autoincrement())
+  fabrico_id          Int
+
+  tipo                String   @db.VarChar(100)
+  categoria           CategoriaNotificacao
+  severidade          SeveridadeNotificacao
+  fonte               FonteNotificacao
+
+  titulo              String
+  mensagem            String
+  metadados           Json?
+
+  entidade_tipo       String?  @db.VarChar(100)
+  entidade_id         Int?
+  acao_url            String?
+
+  chave_deduplicacao  String?  @db.VarChar(255)
+  ocorreu_em          DateTime @default(now())
+  expira_em           DateTime?
+  created_at          DateTime @default(now())
+
+  fabrico             Fabrico @relation(fields: [fabrico_id], references: [id], onDelete: Cascade)
+  destinatarios       NotificacaoDestinatario[]
+
+  @@index([fabrico_id, ocorreu_em])
+  @@index([fabrico_id, tipo])
+  @@index([fabrico_id, chave_deduplicacao])
+  @@map("notificacoes")
+}
+
+model NotificacaoDestinatario {
+  id              Int      @id @default(autoincrement())
+  notificacao_id  Int
+  usuario_id      Int
+  lida_em         DateTime?
+  created_at      DateTime @default(now())
+
+  notificacao     Notificacao @relation(fields: [notificacao_id], references: [id], onDelete: Cascade)
+  usuario         Usuario     @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  entregas        NotificacaoEntrega[]
+
+  @@unique([notificacao_id, usuario_id])
+  @@index([usuario_id, lida_em, created_at])
+  @@map("notificacoes_destinatarios")
+}
+
+model NotificacaoEntrega {
+  id                            Int      @id @default(autoincrement())
+  notificacao_destinatario_id   Int
+  canal                         CanalNotificacao
+  status                        StatusEntregaNotificacao @default(PENDENTE)
+
+  agendada_em                   DateTime?
+  enviada_em                    DateTime?
+  entregue_em                   DateTime?
+  falha_em                      DateTime?
+  erro                          String?
+  provider_message_id           String?
+
+  destinatario                  NotificacaoDestinatario @relation(fields: [notificacao_destinatario_id], references: [id], onDelete: Cascade)
+
+  @@unique([notificacao_destinatario_id, canal])
+  @@map("notificacoes_entregas")
+}
+
+model PreferenciaNotificacao {
+  id          Int      @id @default(autoincrement())
+  usuario_id  Int
+  categoria   CategoriaNotificacao
+  canal       CanalNotificacao
+  habilitada  Boolean  @default(true)
+
+  usuario     Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([usuario_id, categoria, canal])
+  @@map("preferencias_notificacoes")
 }

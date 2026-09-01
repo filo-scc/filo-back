@@ -16,9 +16,59 @@ export class FichaTecnicaService {
         private readonly etapaService: EtapaService,
     ) {}
 
+    private validateProductionReport(
+        data: Partial<
+            Pick<
+                CreateFichaTecnicaDto,
+                "quantidade" | "defeitos_costura" | "defeitos_tecido" | "retiradas" | "sobras"
+            >
+        >,
+        current?: {
+            quantidade?: number | null;
+            defeitos_costura?: number | null;
+            defeitos_tecido?: number | null;
+            retiradas?: number | null;
+            sobras?: number | null;
+        },
+    ) {
+        const quantidade = Number(data.quantidade ?? current?.quantidade ?? 0);
+        const resolveLoss = (
+            field: "defeitos_costura" | "defeitos_tecido" | "retiradas" | "sobras",
+        ) =>
+            Object.prototype.hasOwnProperty.call(data, field)
+                ? Number(data[field] ?? 0)
+                : Number(current?.[field] ?? 0);
+        const perdas = {
+            defeitos_costura: resolveLoss("defeitos_costura"),
+            defeitos_tecido: resolveLoss("defeitos_tecido"),
+            retiradas: resolveLoss("retiradas"),
+            sobras: resolveLoss("sobras"),
+        };
+
+        if (
+            !Number.isInteger(quantidade) ||
+            quantidade < 0 ||
+            Object.values(perdas).some((valor) => !Number.isInteger(valor) || valor < 0)
+        ) {
+            throw new BadRequestException(
+                "Quantidade e perdas devem ser números inteiros maiores ou iguais a zero",
+            );
+        }
+
+        const totalPerdas = Object.values(perdas).reduce((total, valor) => total + valor, 0);
+
+        if (totalPerdas > quantidade) {
+            throw new BadRequestException(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        }
+    }
+
     async create(data: CreateFichaTecnicaDto, fabricoId: number) {
         const produto_id = Number(data.produto_id);
         const fabrico_id = Number(fabricoId);
+
+        this.validateProductionReport(data);
 
         await Promise.all([
             this.produtoService.getById(produto_id),
@@ -263,6 +313,18 @@ export class FichaTecnicaService {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
 
+        const reportOrQuantityChanged = [
+            data.quantidade,
+            data.defeitos_costura,
+            data.defeitos_tecido,
+            data.retiradas,
+            data.sobras,
+        ].some((value) => value !== undefined);
+
+        if (reportOrQuantityChanged) {
+            this.validateProductionReport(data, ficha);
+        }
+
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id: ficha.produto_id,
@@ -320,7 +382,7 @@ export class FichaTecnicaService {
                     });
                 }
 
-                return tx.fichaTecnica.update({
+                const fichaAtualizada = await tx.fichaTecnica.update({
                     where: { id },
                     data: {
                         ...data,
@@ -347,13 +409,91 @@ export class FichaTecnicaService {
                         },
                     },
                 });
+
+                if (data.quantidade !== undefined && ficha.pedido_id) {
+                    await this.sincronizarPedido(tx, ficha.pedido_id);
+                }
+                return fichaAtualizada;
             });
         } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") {
+                throw new BadRequestException(
+                    "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+                );
+            }
+
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }
             throw error;
         }
+    }
+
+    private async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
+        await tx.$queryRaw`SELECT id FROM "pedidos" WHERE id = ${pedidoId} FOR UPDATE`;
+
+        const pedido = await tx.pedido.findUnique({
+            where: { id: pedidoId },
+            select: { cliente_id: true },
+        });
+
+        if (!pedido) return;
+
+        const fichasDoPedido = await tx.fichaTecnica.findMany({
+            where: { pedido_id: pedidoId },
+            select: {
+                quantidade: true,
+                produto: {
+                    select: {
+                        id: true,
+                        custo_total: true,
+                    },
+                },
+            },
+        });
+
+        const quantidadeTotal = fichasDoPedido.reduce((soma, f) => soma + (f.quantidade ?? 0), 0);
+
+        const custoTotal = fichasDoPedido.reduce((soma, f) => {
+            const custo = Number(f.produto?.custo_total ?? 0);
+            return soma + (f.quantidade ?? 0) * custo;
+        }, 0);
+
+        let valorTotal: number | null = null;
+
+        if (pedido.cliente_id) {
+            const produtoIds = [
+                ...new Set(
+                    fichasDoPedido.map((f) => f.produto?.id).filter((id): id is number => !!id),
+                ),
+            ];
+
+            const precosCliente = await tx.clienteProduto.findMany({
+                where: {
+                    cliente_id: pedido.cliente_id,
+                    produto_id: { in: produtoIds },
+                },
+                select: { produto_id: true, preco_padrao: true },
+            });
+
+            const mapaPrecos = new Map(
+                precosCliente.map((p) => [p.produto_id, Number(p.preco_padrao) || 0]),
+            );
+
+            valorTotal = fichasDoPedido.reduce((soma, f) => {
+                const preco = mapaPrecos.get(f.produto?.id ?? -1) ?? 0;
+                return soma + (f.quantidade ?? 0) * preco;
+            }, 0);
+        }
+
+        await tx.pedido.update({
+            where: { id: pedidoId },
+            data: {
+                quantidade: quantidadeTotal,
+                custo_total: Number(custoTotal.toFixed(2)),
+                valor_total: valorTotal !== null ? Number(valorTotal.toFixed(2)) : null,
+            },
+        });
     }
 
     async remove(id: number) {
