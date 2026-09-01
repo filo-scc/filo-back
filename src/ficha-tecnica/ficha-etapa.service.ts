@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
 import { CreateFichaEtapaDto } from "./dto/create-ficha-etapa.dto";
@@ -14,11 +19,18 @@ export class FichaEtapaService {
         private readonly etapaService: EtapaService,
     ) {}
 
+    private assertMesmaFabrica(ficha: { fabrico_id: number }, etapa: { fabrico_id: number }) {
+        if (ficha.fabrico_id !== etapa.fabrico_id) {
+            throw new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica");
+        }
+    }
+
     async createFichaEtapa(data: CreateFichaEtapaDto) {
-        const [, etapa] = await Promise.all([
+        const [ficha, etapa] = await Promise.all([
             this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
             this.etapaService.getById(data.etapa_id),
         ]);
+        this.assertMesmaFabrica(ficha, etapa);
 
         const vinculoExiste = await this.prisma.fichaEtapa.findUnique({
             where: {
@@ -155,16 +167,13 @@ export class FichaEtapaService {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
 
-        if (data.ficha_tecnica_id) {
-            await this.fichaTecnicaService.findOne(data.ficha_tecnica_id);
-        }
-
-        if (data.etapa_id) {
-            await this.etapaService.getById(data.etapa_id);
-        }
-
         const ficha_tecnica_id = data.ficha_tecnica_id ?? atual.ficha_tecnica_id;
         const etapa_id = data.etapa_id ?? atual.etapa_id;
+        const [ficha, etapa] = await Promise.all([
+            this.fichaTecnicaService.findOne(ficha_tecnica_id),
+            this.etapaService.getById(etapa_id),
+        ]);
+        this.assertMesmaFabrica(ficha, etapa);
 
         const vinculoExiste = await this.prisma.fichaEtapa.findFirst({
             where: {

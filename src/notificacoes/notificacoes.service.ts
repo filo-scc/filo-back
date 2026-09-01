@@ -183,7 +183,7 @@ export class NotificacoesService {
     }
 
     async update(id: number, data: UpdateNotificacaoDto, usuario_fabrico_id: number) {
-        await this.findOne(id, usuario_fabrico_id);
+        const notificacaoAtual = await this.findOne(id, usuario_fabrico_id);
 
         const { destinatario_ids, ocorreu_em, expira_em, metadados, fabrico_id, ...rest } = data;
 
@@ -195,6 +195,21 @@ export class NotificacoesService {
             await this.assertDestinatariosDoFabrico(destinatario_ids, usuario_fabrico_id);
         }
 
+        const destinatariosAtuais = new Set(
+            notificacaoAtual.destinatarios.map(({ usuario_id }) => usuario_id),
+        );
+        const destinatariosDesejados = new Set(destinatario_ids ?? []);
+        const destinatariosParaAdicionar =
+            destinatario_ids?.filter((usuario_id) => !destinatariosAtuais.has(usuario_id)) ?? [];
+        const destinatariosParaRemover =
+            destinatario_ids === undefined
+                ? []
+                : [...destinatariosAtuais].filter(
+                      (usuario_id) => !destinatariosDesejados.has(usuario_id),
+                  );
+        const destinatariosMudaram =
+            destinatariosParaAdicionar.length > 0 || destinatariosParaRemover.length > 0;
+
         try {
             const notificacao = await this.prisma.notificacao.update({
                 where: { id },
@@ -203,13 +218,25 @@ export class NotificacoesService {
                     metadados: metadados as Prisma.InputJsonValue | undefined,
                     ocorreu_em: ocorreu_em ? new Date(ocorreu_em) : undefined,
                     expira_em: expira_em ? new Date(expira_em) : undefined,
-                    ...(destinatario_ids
+                    ...(destinatariosMudaram
                         ? {
                               destinatarios: {
-                                  deleteMany: {},
-                                  create: destinatario_ids.map((usuario_id) => ({
-                                      usuario_id,
-                                  })),
+                                  ...(destinatariosParaRemover.length
+                                      ? {
+                                            deleteMany: {
+                                                usuario_id: {
+                                                    in: destinatariosParaRemover,
+                                                },
+                                            },
+                                        }
+                                      : {}),
+                                  ...(destinatariosParaAdicionar.length
+                                      ? {
+                                            create: destinatariosParaAdicionar.map(
+                                                (usuario_id) => ({ usuario_id }),
+                                            ),
+                                        }
+                                      : {}),
                               },
                           }
                         : {}),

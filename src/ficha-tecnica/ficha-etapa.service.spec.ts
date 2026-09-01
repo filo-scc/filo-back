@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaEtapaService } from "./ficha-etapa.service";
 
@@ -25,8 +25,12 @@ describe("FichaEtapaService", () => {
             fichaTecnica: { updateMany: jest.fn() },
             etapa: { findFirst: jest.fn() },
         };
-        fichaTecnicaService = { findOne: jest.fn() };
-        etapaService = { getById: jest.fn().mockResolvedValue({ id: 20, fabrico_id: 30 }) };
+        fichaTecnicaService = {
+            findOne: jest.fn().mockImplementation((id) => ({ id, fabrico_id: 30 })),
+        };
+        etapaService = {
+            getById: jest.fn().mockImplementation((id) => ({ id, fabrico_id: 30 })),
+        };
         prisma.etapa.findFirst.mockResolvedValue({ id: 999 });
         service = new FichaEtapaService(prisma, fichaTecnicaService, etapaService);
     });
@@ -89,6 +93,20 @@ describe("FichaEtapaService", () => {
         ).rejects.toThrow(
             new ConflictException("Esta etapa já está vinculada a esta ficha técnica"),
         );
+    });
+
+    it("rejeita vínculo entre ficha técnica e etapa de fábricas diferentes", async () => {
+        fichaTecnicaService.findOne.mockResolvedValue({ id: 10, fabrico_id: 30 });
+        etapaService.getById.mockResolvedValue({ id: 20, fabrico_id: 99 });
+
+        await expect(
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+        ).rejects.toThrow(
+            new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
+        );
+        expect(prisma.fichaEtapa.findUnique).not.toHaveBeenCalled();
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+        expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
     });
 
     it("traduz conflito Prisma ao criar vínculo", async () => {
@@ -237,5 +255,21 @@ describe("FichaEtapaService", () => {
         await expect(service.updateFichaEtapa(1, {})).rejects.toThrow(
             new ConflictException("Esta etapa já está vinculada a esta ficha técnica"),
         );
+    });
+
+    it("rejeita update que ligaria ficha técnica e etapa de fábricas diferentes", async () => {
+        prisma.fichaEtapa.findUnique.mockResolvedValue({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+        });
+        fichaTecnicaService.findOne.mockResolvedValue({ id: 10, fabrico_id: 30 });
+        etapaService.getById.mockResolvedValue({ id: 21, fabrico_id: 99 });
+
+        await expect(service.updateFichaEtapa(1, { etapa_id: 21 })).rejects.toThrow(
+            new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
+        );
+        expect(prisma.fichaEtapa.findFirst).not.toHaveBeenCalled();
+        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
     });
 });

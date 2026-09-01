@@ -157,7 +157,7 @@ describe("NotificacoesService", () => {
     });
 
     it("atualiza notificação existente", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, destinatarios: [] } as any);
         prisma.notificacao.update.mockResolvedValue({ id: 1, titulo: "Novo título" });
 
         await expect(
@@ -169,7 +169,14 @@ describe("NotificacoesService", () => {
     });
 
     it("atualiza destinatários válidos do fabrico", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        const lidaEm = new Date("2026-08-20T10:00:00.000Z");
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            destinatarios: [
+                { usuario_id: 1, lida_em: lidaEm, entregas: [{ provider_message_id: "msg-1" }] },
+                { usuario_id: 3, lida_em: null, entregas: [] },
+            ],
+        } as any);
         prisma.usuario.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
         prisma.notificacao.update.mockResolvedValue({ id: 1 });
 
@@ -183,10 +190,41 @@ describe("NotificacoesService", () => {
             where: { id: { in: [1, 2] }, fabrico_id: 10 },
             select: { id: true },
         });
+        expect(prisma.notificacao.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 1 },
+                data: expect.objectContaining({
+                    destinatarios: {
+                        deleteMany: { usuario_id: { in: [3] } },
+                        create: [{ usuario_id: 2 }],
+                    },
+                }),
+            }),
+        );
+    });
+
+    it("preserva destinatários retidos sem recriar leitura e entregas", async () => {
+        const lidaEm = new Date("2026-08-20T10:00:00.000Z");
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            id: 1,
+            destinatarios: [
+                { usuario_id: 1, lida_em: lidaEm, entregas: [{ provider_message_id: "msg-1" }] },
+            ],
+        } as any);
+        prisma.usuario.findMany.mockResolvedValue([{ id: 1 }]);
+        prisma.notificacao.update.mockResolvedValue({ id: 1 });
+
+        await service.update(1, { destinatario_ids: [1] }, usuarioFabricoId);
+
+        expect(prisma.notificacao.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.not.objectContaining({ destinatarios: expect.anything() }),
+            }),
+        );
     });
 
     it("rejeita update com destinatário de outro fabrico", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, destinatarios: [] } as any);
         prisma.usuario.findMany.mockResolvedValue([{ id: 1 }]);
 
         await expect(
@@ -198,7 +236,7 @@ describe("NotificacoesService", () => {
     });
 
     it("rejeita update com destinatários duplicados", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({ id: 1, destinatarios: [] } as any);
 
         await expect(
             service.update(1, { destinatario_ids: [7, 7] }, usuarioFabricoId),
