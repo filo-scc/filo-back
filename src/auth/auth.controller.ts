@@ -8,7 +8,7 @@ import {
     Param,
     Put,
     Delete,
-    Req,
+    Query,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { JwtRefreshGuard } from "./guards/jwt-refresh.guard";
@@ -18,6 +18,9 @@ import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "./types/authenticated-user";
+import { ListUsersByFabricoQueryDto } from "./dto/list-users-by-fabrico-query.dto";
 
 @Controller("usuarios")
 export class AuthController {
@@ -32,29 +35,36 @@ export class AuthController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("PROPRIETARIO", "ADMIN")
-    @Get("/fabrico/:fabrico_id")
-    getAllByFabricoId(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.authService.getAllByFabricoId(fabrico_id);
+    @Get("/fabrico")
+    getAllByFabricoId(
+        @CurrentUser() user: AuthenticatedUser,
+        @Query() query: ListUsersByFabricoQueryDto,
+    ) {
+        return this.authService.getAllByFabricoId(user, query.fabrico_id);
     }
 
     @UseGuards(JwtAuthGuard)
     @Get("/me")
-    getMe(@Req() req: any) {
-        return this.authService.getById(req.user.id);
+    getMe(@CurrentUser() user: AuthenticatedUser) {
+        return this.authService.getById(user.id, user);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("PROPRIETARIO", "ADMIN")
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateUserDto) {
-        return this.authService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateUserDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.authService.update(id, data, user);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("PROPRIETARIO", "ADMIN")
     @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number) {
-        return this.authService.delete(id);
+    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.authService.delete(id, user);
     }
 
     @Post("/login")
@@ -64,20 +74,20 @@ export class AuthController {
 
     @UseGuards(JwtRefreshGuard)
     @Post("/refresh")
-    refresh(@Req() req: any) {
-        return this.authService.refresh(req.user.id);
+    refresh(@CurrentUser() user: AuthenticatedUser) {
+        return this.authService.refresh(user.id);
     }
 
     @UseGuards(JwtAuthGuard)
     @Post("/logout")
-    logout(@Req() req: any) {
-        return this.authService.logout(req.user.id);
+    logout(@CurrentUser() user: AuthenticatedUser) {
+        return this.authService.logout(user.id);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("PROPRIETARIO", "ADMIN")
     @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.authService.getById(id);
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.authService.getById(id, user);
     }
 }

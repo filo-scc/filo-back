@@ -1,4 +1,11 @@
-import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import {
+    IsEnum,
+    IsNumber,
+    IsOptional,
+    IsString,
+    ValidateIf,
+    ValidateNested,
+} from "class-validator";
 import { Cargo } from "@prisma/client";
 import { CreateEnderecoDto } from "../../endereco/dto/create-endereco.dto";
 import { Type } from "class-transformer";
@@ -20,8 +27,9 @@ export class CreateUserDto {
     @IsEnum(Cargo)
     cargo: Cargo;
 
+    @ValidateIf((usuario: CreateUserDto) => usuario.cargo !== Cargo.ADMIN)
     @IsNumber()
-    fabrico_id: number;
+    fabrico_id?: number;
 
     @IsOptional()
     @IsString()
