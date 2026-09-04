@@ -116,7 +116,7 @@ describe("AuthService", () => {
             mockEnderecoService.create.mockResolvedValue({ id: 20 });
             mockPrismaService.usuario.update.mockResolvedValue({});
 
-            const resultado = await service.create(createDto);
+            const resultado = await service.create(createDto, admin);
 
             expect(resultado).toEqual({ message: "Usuário criado com sucesso!" });
             expect(bcrypt.hash).toHaveBeenCalledWith("senha_forte", 10);
@@ -131,7 +131,7 @@ describe("AuthService", () => {
         it("deve impedir a criação de um usuário e lançar ConflictException se já existir um usuário com o mesmo nome no fabrico", async () => {
             mockPrismaService.usuario.findFirst.mockResolvedValue(mockUsuario);
 
-            await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+            await expect(service.create(createDto, admin)).rejects.toThrow(ConflictException);
             expect(mockPrismaService.usuario.create).not.toHaveBeenCalled();
         });
 
@@ -144,8 +144,10 @@ describe("AuthService", () => {
             });
             mockPrismaService.usuario.create.mockRejectedValue(prismaError);
 
-            await expect(service.create(createDto)).rejects.toThrow(ConflictException);
-            await expect(service.create(createDto)).rejects.toThrow("Este e-mail já está em uso!");
+            await expect(service.create(createDto, admin)).rejects.toThrow(ConflictException);
+            await expect(service.create(createDto, admin)).rejects.toThrow(
+                "Este e-mail já está em uso!",
+            );
         });
 
         it("deve criar administrador diretamente sem vínculo com fábrico", async () => {
@@ -155,12 +157,15 @@ describe("AuthService", () => {
             mockPrismaService.usuario.update.mockResolvedValue({});
 
             await expect(
-                service.create({
-                    email: "novo.admin@filo.com",
-                    nome: "Novo Admin",
-                    senha: "senha_forte",
-                    cargo: Cargo.ADMIN,
-                }),
+                service.create(
+                    {
+                        email: "novo.admin@filo.com",
+                        nome: "Novo Admin",
+                        senha: "senha_forte",
+                        cargo: Cargo.ADMIN,
+                    },
+                    admin,
+                ),
             ).resolves.toEqual({ message: "Usuário criado com sucesso!" });
 
             expect(mockPrismaService.fabrico.findFirst).not.toHaveBeenCalled();
@@ -172,10 +177,45 @@ describe("AuthService", () => {
             });
         });
 
+        it("deve impedir que proprietário crie administrador global", async () => {
+            await expect(
+                service.create(
+                    {
+                        email: "admin.indevido@filo.com",
+                        nome: "Admin Indevido",
+                        senha: "senha_forte",
+                        cargo: Cargo.ADMIN,
+                    },
+                    proprietario,
+                ),
+            ).rejects.toBeInstanceOf(ForbiddenException);
+
+            expect(mockPrismaService.usuario.create).not.toHaveBeenCalled();
+        });
+
+        it("deve ignorar o fabrico_id enviado por proprietário ao criar usuário de negócio", async () => {
+            mockPrismaService.usuario.findFirst.mockResolvedValue(null);
+            mockPrismaService.usuario.create.mockResolvedValue({ id: 2 });
+            mockEnderecoService.create.mockResolvedValue({ id: 20 });
+            mockPrismaService.usuario.update.mockResolvedValue({});
+
+            await service.create({ ...createDto, fabrico_id: 999 }, proprietario);
+
+            expect(mockPrismaService.fabrico.findFirst).toHaveBeenCalledWith({
+                where: { id: proprietario.fabrico_id, ativo: true },
+                select: { id: true },
+            });
+            expect(mockPrismaService.usuario.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({ fabrico_id: proprietario.fabrico_id }),
+            });
+        });
+
         it("deve rejeitar a criação em fábrico inexistente ou inativo", async () => {
             mockPrismaService.fabrico.findFirst.mockResolvedValue(null);
 
-            await expect(service.create(createDto)).rejects.toBeInstanceOf(NotFoundException);
+            await expect(service.create(createDto, admin)).rejects.toBeInstanceOf(
+                NotFoundException,
+            );
             expect(mockPrismaService.usuario.create).not.toHaveBeenCalled();
         });
     });

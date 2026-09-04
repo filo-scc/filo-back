@@ -27,11 +27,26 @@ export class AuthService {
         private enderecoService: EnderecoService,
     ) {}
 
-    async create(data: CreateUserDto) {
+    async create(data: CreateUserDto, user: AuthenticatedUser) {
         const { endereco, ...dadosRecebidos } = data;
+        const isAdmin = user.cargo === Cargo.ADMIN;
+
+        if (!isAdmin && user.cargo !== Cargo.PROPRIETARIO) {
+            throw new ForbiddenException("Usuário sem permissão para criar usuários");
+        }
+
+        if (!isAdmin && dadosRecebidos.cargo === Cargo.ADMIN) {
+            throw new ForbiddenException("Apenas administradores podem criar outro administrador");
+        }
+
         const dadosUsuario = {
             ...dadosRecebidos,
-            fabrico_id: dadosRecebidos.cargo === Cargo.ADMIN ? null : dadosRecebidos.fabrico_id,
+            fabrico_id:
+                dadosRecebidos.cargo === Cargo.ADMIN
+                    ? null
+                    : isAdmin
+                      ? dadosRecebidos.fabrico_id
+                      : user.fabrico_id,
         };
 
         if (dadosUsuario.cargo !== Cargo.ADMIN) {

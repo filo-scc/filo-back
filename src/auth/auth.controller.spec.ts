@@ -78,9 +78,9 @@ describe("AuthController", () => {
             };
             mockAuthService.create.mockResolvedValue({ message: "Usuário criado com sucesso!" });
 
-            const resultado = await controller.create(dto);
+            const resultado = await controller.create(dto, admin);
 
-            expect(authService.create).toHaveBeenCalledWith(dto);
+            expect(authService.create).toHaveBeenCalledWith(dto, admin);
             expect(resultado).toEqual({ message: "Usuário criado com sucesso!" });
         });
     });

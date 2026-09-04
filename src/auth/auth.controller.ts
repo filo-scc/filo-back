@@ -29,8 +29,8 @@ export class AuthController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles("PROPRIETARIO", "ADMIN")
     @Post()
-    create(@Body() data: CreateUserDto) {
-        return this.authService.create(data);
+    create(@Body() data: CreateUserDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.authService.create(data, user);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
