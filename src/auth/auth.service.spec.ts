@@ -210,6 +210,31 @@ describe("AuthService", () => {
             });
         });
 
+        it("deve derivar o fábrico do proprietário quando fabrico_id for omitido", async () => {
+            mockPrismaService.usuario.findFirst.mockResolvedValue(null);
+            mockPrismaService.usuario.create.mockResolvedValue({ id: 2 });
+            mockEnderecoService.create.mockResolvedValue({ id: 20 });
+            mockPrismaService.usuario.update.mockResolvedValue({});
+            const dtoSemFabrico = { ...createDto };
+            delete dtoSemFabrico.fabrico_id;
+
+            await service.create(dtoSemFabrico, proprietario);
+
+            expect(mockPrismaService.usuario.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({ fabrico_id: proprietario.fabrico_id }),
+            });
+        });
+
+        it("deve exigir fabrico_id quando administrador cria usuário de negócio", async () => {
+            const dtoSemFabrico = { ...createDto };
+            delete dtoSemFabrico.fabrico_id;
+
+            await expect(service.create(dtoSemFabrico, admin)).rejects.toBeInstanceOf(
+                BadRequestException,
+            );
+            expect(mockPrismaService.usuario.create).not.toHaveBeenCalled();
+        });
+
         it("deve rejeitar a criação em fábrico inexistente ou inativo", async () => {
             mockPrismaService.fabrico.findFirst.mockResolvedValue(null);
 
