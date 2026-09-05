@@ -28,7 +28,15 @@ export class EtapaService {
         return produtos.map((produto) => produto.id);
     }
 
-    async create(data: CreateEtapaDto) {
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico da etapa");
+        }
+    }
+
+    async create(data: CreateEtapaDto, fabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, fabricoId);
+
         if (data.icone_id) {
             const icone = await this.prisma.icone.findUnique({
                 where: { id: data.icone_id },
@@ -41,11 +49,12 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
-                const produtoIds = await this.obterProdutosDosFabricos([data.fabrico_id], tx);
+                const produtoIds = await this.obterProdutosDosFabricos([fabricoId], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.create({
                     data: {
                         ...data,
+                        fabrico_id: fabricoId,
                     },
                 });
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
@@ -70,6 +79,7 @@ export class EtapaService {
         try {
             return this.prisma.etapa.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
+                orderBy: { ordem: "asc" },
                 include: {
                     icone: true,
                     icone_verde: true,
@@ -93,9 +103,12 @@ export class EtapaService {
         return this.prisma.etapa.findMany();
     }
 
-    async getById(id: number) {
-        const etapa = await this.prisma.etapa.findUnique({
-            where: { id },
+    async getById(id: number, fabricoId?: number) {
+        const etapa = await this.prisma.etapa.findFirst({
+            where: {
+                id,
+                ...(fabricoId !== undefined ? { fabrico_id: fabricoId } : {}),
+            },
         });
 
         if (!etapa) {
@@ -105,8 +118,10 @@ export class EtapaService {
         return etapa;
     }
 
-    async update(id: number, data: UpdateEtapaDto) {
-        const etapaAtual = await this.getById(id);
+    async update(id: number, data: UpdateEtapaDto, fabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, fabricoId);
+        const etapaAtual = await this.getById(id, fabricoId);
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosEtapa } = data;
 
         if (data.icone_id !== undefined && data.icone_id !== null) {
             const icone = await this.prisma.icone.findUnique({
@@ -120,15 +135,12 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
-                const produtoIds = await this.obterProdutosDosFabricos(
-                    [etapaAtual.fabrico_id, data.fabrico_id ?? etapaAtual.fabrico_id],
-                    tx,
-                );
+                const produtoIds = await this.obterProdutosDosFabricos([etapaAtual.fabrico_id], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.update({
                     where: { id },
                     data: {
-                        ...data,
+                        ...dadosEtapa,
                     },
                 });
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
@@ -149,8 +161,8 @@ export class EtapaService {
         }
     }
 
-    async delete(id: number) {
-        const etapa = await this.getById(id);
+    async delete(id: number, fabricoId: number) {
+        const etapa = await this.getById(id, fabricoId);
 
         return this.prisma.$transaction(async (tx) => {
             const produtoIds = await this.obterProdutosDosFabricos([etapa.fabrico_id], tx);

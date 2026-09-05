@@ -341,7 +341,7 @@ export class FichaTecnicaService {
         }
 
         if (data.etapa_atual_id) {
-            const etapa = await this.etapaService.getById(Number(data.etapa_atual_id));
+            const etapa = await this.etapaService.getById(Number(data.etapa_atual_id), fabricoId);
 
             if (etapa.fabrico_id !== fabricoId) {
                 throw new BadRequestException(
