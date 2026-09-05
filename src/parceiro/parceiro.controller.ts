@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards, Req } from "@nestjs/common";
 import { ParceiroService } from "./parceiro.service";
 import { CreateParceiroDto } from "./dto/create-parceiro.dto";
 import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
@@ -14,40 +14,48 @@ export class ParceiroController {
     constructor(private readonly parceiroService: ParceiroService) {}
 
     @Post()
-    create(@Body() data: CreateParceiroDto) {
-        return this.parceiroService.create(data);
+    create(@Req() req: any, @Body() data: CreateParceiroDto) {
+        return this.parceiroService.create(data, req.user.fabrico_id);
     }
 
     @Get("fabrico/:id")
-    findAllparceiroByFabrico(@Param("id") id: string) {
-        return this.parceiroService.getAllparceiroByFabrico(Number(id));
+    findAllparceiroByFabrico(@Req() req: any) {
+        return this.parceiroService.getAllparceiroByFabrico(req.user.fabrico_id);
     }
 
     @Get()
-    findAll() {
-        return this.parceiroService.getAll();
+    findAll(@Req() req: any) {
+        return this.parceiroService.getAll(req.user.fabrico_id);
+    }
+
+    @Get("categoria/:categoria")
+    async getByCategoria(@Req() req: any, @Param("categoria") categoria: string) {
+        return this.parceiroService.getParceirosByFabricoECategoria(
+            req.user.fabrico_id,
+            categoria,
+        );
     }
 
     @Get(":id")
-    findOne(@Param("id") id: string) {
-        return this.parceiroService.getById(+id);
+    findOne(@Req() req: any, @Param("id") id: string) {
+        return this.parceiroService.getById(+id, req.user.fabrico_id);
     }
 
     @Put(":id")
-    update(@Param("id") id: string, @Body() data: UpdateParceiroDto) {
-        return this.parceiroService.update(+id, data);
+    update(@Req() req: any, @Param("id") id: string, @Body() data: UpdateParceiroDto) {
+        return this.parceiroService.update(+id, data, req.user.fabrico_id);
     }
 
     @Delete(":id")
-    remove(@Param("id") id: string) {
-        return this.parceiroService.delete(+id);
+    remove(@Req() req: any, @Param("id") id: string) {
+        return this.parceiroService.delete(+id, req.user.fabrico_id);
     }
 
     @Get("fabrico/:fabricoId/categoria/:categoria")
-    async getByFabricoECategoria(
-        @Param("fabricoId") fabricoId: string,
-        @Param("categoria") categoria: string,
-    ) {
-        return this.parceiroService.getParceirosByFabricoECategoria(Number(fabricoId), categoria);
+    async getByFabricoECategoria(@Req() req: any, @Param("categoria") categoria: string) {
+        return this.parceiroService.getParceirosByFabricoECategoria(
+            req.user.fabrico_id,
+            categoria,
+        );
     }
 }
