@@ -40,6 +40,7 @@ describe("AuthService", () => {
         cargo: Cargo.ADMIN,
         fabrico_id: 1,
         refresh_token_hash: "hashed_refresh_token",
+        fabrico: { id: 1, ativo: true },
         endereco: { id: 10, rua: "Rua T", cep: "50000000" },
     };
 
@@ -259,6 +260,48 @@ describe("AuthService", () => {
             );
         });
 
+        it("deve rejeitar usuário de negócio sem fábrico", async () => {
+            mockPrismaService.usuario.findUnique.mockResolvedValue({
+                ...mockUsuario,
+                cargo: Cargo.GERENTE,
+                fabrico_id: null,
+                fabrico: null,
+            });
+
+            await expect(service.validateUser("teste@teste.com", "senha123")).rejects.toThrow(
+                new UnauthorizedException("Usuário sem fábrico ativo"),
+            );
+        });
+
+        it("deve rejeitar usuário de negócio vinculado a fábrico inativo", async () => {
+            mockPrismaService.usuario.findUnique.mockResolvedValue({
+                ...mockUsuario,
+                cargo: Cargo.PROPRIETARIO,
+                fabrico: { id: 1, ativo: false },
+            });
+
+            await expect(service.validateUser("teste@teste.com", "senha123")).rejects.toThrow(
+                new UnauthorizedException("Usuário sem fábrico ativo"),
+            );
+        });
+
+        it("deve permitir administrador global sem fábrico", async () => {
+            mockPrismaService.usuario.findUnique.mockResolvedValue({
+                ...mockUsuario,
+                cargo: Cargo.ADMIN,
+                fabrico_id: null,
+                fabrico: null,
+            });
+
+            await expect(
+                service.validateUser("teste@teste.com", "senha123"),
+            ).resolves.toMatchObject({
+                cargo: Cargo.ADMIN,
+                fabrico_id: null,
+                fabrico: null,
+            });
+        });
+
         it("deve gerar novos tokens e salvar o hash do refreshToken no banco", async () => {
             mockJwtService.sign
                 .mockReturnValueOnce("fake_access_token")
@@ -270,9 +313,37 @@ describe("AuthService", () => {
             expect(resultado.accessToken).toBe("fake_access_token");
             expect(resultado.refreshToken).toBe("fake_refresh_token");
             expect(resultado.user.email).toBe(mockUsuario.email);
+            expect(resultado.user.fabrico_id).toBeNull();
+            expect(mockJwtService.sign).toHaveBeenNthCalledWith(
+                1,
+                expect.objectContaining({ cargo: Cargo.ADMIN, fabrico_id: null }),
+                expect.any(Object),
+            );
+            expect(mockJwtService.sign).toHaveBeenNthCalledWith(
+                2,
+                expect.objectContaining({ cargo: Cargo.ADMIN, fabrico_id: null }),
+                expect.any(Object),
+            );
             expect(mockPrismaService.usuario.update).toHaveBeenCalledWith({
                 where: { id: mockUsuario.id },
                 data: { refresh_token_hash: "hashed_password" },
+            });
+        });
+
+        it("deve manter o fábrico atual no payload de usuários de negócio", async () => {
+            mockJwtService.sign
+                .mockReturnValueOnce("fake_access_token")
+                .mockReturnValueOnce("fake_refresh_token");
+            mockPrismaService.usuario.update.mockResolvedValue({});
+
+            const resultado = await service.generateTokens({
+                ...mockUsuario,
+                cargo: Cargo.GERENTE,
+            });
+
+            expect(resultado.user).toMatchObject({
+                cargo: Cargo.GERENTE,
+                fabrico_id: 1,
             });
         });
 

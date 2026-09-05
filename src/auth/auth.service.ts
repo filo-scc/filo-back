@@ -7,7 +7,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
-import { Prisma } from "@prisma/client";
+import { Cargo, Prisma } from "@prisma/client";
 import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { LoginDto } from "./dto/login-dto";
@@ -144,6 +144,14 @@ export class AuthService {
     async validateUser(email: string, senha: string) {
         const usuario = await this.prisma.usuario.findUnique({
             where: { email },
+            include: {
+                fabrico: {
+                    select: {
+                        id: true,
+                        ativo: true,
+                    },
+                },
+            },
         });
 
         if (!usuario) throw new UnauthorizedException("Credenciais inválidas");
@@ -152,15 +160,21 @@ export class AuthService {
 
         if (!validacao) throw new UnauthorizedException("Credenciais inválidas");
 
+        if (usuario.cargo !== Cargo.ADMIN && (!usuario.fabrico || !usuario.fabrico.ativo)) {
+            throw new UnauthorizedException("Usuário sem fábrico ativo");
+        }
+
         return usuario;
     }
 
     async generateTokens(usuario: any) {
+        const fabrico_id = usuario.cargo === Cargo.ADMIN ? null : usuario.fabrico_id;
+
         const payload = {
             id: usuario.id,
             email: usuario.email,
             cargo: usuario.cargo,
-            fabrico_id: usuario.fabrico_id,
+            fabrico_id,
             foto_de_perfil: usuario.foto_de_perfil,
             nome: usuario.nome,
         };
