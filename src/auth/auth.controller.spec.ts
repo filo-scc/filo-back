@@ -27,6 +27,26 @@ describe("AuthController", () => {
         fabrico_id: 1,
     };
 
+    const admin = {
+        id: 99,
+        email: "admin@filo.com",
+        nome: "Admin",
+        cargo: "ADMIN",
+        foto_de_perfil: null,
+        fabrico_id: null,
+        fabrico: null,
+    } as any;
+
+    const proprietario = {
+        id: 1,
+        email: "proprietario@filo.com",
+        nome: "Proprietário",
+        cargo: "PROPRIETARIO",
+        foto_de_perfil: null,
+        fabrico_id: 1,
+        fabrico: { id: 1, ativo: true },
+    } as any;
+
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [AuthController],
@@ -58,20 +78,20 @@ describe("AuthController", () => {
             };
             mockAuthService.create.mockResolvedValue({ message: "Usuário criado com sucesso!" });
 
-            const resultado = await controller.create(dto);
+            const resultado = await controller.create(dto, admin);
 
-            expect(authService.create).toHaveBeenCalledWith(dto);
+            expect(authService.create).toHaveBeenCalledWith(dto, admin);
             expect(resultado).toEqual({ message: "Usuário criado com sucesso!" });
         });
     });
 
-    describe("GET /usuarios/fabrico/:fabrico_id", () => {
-        it("deve chamar authService.getAllByFabricoId com o ID do fabrico correto", async () => {
+    describe("GET /usuarios/fabrico", () => {
+        it("deve repassar o usuário autenticado e o filtro administrativo", async () => {
             mockAuthService.getAllByFabricoId.mockResolvedValue([mockUsuario]);
 
-            const resultado = await controller.getAllByFabricoId(1);
+            const resultado = await controller.getAllByFabricoId(admin, { fabrico_id: 1 });
 
-            expect(authService.getAllByFabricoId).toHaveBeenCalledWith(1);
+            expect(authService.getAllByFabricoId).toHaveBeenCalledWith(admin, 1);
             expect(resultado).toEqual([mockUsuario]);
         });
     });
@@ -81,9 +101,9 @@ describe("AuthController", () => {
             const dto: UpdateUserDto = { nome: "Thiago Editado" };
             mockAuthService.update.mockResolvedValue({ message: "Atualizado" });
 
-            const resultado = await controller.update(1, dto);
+            const resultado = await controller.update(1, dto, proprietario);
 
-            expect(authService.update).toHaveBeenCalledWith(1, dto);
+            expect(authService.update).toHaveBeenCalledWith(1, dto, proprietario);
             expect(resultado).toEqual({ message: "Atualizado" });
         });
     });
@@ -92,9 +112,9 @@ describe("AuthController", () => {
         it("deve repassar o ID do usuario para o authService.delete", async () => {
             mockAuthService.delete.mockResolvedValue({ message: "Deletado" });
 
-            const resultado = await controller.delete(1);
+            const resultado = await controller.delete(1, proprietario);
 
-            expect(authService.delete).toHaveBeenCalledWith(1);
+            expect(authService.delete).toHaveBeenCalledWith(1, proprietario);
             expect(resultado).toEqual({ message: "Deletado" });
         });
     });
@@ -114,11 +134,10 @@ describe("AuthController", () => {
 
     describe("POST /usuarios/refresh", () => {
         it("deve repassar o ID do usuário da requisição para o authService.refresh", async () => {
-            const req = { user: { id: 1 } };
             const novosTokens = { accessToken: "novo_token", refreshToken: "novo_refresh" };
             mockAuthService.refresh.mockResolvedValue(novosTokens);
 
-            const resultado = await controller.refresh(req);
+            const resultado = await controller.refresh(proprietario);
 
             expect(authService.refresh).toHaveBeenCalledWith(1);
             expect(resultado).toEqual(novosTokens);
@@ -127,10 +146,9 @@ describe("AuthController", () => {
 
     describe("POST /usuarios/logout", () => {
         it("deve repassar o ID do usuário da requisição para o authService.logout", async () => {
-            const req = { user: { id: 1 } };
             mockAuthService.logout.mockResolvedValue({ message: "Logout realizado." });
 
-            const resultado = await controller.logout(req);
+            const resultado = await controller.logout(proprietario);
 
             expect(authService.logout).toHaveBeenCalledWith(1);
             expect(resultado).toEqual({ message: "Logout realizado." });
@@ -141,9 +159,9 @@ describe("AuthController", () => {
         it("deve chamar o authService.getById com o ID numérico correto", async () => {
             mockAuthService.getById.mockResolvedValue(mockUsuario);
 
-            const resultado = await controller.getById(1);
+            const resultado = await controller.getById(1, proprietario);
 
-            expect(authService.getById).toHaveBeenCalledWith(1);
+            expect(authService.getById).toHaveBeenCalledWith(1, proprietario);
             expect(resultado).toEqual(mockUsuario);
         });
     });

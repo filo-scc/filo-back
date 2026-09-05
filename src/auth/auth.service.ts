@@ -1,5 +1,7 @@
 import {
+    BadRequestException,
     ConflictException,
+    ForbiddenException,
     Injectable,
     NotFoundException,
     UnauthorizedException,
@@ -12,6 +14,7 @@ import { CreateUserDto } from "./dto/create-user-dto";
 import { UpdateUserDto } from "./dto/update-user-dto";
 import { LoginDto } from "./dto/login-dto";
 import { EnderecoService } from "../endereco/endereco.service";
+import { AuthenticatedUser } from "./types/authenticated-user";
 
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -24,8 +27,42 @@ export class AuthService {
         private enderecoService: EnderecoService,
     ) {}
 
-    async create(data: CreateUserDto) {
-        const { endereco, ...dadosUsuario } = data;
+    async create(data: CreateUserDto, user: AuthenticatedUser) {
+        const { endereco, ...dadosRecebidos } = data;
+        const isAdmin = user.cargo === Cargo.ADMIN;
+
+        if (!isAdmin && user.cargo !== Cargo.PROPRIETARIO) {
+            throw new ForbiddenException("Usuário sem permissão para criar usuários");
+        }
+
+        if (!isAdmin && dadosRecebidos.cargo === Cargo.ADMIN) {
+            throw new ForbiddenException("Apenas administradores podem criar outro administrador");
+        }
+
+        const dadosUsuario = {
+            ...dadosRecebidos,
+            fabrico_id:
+                dadosRecebidos.cargo === Cargo.ADMIN
+                    ? null
+                    : isAdmin
+                      ? dadosRecebidos.fabrico_id
+                      : user.fabrico_id,
+        };
+
+        if (dadosUsuario.cargo !== Cargo.ADMIN) {
+            if (!dadosUsuario.fabrico_id) {
+                throw new BadRequestException("Informe o fabrico_id para criar o usuário");
+            }
+
+            const fabrico = await this.prisma.fabrico.findFirst({
+                where: { id: dadosUsuario.fabrico_id, ativo: true },
+                select: { id: true },
+            });
+
+            if (!fabrico) {
+                throw new NotFoundException("Fábrico não encontrado ou inativo");
+            }
+        }
 
         const existente = await this.prisma.usuario.findFirst({
             where: {
@@ -62,16 +99,35 @@ export class AuthService {
         }
     }
 
-    async getAllByFabricoId(fabrico_id: number) {
+    async getAllByFabricoId(user: AuthenticatedUser, fabrico_id?: number) {
+        const fabricoId = user.cargo === Cargo.ADMIN ? fabrico_id : user.fabrico_id;
+
+        if (!fabricoId) {
+            throw new BadRequestException("Informe o fabrico_id para listar os usuários");
+        }
+
         return this.prisma.usuario.findMany({
-            where: { fabrico_id },
-            include: { endereco: true },
+            where: { fabrico_id: fabricoId, cargo: { not: Cargo.ADMIN } },
+            select: {
+                id: true,
+                email: true,
+                nome: true,
+                cargo: true,
+                fabrico_id: true,
+                foto_de_perfil: true,
+                endereco: true,
+            },
         });
     }
 
-    async getById(id: number) {
-        const usuario = await this.prisma.usuario.findUnique({
-            where: { id },
+    async getById(id: number, user: AuthenticatedUser) {
+        const usuario = await this.prisma.usuario.findFirst({
+            where: {
+                id,
+                ...(user.cargo === Cargo.ADMIN
+                    ? {}
+                    : { fabrico_id: user.fabrico_id, cargo: { not: Cargo.ADMIN } }),
+            },
             select: {
                 id: true,
                 email: true,
@@ -90,23 +146,42 @@ export class AuthService {
         return usuario;
     }
 
-    async update(id: number, data: UpdateUserDto) {
+    async update(id: number, data: UpdateUserDto, user: AuthenticatedUser) {
         const { endereco, ...dadosUsuario } = data;
+        Reflect.deleteProperty(dadosUsuario, "fabrico_id");
 
         try {
-            const existente = await this.prisma.usuario.findFirst({
-                where: {
-                    nome: dadosUsuario.nome,
-                    fabrico_id: dadosUsuario.fabrico_id,
-                    id: { not: id },
-                },
-            });
+            const usuarioAtual = await this.getById(id, user);
 
-            if (existente) {
-                throw new ConflictException("Já existe um usuário com esse nome no seu fabrico!");
+            if (user.cargo !== Cargo.ADMIN && dadosUsuario.cargo === Cargo.ADMIN) {
+                throw new ForbiddenException("Apenas administradores podem atribuir o cargo ADMIN");
             }
 
-            const usuarioAtual = await this.getById(id);
+            if (
+                usuarioAtual.cargo === Cargo.ADMIN &&
+                dadosUsuario.cargo &&
+                dadosUsuario.cargo !== Cargo.ADMIN
+            ) {
+                throw new BadRequestException(
+                    "Não é possível converter um administrador global em usuário de fábrico",
+                );
+            }
+
+            if (dadosUsuario.nome) {
+                const existente = await this.prisma.usuario.findFirst({
+                    where: {
+                        nome: dadosUsuario.nome,
+                        fabrico_id: usuarioAtual.fabrico_id,
+                        id: { not: id },
+                    },
+                });
+
+                if (existente) {
+                    throw new ConflictException(
+                        "Já existe um usuário com esse nome no seu fabrico!",
+                    );
+                }
+            }
 
             if (endereco) {
                 if (!usuarioAtual.endereco) {
@@ -117,7 +192,10 @@ export class AuthService {
 
             await this.prisma.usuario.update({
                 where: { id },
-                data: { ...dadosUsuario },
+                data: {
+                    ...dadosUsuario,
+                    ...(dadosUsuario.cargo === Cargo.ADMIN ? { fabrico_id: null } : {}),
+                },
             });
 
             return { message: "Usuário atualizado com sucesso!" };
@@ -131,8 +209,8 @@ export class AuthService {
         }
     }
 
-    async delete(id: number) {
-        await this.getById(id);
+    async delete(id: number, user: AuthenticatedUser) {
+        await this.getById(id, user);
 
         await this.prisma.usuario.delete({
             where: { id },
