@@ -27,7 +27,7 @@ export class FichaEtapaService {
 
     private assertFichaDoFabrico(ficha: { fabrico_id: number }, fabricoId?: number) {
         if (fabricoId !== undefined && ficha.fabrico_id !== fabricoId) {
-            throw new NotFoundException("FichaEtapa nÃ£o encontrada");
+            throw new NotFoundException("FichaEtapa não encontrada");
         }
     }
 
