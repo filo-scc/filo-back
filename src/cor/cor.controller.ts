@@ -15,6 +15,8 @@ import { UpdateCorDto } from "./dto/update-cor.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
@@ -23,13 +25,13 @@ export class CorController {
     constructor(private readonly corService: CorService) {}
 
     @Post()
-    create(@Body() data: CreateCorDto) {
-        return this.corService.create(data);
+    create(@Body() data: CreateCorDto, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.corService.create(data, user);
     }
 
     @Get()
-    findAll() {
-        return this.corService.findAll();
+    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.corService.findAll(user);
     }
 
     @Get("fabrico/:fabrico_id")

@@ -7,11 +7,6 @@ export class CreateAviamentoDto {
     @IsNotEmpty()
     nome: string;
 
-    @Type(() => Number)
-    @IsNumber()
-    @IsNotEmpty()
-    fabrico_id: number;
-
     @IsEnum(UnidadeDeMedida)
     @IsNotEmpty()
     unidade_de_medida: UnidadeDeMedida;

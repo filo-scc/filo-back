@@ -1,5 +1,4 @@
-import { Type } from "class-transformer";
-import { IsNumber, IsOptional, IsString, MaxLength, IsEnum } from "class-validator";
+import { IsOptional, IsString, MaxLength, IsEnum } from "class-validator";
 
 export enum TipoCorEnum {
     COR = "COR",
@@ -14,10 +13,6 @@ export class CreateCorDto {
     @IsString()
     @MaxLength(7)
     codigo_hex?: string;
-
-    @Type(() => Number)
-    @IsNumber()
-    fabrico_id: number;
 
     @IsString()
     @IsOptional()

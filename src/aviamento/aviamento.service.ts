@@ -4,6 +4,7 @@ import { CreateAviamentoDto } from "./dto/create-aviamento.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import { UpdateAviamentoDto } from "./dto/update-aviamento.dto";
 import { ProdutoService } from "src/produto/produto.service";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class AviamentoService {
@@ -12,10 +13,10 @@ export class AviamentoService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(data: CreateAviamentoDto): Promise<Aviamento> {
+    async create(data: CreateAviamentoDto, user: BusinessAuthenticatedUser): Promise<Aviamento> {
         const fabricoExists = await this.prisma.fabrico.findUnique({
             where: {
-                id: data.fabrico_id,
+                id: user.fabrico_id,
             },
         });
 
@@ -27,7 +28,7 @@ export class AviamentoService {
             return await this.prisma.aviamento.create({
                 data: {
                     nome: data.nome,
-                    fabrico_id: data.fabrico_id,
+                    fabrico_id: user.fabrico_id,
                     custo_unitario: data.custo_unitario,
                     unidade_de_medida: data.unidade_de_medida,
                 },
@@ -43,8 +44,8 @@ export class AviamentoService {
         }
     }
 
-    async findAll() {
-        return this.prisma.aviamento.findMany();
+    async findAll(user: BusinessAuthenticatedUser) {
+        return this.prisma.aviamento.findMany({ where: { fabrico_id: user.fabrico_id } });
     }
 
     async getById(id: number) {
@@ -134,7 +135,7 @@ export class AviamentoService {
                     where: { id },
                     data: {
                         nome: dados.nome,
-                        fabrico_id: dados.fabrico_id,
+                        fabrico_id: aviamento.fabrico_id,
                         custo_unitario: dados.custo_unitario,
                         unidade_de_medida: dados.unidade_de_medida,
                     },

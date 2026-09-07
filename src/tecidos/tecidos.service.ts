@@ -1,9 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
 import { ProdutoService } from "src/produto/produto.service";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class TecidosService {
@@ -12,8 +12,8 @@ export class TecidosService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(dataTecidos: CreateTecidosDto) {
-        const tecido = dataTecidos;
+    async create(dataTecidos: CreateTecidosDto, user: BusinessAuthenticatedUser) {
+        const tecido = { ...dataTecidos, fabrico_id: user.fabrico_id };
 
         const nomeExistente = await this.prisma.tecido.findFirst({
             where: {
@@ -31,8 +31,9 @@ export class TecidosService {
         });
     }
 
-    async findAll() {
+    async findAll(user: BusinessAuthenticatedUser) {
         return this.prisma.tecido.findMany({
+            where: { fabrico_id: user.fabrico_id },
             orderBy: { nome: "asc" },
         });
     }

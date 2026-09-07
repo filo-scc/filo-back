@@ -9,17 +9,18 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateCorDto } from "./dto/create-cor.dto";
 import { UpdateCorDto } from "./dto/update-cor.dto";
 import { normalizeText } from "src/common/utils/string-normalizer";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class CorService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async create(data: CreateCorDto) {
+    async create(data: CreateCorDto, user: BusinessAuthenticatedUser) {
         const nome = normalizeText(data.nome);
 
         const existente = await this.prisma.cor.findFirst({
             where: {
-                fabrico_id: Number(data.fabrico_id),
+                fabrico_id: user.fabrico_id,
                 nome: {
                     equals: nome,
                     mode: Prisma.QueryMode.insensitive,
@@ -36,7 +37,7 @@ export class CorService {
                 data: {
                     nome,
                     codigo_hex: data.codigo_hex,
-                    fabrico_id: Number(data.fabrico_id),
+                    fabrico_id: user.fabrico_id,
                     tipo: data.tipo,
                     foto: data.foto,
                 },
@@ -57,9 +58,10 @@ export class CorService {
         }
     }
 
-    async findAll() {
+    async findAll(user: BusinessAuthenticatedUser) {
         try {
             return this.prisma.cor.findMany({
+                where: { fabrico_id: user.fabrico_id },
                 orderBy: { nome: "asc" },
             });
         } catch (error) {
@@ -103,7 +105,7 @@ export class CorService {
         const corAtual = await this.findOne(id);
         const nome = data.nome ? normalizeText(data.nome) : corAtual.nome;
         const codigo_hex = data.codigo_hex ?? corAtual.codigo_hex;
-        const fabrico_id = data.fabrico_id ?? corAtual.fabrico_id;
+        const fabrico_id = corAtual.fabrico_id;
 
         const existente = await this.prisma.cor.findFirst({
             where: {

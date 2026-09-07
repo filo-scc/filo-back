@@ -6,6 +6,8 @@ import { UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("tecidos")
@@ -14,13 +16,13 @@ export class TecidosController {
     constructor(private readonly tecidosService: TecidosService) {}
 
     @Post()
-    create(@Body() data: CreateTecidosDto) {
-        return this.tecidosService.create(data);
+    create(@Body() data: CreateTecidosDto, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.tecidosService.create(data, user);
     }
 
     @Get()
-    findAll() {
-        return this.tecidosService.findAll();
+    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.tecidosService.findAll(user);
     }
 
     @Get(":id")

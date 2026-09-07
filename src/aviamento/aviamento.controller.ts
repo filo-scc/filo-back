@@ -16,6 +16,8 @@ import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { UpdateAviamentoDto } from "./dto/update-aviamento.dto";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
@@ -24,13 +26,13 @@ export class AviamentoController {
     constructor(private readonly aviamentoService: AviamentoService) {}
 
     @Post()
-    create(@Body() data: CreateAviamentoDto) {
-        return this.aviamentoService.create(data);
+    create(@Body() data: CreateAviamentoDto, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.aviamentoService.create(data, user);
     }
 
     @Get()
-    findAll() {
-        return this.aviamentoService.findAll();
+    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.aviamentoService.findAll(user);
     }
 
     @Get(":id")

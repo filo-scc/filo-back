@@ -11,6 +11,4 @@ export class CreateTecidosDto {
     @IsEnum(UnidadeDeMedida)
     unidade_de_medida: UnidadeDeMedida;
 
-    @IsNumber()
-    fabrico_id: number;
 }
