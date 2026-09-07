@@ -7,6 +7,7 @@ const { PrismaClientKnownRequestError, PrismaClientValidationError } = Prisma;
 describe("CorService", () => {
     let service: CorService;
     let prisma: any;
+    const user = { fabrico_id: 10 } as any;
 
     beforeEach(() => {
         prisma = {
@@ -27,7 +28,7 @@ describe("CorService", () => {
         prisma.cor.create.mockResolvedValue({ id: 1, nome: "azul" });
 
         await expect(
-            service.create({ nome: " Azul ", codigo_hex: "#00f", fabrico_id: 10 } as any),
+            service.create({ nome: " Azul ", codigo_hex: "#00f", fabrico_id: 10 } as any, user),
         ).resolves.toEqual({ message: "Cor criada com sucesso", data: { id: 1, nome: "azul" } });
         expect(prisma.cor.create).toHaveBeenCalledWith({
             data: {
@@ -43,7 +44,7 @@ describe("CorService", () => {
     it("rejeita cor duplicada no fabrico", async () => {
         prisma.cor.findFirst.mockResolvedValue({ id: 1 });
 
-        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any)).rejects.toThrow(
+        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any, user)).rejects.toThrow(
             new ConflictException("Já existe uma cor com esse nome nesse fabrico"),
         );
     });
@@ -57,7 +58,7 @@ describe("CorService", () => {
             }),
         );
 
-        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any)).rejects.toThrow(
+        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any, user)).rejects.toThrow(
             new ConflictException("Cor já cadastrada"),
         );
     });
@@ -68,7 +69,7 @@ describe("CorService", () => {
             new PrismaClientValidationError("invalid", { clientVersion: "7.0.0" }),
         );
 
-        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any)).rejects.toThrow(
+        await expect(service.create({ nome: "Azul", fabrico_id: 10 } as any, user)).rejects.toThrow(
             new BadRequestException("Dados inválidos"),
         );
     });
@@ -76,14 +77,17 @@ describe("CorService", () => {
     it("lista cores", async () => {
         prisma.cor.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.findAll()).resolves.toEqual([{ id: 1 }]);
-        expect(prisma.cor.findMany).toHaveBeenCalledWith({ orderBy: { nome: "asc" } });
+        await expect(service.findAll(user)).resolves.toEqual([{ id: 1 }]);
+        expect(prisma.cor.findMany).toHaveBeenCalledWith({
+            where: { fabrico_id: 10 },
+            orderBy: { nome: "asc" },
+        });
     });
 
     it("lista cores por fabrico", async () => {
         prisma.cor.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.findAllByFabricoID(10)).resolves.toEqual([{ id: 1 }]);
+        await expect(service.findAllByFabricoID(10, user)).resolves.toEqual([{ id: 1 }]);
         expect(prisma.cor.findMany).toHaveBeenCalledWith({
             where: { fabrico_id: 10 },
             orderBy: { nome: "asc" },
@@ -91,15 +95,15 @@ describe("CorService", () => {
     });
 
     it("busca uma cor existente", async () => {
-        prisma.cor.findUnique.mockResolvedValue({ id: 1 });
+        prisma.cor.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
 
-        await expect(service.findOne(1)).resolves.toEqual({ id: 1 });
+        await expect(service.findOne(1, user)).resolves.toEqual({ id: 1, fabrico_id: 10 });
     });
 
     it("rejeita cor inexistente", async () => {
         prisma.cor.findUnique.mockResolvedValue(null);
 
-        await expect(service.findOne(1)).rejects.toThrow(
+        await expect(service.findOne(1, user)).rejects.toThrow(
             new NotFoundException("Cor não encontrada"),
         );
     });
@@ -114,7 +118,7 @@ describe("CorService", () => {
         prisma.cor.findFirst.mockResolvedValue(null);
         prisma.cor.update.mockResolvedValue({ id: 1, nome: "verde" });
 
-        await expect(service.update(1, { nome: " Verde " })).resolves.toEqual({
+        await expect(service.update(1, { nome: " Verde " }, user)).resolves.toEqual({
             message: "Cor atualizada com sucesso",
             data: { id: 1, nome: "verde" },
         });
@@ -128,7 +132,7 @@ describe("CorService", () => {
         } as any);
         prisma.cor.findFirst.mockResolvedValue({ id: 2 });
 
-        await expect(service.update(1, { nome: "Azul" })).rejects.toThrow(
+        await expect(service.update(1, { nome: "Azul" }, user)).rejects.toThrow(
             new ConflictException("Já existe uma cor com esse nome nesse fabrico"),
         );
     });
@@ -137,7 +141,7 @@ describe("CorService", () => {
         jest.spyOn(service, "findOne").mockResolvedValue({ id: 1 } as any);
         prisma.cor.delete.mockResolvedValue({ id: 1 });
 
-        await expect(service.remove(1)).resolves.toEqual({
+        await expect(service.remove(1, user)).resolves.toEqual({
             message: "Cor removida com sucesso",
             data: { id: 1 },
         });
@@ -152,8 +156,16 @@ describe("CorService", () => {
             }),
         );
 
-        await expect(service.remove(1)).rejects.toThrow(
+        await expect(service.remove(1, user)).rejects.toThrow(
             new ConflictException("Não foi possível remover a cor porque ela está em uso"),
+        );
+    });
+
+    it("retorna 404 para cor de outro fabrico", async () => {
+        prisma.cor.findUnique.mockResolvedValue({ id: 1, fabrico_id: 11 });
+
+        await expect(service.findOne(1, user)).rejects.toThrow(
+            new NotFoundException("Cor não encontrada"),
         );
     });
 });

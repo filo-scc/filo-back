@@ -48,25 +48,29 @@ export class AviamentoService {
         return this.prisma.aviamento.findMany({ where: { fabrico_id: user.fabrico_id } });
     }
 
-    async getById(id: number) {
+    async getById(id: number, user: BusinessAuthenticatedUser) {
         const aviamento = await this.prisma.aviamento.findUnique({ where: { id } });
 
-        if (!aviamento) {
+        if (!aviamento || aviamento.fabrico_id !== user.fabrico_id) {
             throw new NotFoundException("Aviamento não encontrado");
         }
 
         return aviamento;
     }
 
-    async findAllFabrico(fabrico_id: number) {
+    async findAllFabrico(fabrico_id: number, user: BusinessAuthenticatedUser) {
+        if (fabrico_id !== user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
         const aviamentos = await this.prisma.aviamento.findMany({
             where: { fabrico_id: fabrico_id },
         });
         return aviamentos;
     }
 
-    async delete(id: number) {
-        const aviamento = await this.prisma.aviamento.findUnique({ where: { id } });
+    async delete(id: number, user: BusinessAuthenticatedUser) {
+        const aviamento = await this.getById(id, user);
         if (aviamento) {
             await this.prisma.$transaction(async (tx) => {
                 const vinculos = await tx.produtoAviamento.findMany({
@@ -89,14 +93,12 @@ export class AviamentoService {
         }
     }
 
-    async update(id: number, dados: UpdateAviamentoDto): Promise<Aviamento> {
-        const aviamento = await this.prisma.aviamento.findUnique({
-            where: { id },
-        });
-
-        if (!aviamento) {
-            throw new NotFoundException("Aviamento não encontrado");
-        }
+    async update(
+        id: number,
+        dados: UpdateAviamentoDto,
+        user: BusinessAuthenticatedUser,
+    ): Promise<Aviamento> {
+        const aviamento = await this.getById(id, user);
 
         try {
             return await this.prisma.$transaction(async (tx) => {

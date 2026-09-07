@@ -31,9 +31,12 @@ describe("ProdutoAviamentoService", () => {
         id: 1,
         produto_id: 1,
         aviamento_id: 2,
+        produto: { id: 1, fabrico_id: 10 },
+        aviamento: { id: 2, fabrico_id: 10 },
         custo: 15.5,
         quantidade: 1,
     };
+    const user = { fabrico_id: 10 } as any;
 
     beforeEach(async () => {
         mockPrismaService.$transaction.mockImplementation((callback) =>
@@ -66,12 +69,12 @@ describe("ProdutoAviamentoService", () => {
         const dto = { produto_id: 1, aviamento_id: 2, custo: 15.5 };
 
         it("deve criar um relacionamento com sucesso", async () => {
-            prisma.produto.findUnique.mockResolvedValue({ id: 1 });
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 2 });
+            prisma.produto.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
             prisma.produtoAviamento.findFirst.mockResolvedValue(null);
             prisma.produtoAviamento.create.mockResolvedValue(mockProdutoAviamento);
 
-            const result = await service.create(dto);
+            const result = await service.create(dto, user);
 
             expect(result).toEqual(mockProdutoAviamento);
             expect(prisma.produtoAviamento.create).toHaveBeenCalledWith({ data: dto });
@@ -87,24 +90,32 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o produto não existir", async () => {
             prisma.produto.findUnique.mockResolvedValue(null);
 
-            await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+            await expect(service.create(dto, user)).rejects.toThrow(NotFoundException);
             expect(prisma.aviamento.findUnique).not.toHaveBeenCalled();
         });
 
         it("deve lançar NotFoundException se o aviamento não existir", async () => {
-            prisma.produto.findUnique.mockResolvedValue({ id: 1 });
+            prisma.produto.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
             prisma.aviamento.findUnique.mockResolvedValue(null);
 
-            await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+            await expect(service.create(dto, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.findFirst).not.toHaveBeenCalled();
         });
 
         it("deve lançar ConflictException se o vínculo já existir", async () => {
-            prisma.produto.findUnique.mockResolvedValue({ id: 1 });
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 2 });
+            prisma.produto.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
             prisma.produtoAviamento.findFirst.mockResolvedValue(mockProdutoAviamento);
 
-            await expect(service.create(dto)).rejects.toThrow(ConflictException);
+            await expect(service.create(dto, user)).rejects.toThrow(ConflictException);
+            expect(prisma.produtoAviamento.create).not.toHaveBeenCalled();
+        });
+
+        it("deve rejeitar produto e aviamento de fábricas diferentes", async () => {
+            prisma.produto.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 2, fabrico_id: 11 });
+
+            await expect(service.create(dto, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.create).not.toHaveBeenCalled();
         });
     });
@@ -113,7 +124,7 @@ describe("ProdutoAviamentoService", () => {
         it("deve retornar todos os relacionamentos com sucesso", async () => {
             prisma.produtoAviamento.findMany.mockResolvedValue([mockProdutoAviamento]);
 
-            const result = await service.findAll();
+            const result = await service.findAll(user);
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalled();
@@ -124,7 +135,7 @@ describe("ProdutoAviamentoService", () => {
         it("deve retornar o relacionamento do determinado id com sucesso", async () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
 
-            const result = await service.findOne(1);
+            const result = await service.findOne(1, user);
 
             expect(result).toEqual(mockProdutoAviamento);
             expect(prisma.produtoAviamento.findUnique).toHaveBeenCalledWith({
@@ -136,20 +147,20 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o relacionamento não existir", async () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(null);
 
-            await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
+            await expect(service.findOne(999, user)).rejects.toThrow(NotFoundException);
         });
     });
 
     describe("Retorna todos os relacionamento do determinado produto", () => {
         it("deve retornar com sucesso todos os relacionamentos do determinado produto", async () => {
-            prisma.produto.findUnique.mockResolvedValue({ id: 1 });
+            prisma.produto.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
             prisma.produtoAviamento.findMany.mockResolvedValue([mockProdutoAviamento]);
 
-            const result = await service.findAllByProduto(1);
+            const result = await service.findAllByProduto(1, user);
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
-                where: { produto_id: 1 },
+                where: { produto_id: 1, aviamento: { fabrico_id: 10 } },
                 include: { aviamento: true },
             });
         });
@@ -157,21 +168,21 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o produto não existir", async () => {
             prisma.produto.findUnique.mockResolvedValue(null);
 
-            await expect(service.findAllByProduto(999)).rejects.toThrow(NotFoundException);
+            await expect(service.findAllByProduto(999, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.findMany).not.toHaveBeenCalled();
         });
     });
 
     describe("Retorna todos os relacionamento do determinado aviamento", () => {
         it("deve retornar com sucesso todos os relacionamentos do determinado aviamento", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 2 });
+            prisma.aviamento.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
             prisma.produtoAviamento.findMany.mockResolvedValue([mockProdutoAviamento]);
 
-            const result = await service.findAllByAviamento(2);
+            const result = await service.findAllByAviamento(2, user);
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
-                where: { aviamento_id: 2 },
+                where: { aviamento_id: 2, produto: { fabrico_id: 10 } },
                 include: { produto: true },
             });
         });
@@ -179,7 +190,7 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o aviamento não existir", async () => {
             prisma.aviamento.findUnique.mockResolvedValue(null);
 
-            await expect(service.findAllByAviamento(999)).rejects.toThrow(NotFoundException);
+            await expect(service.findAllByAviamento(999, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.findMany).not.toHaveBeenCalled();
         });
     });
@@ -191,7 +202,7 @@ describe("ProdutoAviamentoService", () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
             prisma.produtoAviamento.update.mockResolvedValue({ ...mockProdutoAviamento, ...dto });
 
-            const result = await service.update(1, dto);
+            const result = await service.update(1, dto, user);
 
             expect(result.custo).toEqual(20.0);
             expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
@@ -215,7 +226,7 @@ describe("ProdutoAviamentoService", () => {
                 custo: null,
             });
 
-            await service.update(1, { quantidade: 2 });
+            await service.update(1, { quantidade: 2 }, user);
 
             expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
                 where: { id: 1 },
@@ -231,7 +242,7 @@ describe("ProdutoAviamentoService", () => {
                 custo: 0,
             });
 
-            await service.update(1, { quantidade: 2, custo: 0 });
+            await service.update(1, { quantidade: 2, custo: 0 }, user);
 
             expect(prisma.produtoAviamento.update).toHaveBeenCalledWith({
                 where: { id: 1 },
@@ -242,7 +253,7 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(null);
 
-            await expect(service.update(999, dto)).rejects.toThrow(NotFoundException);
+            await expect(service.update(999, dto, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.update).not.toHaveBeenCalled();
         });
 
@@ -256,7 +267,7 @@ describe("ProdutoAviamentoService", () => {
                 aviamento_id: 888,
             } as any;
 
-            await service.update(1, payloadMalicioso);
+            await service.update(1, payloadMalicioso, user);
 
             const dadosEnviados = prisma.produtoAviamento.update.mock.calls[0][0].data;
             expect(dadosEnviados).not.toHaveProperty("produto_id");
@@ -273,7 +284,7 @@ describe("ProdutoAviamentoService", () => {
                 aviamento_id: 888,
             } as any;
 
-            await service.update(1, payloadMalicioso);
+            await service.update(1, payloadMalicioso, user);
 
             const dadosEnviados = prisma.produtoAviamento.update.mock.calls[0][0].data;
             expect(dadosEnviados).toEqual({ custo: 30 });
@@ -287,7 +298,7 @@ describe("ProdutoAviamentoService", () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
             prisma.produtoAviamento.delete.mockResolvedValue(mockProdutoAviamento);
 
-            const result = await service.remove(1);
+            const result = await service.remove(1, user);
 
             expect(result).toEqual(mockProdutoAviamento);
             expect(prisma.produtoAviamento.delete).toHaveBeenCalledWith({
@@ -305,7 +316,7 @@ describe("ProdutoAviamentoService", () => {
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {
             prisma.produtoAviamento.findUnique.mockResolvedValue(null);
 
-            await expect(service.remove(999)).rejects.toThrow(NotFoundException);
+            await expect(service.remove(999, user)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.delete).not.toHaveBeenCalled();
         });
     });

@@ -26,22 +26,29 @@ export class TecidosController {
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.tecidosService.findOne(id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.tecidosService.findOne(id, user);
     }
 
     @Get("fabrico/:idFabrico")
-    findAllByFabrico(@Param("idFabrico", ParseIntPipe) idFabrico: number) {
-        return this.tecidosService.findAllByFabrico(idFabrico);
+    findAllByFabrico(
+        @Param("idFabrico", ParseIntPipe) idFabrico: number,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.tecidosService.findAllByFabrico(idFabrico, user);
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.tecidosService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.tecidosService.remove(id, user);
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateTecidosDto) {
-        return this.tecidosService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateTecidosDto,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.tecidosService.update(id, data, user);
     }
 }

@@ -35,22 +35,29 @@ export class CorController {
     }
 
     @Get("fabrico/:fabrico_id")
-    findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.corService.findAllByFabricoID(fabrico_id);
+    findAllByFabricoID(
+        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.corService.findAllByFabricoID(fabrico_id, user);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.corService.findOne(id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.corService.findOne(id, user);
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateCorDto) {
-        return this.corService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateCorDto,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.corService.update(id, data, user);
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.corService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.corService.remove(id, user);
     }
 }

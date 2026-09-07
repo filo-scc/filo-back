@@ -38,30 +38,34 @@ export class TecidosService {
         });
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, user: BusinessAuthenticatedUser) {
         const tecido = await this.prisma.tecido.findUnique({
             where: { id },
         });
-        if (!tecido) {
+        if (!tecido || tecido.fabrico_id !== user.fabrico_id) {
             throw new NotFoundException("Tecido não encontrado");
         }
         return tecido;
     }
 
-    async findAllByFabrico(idFabrico: number) {
+    async findAllByFabrico(idFabrico: number, user: BusinessAuthenticatedUser) {
+        if (idFabrico !== user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
         return this.prisma.tecido.findMany({
             where: { fabrico_id: idFabrico },
             orderBy: { nome: "asc" },
         });
     }
 
-    async update(id: number, data: UpdateTecidosDto) {
+    async update(id: number, data: UpdateTecidosDto, user: BusinessAuthenticatedUser) {
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
-            if (!tecidoExistente) {
+            if (!tecidoExistente || tecidoExistente.fabrico_id !== user.fabrico_id) {
                 throw new NotFoundException("Tecido não encontrado");
             }
 
@@ -81,7 +85,15 @@ export class TecidosService {
 
             const tecidoAtualizado = await tx.tecido.update({
                 where: { id },
-                data,
+                data: {
+                    ...(data.nome !== undefined ? { nome: data.nome } : {}),
+                    ...(data.custo_unitario !== undefined
+                        ? { custo_unitario: data.custo_unitario }
+                        : {}),
+                    ...(data.unidade_de_medida !== undefined
+                        ? { unidade_de_medida: data.unidade_de_medida }
+                        : {}),
+                },
             });
 
             const produtosAfetados = await tx.produto.findMany({
@@ -100,13 +112,13 @@ export class TecidosService {
         });
     }
 
-    async remove(id: number) {
+    async remove(id: number, user: BusinessAuthenticatedUser) {
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findUnique({
                 where: { id },
             });
 
-            if (!tecidoExistente) {
+            if (!tecidoExistente || tecidoExistente.fabrico_id !== user.fabrico_id) {
                 throw new NotFoundException("Tecido não encontrado");
             }
 

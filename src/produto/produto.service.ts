@@ -243,6 +243,15 @@ export class ProdutoService {
             }
         }
 
+        if (user && dados.tecido_id !== undefined && dados.tecido_id !== null) {
+            const tecido = await this.prisma.tecido.findFirst({
+                where: { id: dados.tecido_id, fabrico_id: user.fabrico_id },
+            });
+            if (!tecido) {
+                throw new NotFoundException("Tecido não encontrado");
+            }
+        }
+
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
                 where: {

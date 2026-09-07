@@ -36,22 +36,29 @@ export class AviamentoController {
     }
 
     @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.aviamentoService.getById(id);
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.aviamentoService.getById(id, user);
     }
 
     @Get("/fabrico/:fabrico_id")
-    findAllFabrico(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.aviamentoService.findAllFabrico(fabrico_id);
+    findAllFabrico(
+        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.aviamentoService.findAllFabrico(fabrico_id, user);
     }
 
     @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number) {
-        return this.aviamentoService.delete(id);
+    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.aviamentoService.delete(id, user);
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateAviamentoDto) {
-        return this.aviamentoService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateAviamentoDto,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.aviamentoService.update(id, data, user);
     }
 }

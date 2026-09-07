@@ -11,11 +11,15 @@ const mockPrismaService = {
     produto: {
         create: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
         update: jest.fn(),
     },
     gradeVersao: {
+        findFirst: jest.fn(),
+    },
+    tecido: {
         findFirst: jest.fn(),
     },
     etapa: {
@@ -327,6 +331,41 @@ describe("ProdutoService", () => {
     });
 
     describe("update", () => {
+        const user = { fabrico_id: 1 } as any;
+
+        it("aceita tecido do próprio fabrico", async () => {
+            const produtoCriado = { id: 1, ...produtoData };
+            const dadosAtualizados = { tecido_id: 7 };
+
+            prismaService.produto.findFirst.mockResolvedValue(produtoCriado);
+            prismaService.tecido.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            prismaService.produto.findUnique.mockResolvedValue({
+                ...produtoCriado,
+                tecido: null,
+                produtoAviamentos: [],
+                parceiro_produto: [],
+            });
+            prismaService.etapa.findMany.mockResolvedValue([]);
+            prismaService.produto.update.mockResolvedValue(produtoCriado);
+
+            await expect(service.update(1, dadosAtualizados, user)).resolves.toBe(
+                "O produto com o id 1 foi atualizado",
+            );
+            expect(prismaService.tecido.findFirst).toHaveBeenCalledWith({
+                where: { id: 7, fabrico_id: 1 },
+            });
+        });
+
+        it("rejeita tecido de outro fabrico com 404", async () => {
+            prismaService.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 1 });
+            prismaService.tecido.findFirst.mockResolvedValue(null);
+
+            await expect(service.update(1, { tecido_id: 7 }, user)).rejects.toThrow(
+                new NotFoundException("Tecido não encontrado"),
+            );
+            expect(prismaService.produto.update).not.toHaveBeenCalled();
+        });
+
         it("Deve atualizar um produto com sucesso", async () => {
             const produtoCriado = { id: 1, ...produtoData };
             const dadosAtualizados = { nome: "Produto Atualizado" };

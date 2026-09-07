@@ -72,7 +72,11 @@ export class CorService {
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
+    async findAllByFabricoID(fabrico_id: number, user: BusinessAuthenticatedUser) {
+        if (fabrico_id !== user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
         try {
             return this.prisma.cor.findMany({
                 where: { fabrico_id: Number(fabrico_id) },
@@ -86,10 +90,10 @@ export class CorService {
         }
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, user: BusinessAuthenticatedUser) {
         try {
             const cor = await this.prisma.cor.findUnique({ where: { id } });
-            if (!cor) {
+            if (!cor || cor.fabrico_id !== user.fabrico_id) {
                 throw new NotFoundException("Cor não encontrada");
             }
             return cor;
@@ -101,8 +105,8 @@ export class CorService {
         }
     }
 
-    async update(id: number, data: UpdateCorDto) {
-        const corAtual = await this.findOne(id);
+    async update(id: number, data: UpdateCorDto, user: BusinessAuthenticatedUser) {
+        const corAtual = await this.findOne(id, user);
         const nome = data.nome ? normalizeText(data.nome) : corAtual.nome;
         const codigo_hex = data.codigo_hex ?? corAtual.codigo_hex;
         const fabrico_id = corAtual.fabrico_id;
@@ -144,8 +148,8 @@ export class CorService {
         }
     }
 
-    async remove(id: number) {
-        await this.findOne(id);
+    async remove(id: number, user: BusinessAuthenticatedUser) {
+        await this.findOne(id, user);
 
         try {
             const cor = await this.prisma.cor.delete({ where: { id } });

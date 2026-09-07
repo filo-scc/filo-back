@@ -3,6 +3,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";
 import { UpdateProdutoAviamentoDto } from "./dto/update-produto-aviamento.dto";
 import { ProdutoService } from "../produto/produto.service";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoAviamentoService {
@@ -11,16 +12,23 @@ export class ProdutoAviamentoService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(createProdutoAviamentoDto: CreateProdutoAviamentoDto) {
+    async create(
+        createProdutoAviamentoDto: CreateProdutoAviamentoDto,
+        user: BusinessAuthenticatedUser,
+    ) {
         const produtoExiste = await this.prisma.produto.findUnique({
             where: { id: createProdutoAviamentoDto.produto_id },
         });
-        if (!produtoExiste) throw new NotFoundException("Produto não encontrado");
+        if (!produtoExiste || produtoExiste.fabrico_id !== user.fabrico_id) {
+            throw new NotFoundException("Produto não encontrado");
+        }
 
         const aviamentoExiste = await this.prisma.aviamento.findUnique({
             where: { id: createProdutoAviamentoDto.aviamento_id },
         });
-        if (!aviamentoExiste) throw new NotFoundException("Aviamento não encontrado");
+        if (!aviamentoExiste || aviamentoExiste.fabrico_id !== user.fabrico_id) {
+            throw new NotFoundException("Aviamento não encontrado");
+        }
 
         const relacaoExiste = await this.prisma.produtoAviamento.findFirst({
             where: {
@@ -48,8 +56,12 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async findAll() {
+    async findAll(user: BusinessAuthenticatedUser) {
         return this.prisma.produtoAviamento.findMany({
+            where: {
+                produto: { fabrico_id: user.fabrico_id },
+                aviamento: { fabrico_id: user.fabrico_id },
+            },
             include: {
                 produto: true,
                 aviamento: true,
@@ -57,7 +69,7 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, user: BusinessAuthenticatedUser) {
         const relacao = await this.prisma.produtoAviamento.findUnique({
             where: { id },
             include: {
@@ -66,7 +78,11 @@ export class ProdutoAviamentoService {
             },
         });
 
-        if (!relacao) {
+        if (
+            !relacao ||
+            relacao.produto.fabrico_id !== user.fabrico_id ||
+            relacao.aviamento.fabrico_id !== user.fabrico_id
+        ) {
             throw new NotFoundException(
                 "O relacionamento entre produto e aviamento não foi encontrado",
             );
@@ -75,38 +91,42 @@ export class ProdutoAviamentoService {
         return relacao;
     }
 
-    async findAllByProduto(produto_id: number) {
+    async findAllByProduto(produto_id: number, user: BusinessAuthenticatedUser) {
         const produtoExiste = await this.prisma.produto.findUnique({
             where: { id: produto_id },
         });
 
-        if (!produtoExiste) {
+        if (!produtoExiste || produtoExiste.fabrico_id !== user.fabrico_id) {
             throw new NotFoundException("Produto não encontrado");
         }
 
         return this.prisma.produtoAviamento.findMany({
-            where: { produto_id },
+            where: { produto_id, aviamento: { fabrico_id: user.fabrico_id } },
             include: { aviamento: true },
         });
     }
 
-    async findAllByAviamento(aviamento_id: number) {
+    async findAllByAviamento(aviamento_id: number, user: BusinessAuthenticatedUser) {
         const aviamentoExiste = await this.prisma.aviamento.findUnique({
             where: { id: aviamento_id },
         });
 
-        if (!aviamentoExiste) {
+        if (!aviamentoExiste || aviamentoExiste.fabrico_id !== user.fabrico_id) {
             throw new NotFoundException("Aviamento não encontrado");
         }
 
         return this.prisma.produtoAviamento.findMany({
-            where: { aviamento_id },
+            where: { aviamento_id, produto: { fabrico_id: user.fabrico_id } },
             include: { produto: true },
         });
     }
 
-    async update(id: number, payload: UpdateProdutoAviamentoDto) {
-        const vinculoExistente = await this.findOne(id);
+    async update(
+        id: number,
+        payload: UpdateProdutoAviamentoDto,
+        user: BusinessAuthenticatedUser,
+    ) {
+        const vinculoExistente = await this.findOne(id, user);
         const quantidadeInformada = payload.quantidade !== undefined;
         const custoInformado = payload.custo !== undefined;
 
@@ -139,8 +159,8 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async remove(id: number) {
-        const vinculoExistente = await this.findOne(id);
+    async remove(id: number, user: BusinessAuthenticatedUser) {
+        const vinculoExistente = await this.findOne(id, user);
 
         return this.prisma.$transaction(async (tx) => {
             await this.produtoService.bloquearProdutosParaRecalculo(
