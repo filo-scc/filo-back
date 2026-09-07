@@ -10,10 +10,6 @@ import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 import { EnderecoService } from "../endereco/endereco.service";
 
-/* TODO: 
-- Implementar segurança de fabrico em criar e atualizar cliente, garantindo que o usuário só possa criar/atualizar clientes para o fabrico ao qual ele pertence. 
-*/
-
 @Injectable()
 export class ClienteService {
     constructor(
@@ -21,11 +17,11 @@ export class ClienteService {
         private enderecoService: EnderecoService,
     ) {}
 
-    async create(data: CreateClienteDto) {
+    async create(data: CreateClienteDto, fabricoId: number) {
         const { endereco, ...dadosCliente } = data;
 
         const clienteExistente = await this.prisma.cliente.findFirst({
-            where: { nome: dadosCliente.nome, fabrico_id: Number(dadosCliente.fabrico_id) },
+            where: { nome: dadosCliente.nome, fabrico_id: fabricoId },
         });
 
         if (clienteExistente) {
@@ -36,7 +32,7 @@ export class ClienteService {
             const cliente = await this.prisma.cliente.create({
                 data: {
                     ...dadosCliente,
-                    fabrico_id: Number(dadosCliente.fabrico_id),
+                    fabrico_id: fabricoId,
                 },
             });
 
@@ -73,10 +69,10 @@ export class ClienteService {
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
+    async findAllByFabricoID(fabricoId: number) {
         try {
             return await this.prisma.cliente.findMany({
-                where: { fabrico_id: Number(fabrico_id) },
+                where: { fabrico_id: fabricoId },
                 include: { endereco: true },
             });
         } catch (error) {
@@ -90,22 +86,10 @@ export class ClienteService {
         }
     }
 
-    async findAll() {
-        try {
-            return await this.prisma.cliente.findMany({
-                include: { endereco: true },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                throw new ConflictException("Erro ao buscar clientes");
-            }
-        }
-    }
-
-    async findOne(id: number) {
+    async findOne(id: number, fabricoId: number) {
         try {
             const cliente = await this.prisma.cliente.findFirst({
-                where: { id },
+                where: { id, fabrico_id: fabricoId },
                 include: { endereco: true },
             });
 
@@ -125,23 +109,25 @@ export class ClienteService {
         }
     }
 
-    async update(id: number, data: UpdateClienteDto) {
+    async update(id: number, data: UpdateClienteDto, fabricoId: number) {
         const { endereco, ...dadosCliente } = data;
 
         try {
-            const cliente_existente = await this.prisma.cliente.findFirst({
-                where: {
-                    nome: dadosCliente.nome,
-                    fabrico_id: Number(dadosCliente.fabrico_id),
-                    NOT: { id },
-                },
-            });
+            const clienteAtual = await this.findOne(id, fabricoId);
 
-            if (cliente_existente) {
-                throw new ConflictException("Nome ja existente");
+            if (dadosCliente.nome) {
+                const clienteExistente = await this.prisma.cliente.findFirst({
+                    where: {
+                        nome: dadosCliente.nome,
+                        fabrico_id: fabricoId,
+                        NOT: { id },
+                    },
+                });
+
+                if (clienteExistente) {
+                    throw new ConflictException("Nome ja existente");
+                }
             }
-
-            const clienteAtual = await this.findOne(id);
 
             if (endereco) {
                 if (!clienteAtual.endereco) {
@@ -167,9 +153,9 @@ export class ClienteService {
         }
     }
 
-    async remove(id: number) {
+    async remove(id: number, fabricoId: number) {
         try {
-            await this.findOne(id);
+            await this.findOne(id, fabricoId);
 
             return await this.prisma.cliente.delete({
                 where: { id },
