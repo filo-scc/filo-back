@@ -640,3 +640,4 @@ describe("Isolamento E2E entre fabricos", () => {
         ).resolves.toMatchObject({ fabrico_id: tenantA.fabrico.id });
     });
 });
+
