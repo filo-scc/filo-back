@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
+import { CreatePedidoCompletoDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
@@ -30,6 +31,14 @@ export class PedidoController {
         @CurrentUser() user: AuthenticatedUser,
     ) {
         return this.pedidoService.create(createPedidoDto, user.fabrico_id!);
+    }
+
+    @Post("completo")
+    async createCompleto(
+        @Body() createPedidoCompletoDto: CreatePedidoCompletoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.pedidoService.createCompleto(createPedidoCompletoDto, user.fabrico_id!);
     }
 
     @Get()
