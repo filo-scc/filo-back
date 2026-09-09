@@ -19,6 +19,7 @@ describe("PedidoController", () => {
     const mockPedidoService = {
         create: jest.fn(),
         createCompleto: jest.fn(),
+        updateCompleto: jest.fn(),
         findAll: jest.fn(),
         getById: jest.fn(),
         update: jest.fn(),
@@ -61,6 +62,15 @@ describe("PedidoController", () => {
         await controller.createCompleto(dto as any, usuario);
 
         expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, 10);
+    });
+
+    it("deve editar pedido completo com fabrico do usuário autenticado", async () => {
+        const dto = { cliente_id: 3, fichas: [{ id: 8, produto_id: 1, quantidade: 5 }] };
+        mockPedidoService.updateCompleto.mockResolvedValue({ id: 4 });
+
+        await controller.updateCompleto(4, dto as any, usuario);
+
+        expect(mockPedidoService.updateCompleto).toHaveBeenCalledWith(4, dto, 10);
     });
 
     it("deve listar apenas pedidos do fabrico do usuário", async () => {

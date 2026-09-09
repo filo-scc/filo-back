@@ -66,18 +66,23 @@ describe("PedidoService", () => {
             create: jest.fn(),
             findFirst: jest.fn(),
             updateMany: jest.fn(),
+            update: jest.fn(),
+            deleteMany: jest.fn(),
         },
 
         fichaTecnicaItem: {
             createMany: jest.fn(),
+            deleteMany: jest.fn(),
         },
 
         fichaEtapa: {
             create: jest.fn(),
+            deleteMany: jest.fn(),
         },
 
         fichaParceiro: {
             create: jest.fn(),
+            deleteMany: jest.fn(),
         },
 
         $transaction: jest.fn(),
@@ -357,6 +362,151 @@ describe("PedidoService", () => {
 
         it("deve exigir ao menos uma ficha técnica", async () => {
             await expect(service.createCompleto({ fichas: [] }, 1)).rejects.toThrow(
+                BadRequestException,
+            );
+        });
+    });
+
+    describe("updateCompleto", () => {
+        const pedidoExistente = {
+            id: 100,
+            fabrico_id: 1,
+            cliente_id: 7,
+            fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
+        };
+
+        it("deve atualizar cliente, preço e totais em uma única transação", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 8, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 8 });
+
+            const resultado = await service.updateCompleto(
+                100,
+                {
+                    cliente_id: 8,
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 999,
+                            preco_padrao: 25,
+                            nome_para_cliente: "Nova ref",
+                        },
+                    ],
+                },
+                1,
+            );
+
+            expect(resultado).toEqual({ id: 100, cliente_id: 8 });
+            expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+            expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    create: expect.objectContaining({
+                        cliente_id: 8,
+                        produto_id: 5,
+                        nome_para_cliente: "Nova ref",
+                        preco_padrao: 25,
+                    }),
+                }),
+            );
+
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    cliente_id: 8,
+                    quantidade: 30,
+                    custo_total: 300,
+                    valor_total: 750,
+                }),
+            });
+        });
+
+        it("deve remover fichas ausentes do payload e criar as novas", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany
+                .mockResolvedValueOnce([{ id: 6, grade_versao_id: 3 }])
+                .mockResolvedValueOnce([{ id: 6, custo_total: 8 }]);
+            mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
+            mockPrismaService.etapa.findFirst
+                .mockResolvedValueOnce({ id: 2 })
+                .mockResolvedValueOnce({ id: 8 });
+            mockPrismaService.fichaTecnica.findFirst.mockResolvedValue({ numero: 4 });
+            mockPrismaService.fichaTecnica.create.mockResolvedValue({ id: 201 });
+            mockPrismaService.cor.findMany.mockResolvedValue([{ id: 1 }]);
+            mockPrismaService.gradeVersaoItem.findMany.mockResolvedValue([{ id: 11 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100 });
+
+            await service.updateCompleto(
+                100,
+                {
+                    cliente_id: 7,
+                    fichas: [
+                        {
+                            produto_id: 6,
+                            grade_versao_id: 3,
+                            quantidade: 10,
+                            preco_padrao: 15,
+                            cores_ids: [1],
+                            itens: [{ cor_id: 1, grade_versao_item_id: 11, quantidade: 10 }],
+                            parceiros: [{ parceiro_id: 9, preco: 2 }],
+                        },
+                    ],
+                },
+                1,
+            );
+
+            expect(mockPrismaService.fichaEtapa.deleteMany).toHaveBeenCalledWith({
+                where: { ficha_tecnica_id: { in: [200] } },
+            });
+            expect(mockPrismaService.fichaTecnica.deleteMany).toHaveBeenCalledWith({
+                where: { id: { in: [200] }, pedido_id: 100 },
+            });
+            expect(mockPrismaService.fichaTecnica.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    pedido_id: 100,
+                    produto_id: 6,
+                    quantidade: 10,
+                }),
+            });
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    quantidade: 10,
+                    custo_total: 80,
+                    valor_total: 150,
+                }),
+            });
+        });
+
+        it("deve rejeitar ficha que não pertence ao pedido", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    { fichas: [{ id: 999, produto_id: 5, quantidade: 1 }] },
+                    1,
+                ),
+            ).rejects.toThrow(BadRequestException);
+
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("deve rejeitar pedido inexistente no fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.updateCompleto(100, { fichas: [{ produto_id: 5, quantidade: 1 }] }, 1),
+            ).rejects.toThrow(NotFoundException);
+        });
+
+        it("deve exigir ao menos uma ficha técnica", async () => {
+            await expect(service.updateCompleto(100, { fichas: [] }, 1)).rejects.toThrow(
                 BadRequestException,
             );
         });

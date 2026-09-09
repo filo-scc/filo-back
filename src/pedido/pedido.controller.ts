@@ -13,6 +13,7 @@ import { PedidoService } from "./pedido.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
 import { CreatePedidoCompletoDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
@@ -26,10 +27,7 @@ export class PedidoController {
     constructor(private readonly pedidoService: PedidoService) {}
 
     @Post()
-    async create(
-        @Body() createPedidoDto: CreatePedidoDto,
-        @CurrentUser() user: AuthenticatedUser,
-    ) {
+    async create(@Body() createPedidoDto: CreatePedidoDto, @CurrentUser() user: AuthenticatedUser) {
         return this.pedidoService.create(createPedidoDto, user.fabrico_id!);
     }
 
@@ -52,6 +50,15 @@ export class PedidoController {
         @CurrentUser() user: AuthenticatedUser,
     ) {
         return this.pedidoService.findAllCliente(cliente_id, user.fabrico_id!);
+    }
+
+    @Put("completo/:id")
+    updateCompleto(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdatePedidoCompletoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.pedidoService.updateCompleto(id, data, user.fabrico_id!);
     }
 
     @Get(":id")
