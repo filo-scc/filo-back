@@ -8,34 +8,31 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
 import { UpdateFabricoGradeDto } from "./dto/update-fabrico-grade.dto";
-import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class FabricoGradeService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async create(data: CreateFabricoGradeDto, user?: BusinessAuthenticatedUser) {
-        const fabricoId = user?.fabrico_id ?? Number(data.fabrico_id);
-
-        if (user && Number(data.fabrico_id) !== user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico da grade");
         }
+    }
 
-        const fabrico = await this.prisma.fabrico.findUnique({
-            where: { id: Number(data.fabrico_id) },
+    async create(data: CreateFabricoGradeDto, userFabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
+        const grade = await this.prisma.grade.findUnique({
+            where: { id: Number(data.grade_id) },
         });
-        if (!fabrico) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
 
-        const grade = await this.prisma.grade.findUnique({ where: { id: Number(data.grade_id) } });
         if (!grade) {
             throw new NotFoundException("Grade não encontrada");
         }
 
         const existente = await this.prisma.fabricoGrade.findFirst({
             where: {
-                fabrico_id: fabricoId,
+                fabrico_id: userFabricoId,
                 grade_id: Number(data.grade_id),
             },
         });
@@ -44,10 +41,13 @@ export class FabricoGradeService {
             throw new ConflictException("Essa grade já está liberada para esse fabrico");
         }
 
+        const {...dadosCreate } = data;
+
         try {
             const link = await this.prisma.fabricoGrade.create({
                 data: {
-                    fabrico_id: fabricoId,
+                    ...dadosCreate,
+                    fabrico_id: userFabricoId,
                     grade_id: Number(data.grade_id),
                     ativo: data.ativo ?? true,
                 },
@@ -62,143 +62,129 @@ export class FabricoGradeService {
                 data: link,
             };
         } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Essa relação já existe");
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
+            }
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Essa relação já existe");
-            }
             throw error;
         }
     }
 
-    async findAll() {
-        try {
-            return await this.prisma.fabricoGrade.findMany({
-                include: {
-                    fabrico: true,
-                    grade: {
-                        include: {
-                            items: {
-                                include: { tamanho: true },
-                                orderBy: { posicao: "asc" },
-                            },
-                            versoes: {
-                                where: { ativo: true },
-                                orderBy: { versao: "desc" },
-                                take: 1,
-                                include: {
-                                    itens: {
-                                        include: { tamanho: true },
-                                        orderBy: { posicao: "asc" },
-                                    },
+    async findAll(userFabricoId?: number) {
+        return this.prisma.fabricoGrade.findMany({
+            where: userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {},
+            include: {
+                fabrico: true,
+                grade: {
+                    include: {
+                        items: {
+                            include: { tamanho: true },
+                            orderBy: { posicao: "asc" },
+                        },
+                        versoes: {
+                            where: { ativo: true },
+                            orderBy: { versao: "desc" },
+                            take: 1,
+                            include: {
+                                itens: {
+                                    include: { tamanho: true },
+                                    orderBy: { posicao: "asc" },
                                 },
                             },
                         },
                     },
                 },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
-            }
-            throw error;
-        }
+            },
+            orderBy: { id: "asc" },
+        });
     }
 
-    async findAllByFabricoID(fabrico_id: number, user?: BusinessAuthenticatedUser) {
-        if (user && Number(fabrico_id) !== user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        try {
-            return await this.prisma.fabricoGrade.findMany({
-                where: {
-                    fabrico_id: Number(fabrico_id),
-                    ativo: true,
-                },
-                include: {
-                    grade: {
-                        include: {
-                            items: {
-                                include: { tamanho: true },
-                                orderBy: { posicao: "asc" },
-                            },
-                            versoes: {
-                                where: { ativo: true },
-                                orderBy: { versao: "desc" },
-                                take: 1,
-                                include: {
-                                    itens: {
-                                        include: { tamanho: true },
-                                        orderBy: { posicao: "asc" },
-                                    },
+    async findAllByFabricoID(fabricoId: number) {
+        return this.prisma.fabricoGrade.findMany({
+            where: {
+                fabrico_id: fabricoId,
+                ativo: true,
+            },
+            include: {
+                grade: {
+                    include: {
+                        items: {
+                            include: { tamanho: true },
+                            orderBy: { posicao: "asc" },
+                        },
+                        versoes: {
+                            where: { ativo: true },
+                            orderBy: { versao: "desc" },
+                            take: 1,
+                            include: {
+                                itens: {
+                                    include: { tamanho: true },
+                                    orderBy: { posicao: "asc" },
                                 },
                             },
                         },
                     },
                 },
-                orderBy: { id: "asc" },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
-            }
-            throw error;
-        }
+            },
+            orderBy: { id: "asc" },
+        });
     }
 
-    async findOne(id: number, user?: BusinessAuthenticatedUser) {
-        try {
-            const link = await this.prisma.fabricoGrade.findUnique({
-                where: { id },
-                include: {
-                    fabrico: true,
-                    grade: {
-                        include: {
-                            items: {
-                                include: { tamanho: true },
-                                orderBy: { posicao: "asc" },
-                            },
-                            versoes: {
-                                orderBy: { versao: "desc" },
-                                include: {
-                                    itens: {
-                                        include: { tamanho: true },
-                                        orderBy: { posicao: "asc" },
-                                    },
+    async findOne(id: number, userFabricoId?: number) {
+        const link = await this.prisma.fabricoGrade.findFirst({
+            where: {
+                id,
+                ...(userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {}),
+            },
+            include: {
+                fabrico: true,
+                grade: {
+                    include: {
+                        items: {
+                            include: { tamanho: true },
+                            orderBy: { posicao: "asc" },
+                        },
+                        versoes: {
+                            orderBy: { versao: "desc" },
+                            include: {
+                                itens: {
+                                    include: { tamanho: true },
+                                    orderBy: { posicao: "asc" },
                                 },
                             },
                         },
                     },
                 },
-            });
+            },
+        });
 
-            if (!link) {
-                throw new NotFoundException("Vínculo fabrico-grade não encontrado");
-            }
-
-            if (user && link.fabrico_id !== user.fabrico_id) {
-                throw new NotFoundException("Fabrico não encontrado");
-            }
-
-            return link;
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
-            }
-            throw error;
+        if (!link) {
+            throw new NotFoundException("Vínculo fabrico-grade não encontrado");
         }
+
+        return link;
     }
 
-    async update(id: number, data: UpdateFabricoGradeDto, user?: BusinessAuthenticatedUser) {
-        await this.findOne(id, user);
+    async update(id: number, data: UpdateFabricoGradeDto, userFabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
+        const linkAtual = await this.findOne(id, userFabricoId);
+
+        const {...dadosUpdate } = data;
 
         try {
             const link = await this.prisma.fabricoGrade.update({
-                where: { id },
+                where: { id: linkAtual.id },
                 data: {
-                    ativo: data.ativo,
+                    ...dadosUpdate,
+                    fabrico_id: linkAtual.fabrico_id,
                 },
                 include: {
                     fabrico: true,
@@ -211,6 +197,14 @@ export class FabricoGradeService {
                 data: link,
             };
         } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Essa relação já existe");
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
+            }
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }
@@ -218,12 +212,12 @@ export class FabricoGradeService {
         }
     }
 
-    async remove(id: number, user?: BusinessAuthenticatedUser) {
-        await this.findOne(id, user);
+    async remove(id: number, userFabricoId: number) {
+        const linkAtual = await this.findOne(id, userFabricoId);
 
         try {
             const link = await this.prisma.fabricoGrade.update({
-                where: { id },
+                where: { id: linkAtual.id },
                 data: { ativo: false },
             });
 

@@ -8,6 +8,7 @@ import {
     Put,
     UseGuards,
     ParseIntPipe,
+    NotFoundException,
 } from "@nestjs/common";
 import { FabricoGradeService } from "./fabrico-grade.service";
 import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
@@ -16,49 +17,47 @@ import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("ADMIN")
+@Roles("ADMIN", "PROPRIETARIO", "GERENTE")
 @Controller("fabrico-grades")
 export class FabricoGradeController {
     constructor(private readonly fabricoGradeService: FabricoGradeService) {}
 
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+        return user.fabrico_id;
+    }
+
     @Post()
-    create(@Body() data: CreateFabricoGradeDto, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.fabricoGradeService.create(data, user);
+    create(@Body() data: CreateFabricoGradeDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.fabricoGradeService.create(data, this.getFabricoId(user));
     }
 
     @Get()
-    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.fabricoGradeService.findAllByFabricoID(user.fabrico_id, user);
-    }
-
-    @Roles("PROPRIETARIO", "GERENTE")
-    @Get("fabrico/:fabrico_id")
-    findAllByFabricoID(
-        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
-        @CurrentUser() user: BusinessAuthenticatedUser,
-    ) {
-        return this.fabricoGradeService.findAllByFabricoID(fabrico_id, user);
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.fabricoGradeService.findAllByFabricoID(this.getFabricoId(user));
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.fabricoGradeService.findOne(id, user);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fabricoGradeService.findOne(id, this.getFabricoId(user));
     }
 
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdateFabricoGradeDto,
-        @CurrentUser() user: BusinessAuthenticatedUser,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fabricoGradeService.update(id, data, user);
+        return this.fabricoGradeService.update(id, data, this.getFabricoId(user));
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.fabricoGradeService.remove(id, user);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fabricoGradeService.remove(id, this.getFabricoId(user));
     }
 }

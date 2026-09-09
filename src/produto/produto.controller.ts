@@ -82,7 +82,7 @@ export class ProdutoController {
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
-    @Get("/cliente/:cliente_id/produtos-nao-associados")
+    @Get("/cliente/:cliente_id/produtos-nao-associados/")
     getUnassociatedProductsForClient(
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
