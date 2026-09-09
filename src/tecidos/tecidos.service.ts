@@ -77,7 +77,7 @@ export class TecidosService {
     async update(id: number, data: UpdateTecidosDto, fabricoId: number) {
         this.assertFabricoImutavel(data.fabrico_id, fabricoId);
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosUpdate } = data;
+        const {  ...dadosUpdate } = data;
 
         try {
             return await this.prisma.$transaction(async (tx) => {

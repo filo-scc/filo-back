@@ -21,7 +21,7 @@ export class TipoProdutoService {
     async create(data: CreateTipoProdutoDto & { fabrico_id?: number }, userFabricoId: number) {
         this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosCreate } = data;
+        const { ...dadosCreate } = data;
 
         try {
             return await this.prisma.tipoProduto.create({

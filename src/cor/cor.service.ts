@@ -39,7 +39,7 @@ export class CorService {
             throw new ConflictException("Já existe uma cor com esse nome nesse fabrico");
         }
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosCreate } = data;
+        const { ...dadosCreate } = data;
 
         try {
             const cor = await this.prisma.cor.create({
@@ -121,7 +121,7 @@ export class CorService {
             }
         }
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosUpdate } = data;
+        const { ...dadosUpdate } = data;
 
         try {
             const cor = await this.prisma.cor.update({
