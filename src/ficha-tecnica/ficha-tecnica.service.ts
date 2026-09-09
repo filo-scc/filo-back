@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
+import { sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
@@ -413,6 +414,11 @@ export class FichaTecnicaService {
                 if (data.quantidade !== undefined && ficha.pedido_id) {
                     await this.sincronizarPedido(tx, ficha.pedido_id);
                 }
+
+                if (data.concluida !== undefined && data.concluida !== ficha.concluida) {
+                    await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
+                }
+
                 return fichaAtualizada;
             });
         } catch (error) {

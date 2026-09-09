@@ -15,6 +15,7 @@ describe("PedidoService", () => {
             findUnique: jest.fn(),
             findFirst: jest.fn(),
             update: jest.fn(),
+            updateMany: jest.fn(),
             delete: jest.fn(),
         },
 
@@ -65,6 +66,7 @@ describe("PedidoService", () => {
         fichaTecnica: {
             create: jest.fn(),
             findFirst: jest.fn(),
+            count: jest.fn(),
             updateMany: jest.fn(),
             update: jest.fn(),
             deleteMany: jest.fn(),
@@ -115,6 +117,8 @@ describe("PedidoService", () => {
         mockPrismaService.$transaction.mockImplementation(
             async (callback: (tx: unknown) => unknown) => callback(mockPrismaService),
         );
+        mockPrismaService.fichaTecnica.count.mockResolvedValue(1);
+        mockPrismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
     });
 
     it("should be defined", () => {

@@ -13,6 +13,7 @@ import { CreatePedidoDto } from "./dto/create-pedido.dto";
 import { CreatePedidoCompletoDto, CreatePedidoFichaDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
 
 const PALETA_13_CORES = [
     "#7FA9B8",
@@ -439,6 +440,12 @@ export class PedidoService {
                             custo_total: totais.custo_total,
                         },
                     });
+
+                    // Sem override explícito, finalizado acompanha as fichas
+                    // (ex.: nova FT pendente reabre o pedido).
+                    if (data.finalizado === undefined) {
+                        await sincronizarFinalizacaoPedido(tx, pedido.id);
+                    }
 
                     return tx.pedido.findUnique({
                         where: { id: pedido.id },

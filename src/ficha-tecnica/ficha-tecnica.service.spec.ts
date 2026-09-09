@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 
 const mockPrismaService = {
     $transaction: jest.fn(async (callback) => await callback(mockPrismaService)),
+    $queryRaw: jest.fn(),
     fichaTecnica: {
         create: jest.fn(),
         update: jest.fn(),
@@ -16,6 +17,7 @@ const mockPrismaService = {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
     },
     fichaTecnicaItem: {
         deleteMany: jest.fn(),
@@ -28,6 +30,14 @@ const mockPrismaService = {
     },
     gradeVersao: {
         findFirst: jest.fn(),
+    },
+    pedido: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+    },
+    clienteProduto: {
+        findMany: jest.fn(),
     },
 };
 
@@ -167,6 +177,30 @@ describe("FichaTecnicaService", () => {
             expect(result.etapa_atual_id).toEqual(40);
             expect(prismaService.fichaTecnica.update).toHaveBeenCalled();
             expect(prismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("deve finalizar o pedido ao concluir a última ficha pendente", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+                concluida: false,
+            } as any);
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+                concluida: true,
+            });
+            prismaService.fichaTecnica.count
+                .mockResolvedValueOnce(1)
+                .mockResolvedValueOnce(0);
+            prismaService.pedido.updateMany.mockResolvedValue({ count: 1 });
+
+            await service.update(1, { concluida: true } as any, 20);
+
+            expect(prismaService.pedido.updateMany).toHaveBeenCalledWith({
+                where: { id: 100, finalizado: false },
+                data: { finalizado: true },
+            });
         });
 
         it("deve limpar os itens da ficha se a grade_versao_id for alterada", async () => {
