@@ -43,8 +43,9 @@ export class CreateParceiroDto {
     @IsString()
     categoria?: string;
 
+    @IsOptional()
     @IsNumber()
-    fabrico_id: number;
+    fabrico_id?: number;
 
     @IsOptional()
     @IsEnum(FormaPagamentoEnum, {

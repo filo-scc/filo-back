@@ -62,7 +62,7 @@ export class ParceiroService {
     }
 
     async create(data: CreateParceiroDto, fabricoId: number) {
-        const { endereco, ...dadosparceiro } = data;
+        const { endereco, fabrico_id, ...dadosparceiro } = data;
 
         const existente = await this.prisma.parceiro.findFirst({
             where: {
