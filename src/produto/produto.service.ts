@@ -150,7 +150,7 @@ export class ProdutoService {
             }
         }
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosCreate } = data;
+        const { ...dadosCreate } = data;
 
         try {
             return await this.prisma.produto.create({
@@ -236,7 +236,7 @@ export class ProdutoService {
             }
         }
 
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosUpdate } = dados;
+        const { ...dadosUpdate } = dados;
 
         try {
             const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
