@@ -56,10 +56,7 @@ describe("PedidoService", () => {
                 fabrico_id: 1,
             };
 
-            mockPrismaService.fabrico.findUnique.mockResolvedValue({
-                id: 1,
-            });
-
+            mockPrismaService.pedido.findFirst.mockResolvedValue(null);
             mockPrismaService.pedido.create.mockResolvedValue(pedido);
 
             const result = await service.create(
@@ -78,27 +75,53 @@ describe("PedidoService", () => {
                 data: expect.objectContaining({
                     quantidade: 10,
                     custo_total: 125.5,
+                    fabrico_id: 1,
                 }),
             });
+        });
+
+        it("deve rejeitar cliente de outro fabrico", async () => {
+            mockPrismaService.cliente.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.create(
+                    {
+                        finalizado: false,
+                        cor: "#FFFFFF",
+                        quantidade: 1,
+                        cliente_id: 99,
+                    },
+                    1,
+                ),
+            ).rejects.toThrow(NotFoundException);
         });
     });
 
     describe("findAll", () => {
-        it("deve retornar todos os pedidos", async () => {
+        it("deve retornar pedidos do fabrico", async () => {
             const pedidos = [
                 {
                     id: 1,
                     finalizado: false,
+                    fabrico_id: 1,
                 },
             ];
 
             mockPrismaService.pedido.findMany.mockResolvedValue(pedidos);
 
-            const result = await service.findAll();
+            const result = await service.findAll(1);
 
             expect(result).toEqual(pedidos);
 
-            expect(mockPrismaService.pedido.findMany).toHaveBeenCalled();
+            expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 1 },
+                include: {
+                    cliente: true,
+                    fichas_tecnicas: {
+                        include: { fichas_etapas: true },
+                    },
+                },
+            });
         });
     });
 
@@ -107,40 +130,46 @@ describe("PedidoService", () => {
             const pedido = {
                 id: 1,
                 finalizado: false,
+                fabrico_id: 1,
             };
 
-            mockPrismaService.pedido.findUnique.mockResolvedValue(pedido);
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
 
-            const result = await service.getById(1);
+            const result = await service.getById(1, 1);
 
             expect(result).toEqual(pedido);
+            expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 1 },
+            });
         });
 
-        it("deve lançar NotFoundException se pedido não existir", async () => {
-            mockPrismaService.pedido.findUnique.mockResolvedValue(null);
+        it("deve lançar NotFoundException se pedido não existir no fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
-            await expect(service.getById(1)).rejects.toThrow(NotFoundException);
+            await expect(service.getById(1, 1)).rejects.toThrow(NotFoundException);
         });
     });
 
     describe("findByCliente", () => {
-        it("deve retornar pedidos de um cliente", async () => {
+        it("deve retornar pedidos de um cliente no fabrico", async () => {
             const pedidos = [
                 {
                     id: 1,
                     cliente_id: 7,
+                    fabrico_id: 1,
                 },
             ];
 
             mockPrismaService.pedido.findMany.mockResolvedValue(pedidos);
 
-            const result = await service.findAllCliente(7);
+            const result = await service.findAllCliente(7, 1);
 
             expect(result).toEqual(pedidos);
 
             expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
                 where: {
                     cliente_id: 7,
+                    fabrico_id: 1,
                 },
             });
         });
@@ -153,8 +182,9 @@ describe("PedidoService", () => {
                 finalizado: true,
             };
 
-            mockPrismaService.pedido.findUnique.mockResolvedValue({
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
                 id: 1,
+                fabrico_id: 1,
             });
 
             mockPrismaService.pedido.update.mockResolvedValue(pedidoAtualizado);
@@ -179,8 +209,8 @@ describe("PedidoService", () => {
             });
         });
 
-        it("deve lançar erro se pedido não existir", async () => {
-            mockPrismaService.pedido.findUnique.mockResolvedValue(null);
+        it("deve lançar erro se pedido não existir no fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
             await expect(
                 service.update(
@@ -193,12 +223,13 @@ describe("PedidoService", () => {
             ).rejects.toThrow(NotFoundException);
         });
 
-        it("deve lançar erro se cliente não existir", async () => {
-            mockPrismaService.pedido.findUnique.mockResolvedValue({
+        it("deve lançar erro se cliente não existir no fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
                 id: 1,
+                fabrico_id: 1,
             });
 
-            mockPrismaService.cliente.findUnique.mockResolvedValue(null);
+            mockPrismaService.cliente.findFirst.mockResolvedValue(null);
 
             await expect(
                 service.update(
@@ -216,13 +247,14 @@ describe("PedidoService", () => {
         it("deve remover um pedido", async () => {
             const pedido = {
                 id: 1,
+                fabrico_id: 1,
             };
 
-            mockPrismaService.pedido.findUnique.mockResolvedValue(pedido);
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
 
             mockPrismaService.pedido.delete.mockResolvedValue(pedido);
 
-            const result = await service.delete(1);
+            const result = await service.delete(1, 1);
 
             expect(result).toEqual("O pedido com o id 1 foi deletado com sucesso");
 
@@ -233,10 +265,10 @@ describe("PedidoService", () => {
             });
         });
 
-        it("deve lançar erro se pedido não existir", async () => {
-            mockPrismaService.pedido.findUnique.mockResolvedValue(null);
+        it("deve lançar erro se pedido não existir no fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
-            await expect(service.delete(1)).rejects.toThrow(NotFoundException);
+            await expect(service.delete(1, 1)).rejects.toThrow(NotFoundException);
         });
     });
 });

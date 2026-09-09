@@ -78,12 +78,22 @@ export class PedidoService {
         }
     }
 
-    async findAll() {
-        return this.prisma.pedido.findMany();
+    async findAll(fabricoId: number) {
+        return this.prisma.pedido.findMany({
+            where: { fabrico_id: fabricoId },
+            include: {
+                cliente: true,
+                fichas_tecnicas: {
+                    include: { fichas_etapas: true },
+                },
+            },
+        });
     }
 
-    async getById(id: number) {
-        const pedido = await this.prisma.pedido.findUnique({ where: { id } });
+    async getById(id: number, fabricoId: number) {
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id, fabrico_id: fabricoId },
+        });
 
         if (!pedido) {
             throw new NotFoundException("Pedido não encontrado!");
@@ -92,18 +102,21 @@ export class PedidoService {
         return pedido;
     }
 
-    async delete(id: number) {
-        const pedido = await this.prisma.pedido.findUnique({ where: { id } });
-        if (pedido) {
-            await this.prisma.pedido.delete({ where: { id } });
-            return `O pedido com o id ${id} foi deletado com sucesso`;
-        } else {
+    async delete(id: number, fabricoId: number) {
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id, fabrico_id: fabricoId },
+        });
+
+        if (!pedido) {
             throw new NotFoundException("Pedido não encontrado!");
         }
+
+        await this.prisma.pedido.delete({ where: { id: pedido.id } });
+        return `O pedido com o id ${id} foi deletado com sucesso`;
     }
 
     async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
-        const pedido = await this.prisma.pedido.findUnique({
+        const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
 
@@ -112,8 +125,8 @@ export class PedidoService {
         }
 
         if (data.cliente_id !== undefined && data.cliente_id !== null) {
-            const cliente = await this.prisma.cliente.findUnique({
-                where: { id: data.cliente_id },
+            const cliente = await this.prisma.cliente.findFirst({
+                where: { id: data.cliente_id, fabrico_id: fabricoId },
             });
 
             if (!cliente) {
@@ -122,7 +135,7 @@ export class PedidoService {
         }
 
         return await this.prisma.pedido.update({
-            where: { id },
+            where: { id: pedido.id },
             data: {
                 finalizado: data.finalizado,
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
@@ -134,24 +147,10 @@ export class PedidoService {
         });
     }
 
-    async findAllFabrico(fabricoId: number) {
-        const pedidos = await this.prisma.pedido.findMany({
-            where: { fabrico_id: fabricoId },
-            include: {
-                cliente: true,
-                fichas_tecnicas: {
-                    include: { fichas_etapas: true },
-                },
-            },
+    async findAllCliente(cliente_id: number, fabricoId: number) {
+        return this.prisma.pedido.findMany({
+            where: { cliente_id, fabrico_id: fabricoId },
         });
-        return pedidos;
-    }
-
-    async findAllCliente(cliente_id: number) {
-        const pedidos = await this.prisma.pedido.findMany({
-            where: { cliente_id: cliente_id },
-        });
-        return pedidos;
     }
 
     private async getCorPaleta(fabricoId: number): Promise<string> {
