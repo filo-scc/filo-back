@@ -54,8 +54,6 @@ describe("TipoProdutoService", () => {
     });
 
     it("bloqueia consulta de tipos de outro fabrico", async () => {
-        await expect(service.findAllByFabrico(20, user)).rejects.toThrow(
-            "Fabrico não encontrado",
-        );
+        await expect(service.findAllByFabrico(20, user)).rejects.toThrow("Fabrico não encontrado");
     });
 });

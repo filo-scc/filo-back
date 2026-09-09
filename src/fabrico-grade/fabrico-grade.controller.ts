@@ -15,6 +15,8 @@ import { UpdateFabricoGradeDto } from "./dto/update-fabrico-grade.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
@@ -23,33 +25,40 @@ export class FabricoGradeController {
     constructor(private readonly fabricoGradeService: FabricoGradeService) {}
 
     @Post()
-    create(@Body() data: CreateFabricoGradeDto) {
-        return this.fabricoGradeService.create(data);
+    create(@Body() data: CreateFabricoGradeDto, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.fabricoGradeService.create(data, user);
     }
 
     @Get()
-    findAll() {
-        return this.fabricoGradeService.findAll();
+    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.fabricoGradeService.findAllByFabricoID(user.fabrico_id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
-    findAllByFabricoID(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.fabricoGradeService.findAllByFabricoID(fabrico_id);
+    findAllByFabricoID(
+        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.fabricoGradeService.findAllByFabricoID(fabrico_id, user);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.fabricoGradeService.findOne(id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.fabricoGradeService.findOne(id, user);
     }
 
     @Put(":id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateFabricoGradeDto) {
-        return this.fabricoGradeService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateFabricoGradeDto,
+        @CurrentUser() user: BusinessAuthenticatedUser,
+    ) {
+        return this.fabricoGradeService.update(id, data, user);
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.fabricoGradeService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
+        return this.fabricoGradeService.remove(id, user);
     }
 }

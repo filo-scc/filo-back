@@ -7,6 +7,7 @@ import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
 
 describe("FabricoGradeService", () => {
     let service: FabricoGradeService;
+    const user = { fabrico_id: 1 } as any;
 
     const mockPrismaService = {
         fabrico: {
@@ -146,7 +147,7 @@ describe("FabricoGradeService", () => {
         it("deve retornar todas as grades ativas de um fabrico específico", async () => {
             mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
 
-            const resultado = await service.findAllByFabricoID(1);
+            const resultado = await service.findAllByFabricoID(1, user);
 
             expect(resultado).toEqual([mockFabricoGrade]);
             expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
@@ -154,10 +155,16 @@ describe("FabricoGradeService", () => {
             );
         });
 
+        it("deve bloquear acesso a outro fabrico do mesmo usuário", async () => {
+            await expect(service.findAllByFabricoID(2, user)).rejects.toThrow(
+                "Fabrico não encontrado",
+            );
+        });
+
         it("deve lançar BadRequestException em caso de erro do Prisma", async () => {
             mockPrismaService.fabricoGrade.findMany.mockRejectedValue(mockPrismaValidationError);
 
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow(BadRequestException);
+            await expect(service.findAllByFabricoID(1, user)).rejects.toThrow(BadRequestException);
         });
     });
     //validado

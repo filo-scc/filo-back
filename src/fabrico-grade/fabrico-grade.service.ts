@@ -8,12 +8,19 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
 import { UpdateFabricoGradeDto } from "./dto/update-fabrico-grade.dto";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class FabricoGradeService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async create(data: CreateFabricoGradeDto) {
+    async create(data: CreateFabricoGradeDto, user?: BusinessAuthenticatedUser) {
+        const fabricoId = user?.fabrico_id ?? Number(data.fabrico_id);
+
+        if (user && Number(data.fabrico_id) !== user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
         const fabrico = await this.prisma.fabrico.findUnique({
             where: { id: Number(data.fabrico_id) },
         });
@@ -28,7 +35,7 @@ export class FabricoGradeService {
 
         const existente = await this.prisma.fabricoGrade.findFirst({
             where: {
-                fabrico_id: Number(data.fabrico_id),
+                fabrico_id: fabricoId,
                 grade_id: Number(data.grade_id),
             },
         });
@@ -40,7 +47,7 @@ export class FabricoGradeService {
         try {
             const link = await this.prisma.fabricoGrade.create({
                 data: {
-                    fabrico_id: Number(data.fabrico_id),
+                    fabrico_id: fabricoId,
                     grade_id: Number(data.grade_id),
                     ativo: data.ativo ?? true,
                 },
@@ -99,7 +106,11 @@ export class FabricoGradeService {
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
+    async findAllByFabricoID(fabrico_id: number, user?: BusinessAuthenticatedUser) {
+        if (user && Number(fabrico_id) !== user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
         try {
             return await this.prisma.fabricoGrade.findMany({
                 where: {
@@ -137,7 +148,7 @@ export class FabricoGradeService {
         }
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, user?: BusinessAuthenticatedUser) {
         try {
             const link = await this.prisma.fabricoGrade.findUnique({
                 where: { id },
@@ -167,6 +178,10 @@ export class FabricoGradeService {
                 throw new NotFoundException("Vínculo fabrico-grade não encontrado");
             }
 
+            if (user && link.fabrico_id !== user.fabrico_id) {
+                throw new NotFoundException("Fabrico não encontrado");
+            }
+
             return link;
         } catch (error) {
             if (error instanceof Prisma.PrismaClientValidationError) {
@@ -176,8 +191,8 @@ export class FabricoGradeService {
         }
     }
 
-    async update(id: number, data: UpdateFabricoGradeDto) {
-        await this.findOne(id);
+    async update(id: number, data: UpdateFabricoGradeDto, user?: BusinessAuthenticatedUser) {
+        await this.findOne(id, user);
 
         try {
             const link = await this.prisma.fabricoGrade.update({
@@ -203,8 +218,8 @@ export class FabricoGradeService {
         }
     }
 
-    async remove(id: number) {
-        await this.findOne(id);
+    async remove(id: number, user?: BusinessAuthenticatedUser) {
+        await this.findOne(id, user);
 
         try {
             const link = await this.prisma.fabricoGrade.update({
