@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { AviamentoService } from "./aviamento.service";
 
@@ -16,7 +16,7 @@ describe("AviamentoService", () => {
             aviamento: {
                 create: jest.fn(),
                 findMany: jest.fn(),
-                findUnique: jest.fn(),
+                findFirst: jest.fn(),
                 delete: jest.fn(),
                 update: jest.fn(),
             },
@@ -46,7 +46,7 @@ describe("AviamentoService", () => {
                         unidade_de_medida: "UNIDADE",
                         custo_unitario: 10,
                     },
-                    user,
+                    user.fabrico_id,
                 ),
             ).resolves.toEqual({
                 id: 1,
@@ -65,7 +65,7 @@ describe("AviamentoService", () => {
                     unidade_de_medida: "METRO",
                     custo_unitario: 12.5,
                 },
-                user,
+                user.fabrico_id,
             );
 
             expect(prisma.aviamento.create).toHaveBeenCalledWith({
@@ -76,6 +76,24 @@ describe("AviamentoService", () => {
                     custo_unitario: 12.5,
                 },
             });
+        });
+
+        it("rejeita alteração de fabrico divergente do informado", async () => {
+            await expect(
+                service.create(
+                    {
+                        nome: "botão",
+                        fabrico_id: 5,
+                        unidade_de_medida: "UNIDADE",
+                        custo_unitario: 10,
+                    },
+                    10,
+                ),
+            ).rejects.toThrow(
+                new BadRequestException("Não é permitido alterar o fabrico do aviamento"),
+            );
+
+            expect(prisma.aviamento.create).not.toHaveBeenCalled();
         });
 
         it("rejeita fabrico inexistente", async () => {
@@ -89,9 +107,9 @@ describe("AviamentoService", () => {
                         unidade_de_medida: "UNIDADE",
                         custo_unitario: 10,
                     },
-                    user,
+                    user.fabrico_id,
                 ),
-            ).rejects.toThrow(new NotFoundException("Fabrico não encontrado!"));
+            ).rejects.toThrow(new NotFoundException("Fabrico não encontrado"));
 
             expect(prisma.aviamento.create).not.toHaveBeenCalled();
         });
@@ -113,7 +131,7 @@ describe("AviamentoService", () => {
                         unidade_de_medida: "UNIDADE",
                         custo_unitario: 10,
                     },
-                    user,
+                    user.fabrico_id,
                 ),
             ).rejects.toThrow(
                 new ConflictException("Já existe um aviamento com este nome para este fabrico"),
@@ -135,7 +153,7 @@ describe("AviamentoService", () => {
                         unidade_de_medida: "UNIDADE",
                         custo_unitario: 10,
                     },
-                    user,
+                    user.fabrico_id,
                 ),
             ).rejects.toBe(error);
         });
@@ -148,34 +166,43 @@ describe("AviamentoService", () => {
             await expect(service.findAll(user)).resolves.toEqual([{ id: 1 }]);
         });
 
-        it("chama findMany sem filtros", async () => {
+        it("chama findMany filtrando por fabrico_id e ordenando por nome", async () => {
             prisma.aviamento.findMany.mockResolvedValue([]);
 
             await service.findAll(user);
 
-            expect(prisma.aviamento.findMany).toHaveBeenCalledWith({ where: { fabrico_id: 10 } });
+            expect(prisma.aviamento.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10 },
+                orderBy: { nome: "asc" },
+            });
+        });
+
+        it("lança exceção caso usuário não possua fabrico_id", async () => {
+            await expect(service.findAll({} as any)).rejects.toThrow(
+                new NotFoundException("Fabrico não encontrado"),
+            );
         });
     });
 
     describe("getById", () => {
         it("busca aviamento existente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
 
             await expect(service.getById(1, user)).resolves.toEqual({ id: 1, fabrico_id: 10 });
         });
 
-        it("consulta o prisma pelo id informado", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 5, fabrico_id: 10 });
+        it("consulta o prisma com findFirst incluindo id e fabrico_id", async () => {
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 5, fabrico_id: 10 });
 
             await service.getById(5, user);
 
-            expect(prisma.aviamento.findUnique).toHaveBeenCalledWith({
-                where: { id: 5 },
+            expect(prisma.aviamento.findFirst).toHaveBeenCalledWith({
+                where: { id: 5, fabrico_id: 10 },
             });
         });
 
         it("rejeita aviamento inexistente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue(null);
+            prisma.aviamento.findFirst.mockResolvedValue(null);
 
             await expect(service.getById(1, user)).rejects.toThrow(
                 new NotFoundException("Aviamento não encontrado"),
@@ -184,20 +211,27 @@ describe("AviamentoService", () => {
     });
 
     describe("findAllFabrico", () => {
-        it("lista aviamentos por fabrico", async () => {
+        it("lista aviamentos por fabrico com ordenação", async () => {
             prisma.aviamento.findMany.mockResolvedValue([{ id: 1 }]);
 
             await expect(service.findAllFabrico(10, user)).resolves.toEqual([{ id: 1 }]);
 
             expect(prisma.aviamento.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 10 },
+                orderBy: { nome: "asc" },
             });
+        });
+
+        it("rejeita consulta de fabrico diferente do usuário", async () => {
+            await expect(service.findAllFabrico(99, user)).rejects.toThrow(
+                new NotFoundException("Fabrico não encontrado"),
+            );
         });
     });
 
     describe("delete", () => {
         it("remove aviamento existente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
             prisma.aviamento.delete.mockResolvedValue({ id: 1 });
 
             await expect(service.delete(1, user)).resolves.toBe(
@@ -206,7 +240,7 @@ describe("AviamentoService", () => {
         });
 
         it("chama delete com o id correto", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
             prisma.aviamento.delete.mockResolvedValue({ id: 1 });
 
             await service.delete(1, user);
@@ -217,7 +251,7 @@ describe("AviamentoService", () => {
         });
 
         it("rejeita remoção de aviamento inexistente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue(null);
+            prisma.aviamento.findFirst.mockResolvedValue(null);
 
             await expect(service.delete(1, user)).rejects.toThrow(
                 new NotFoundException("Aviamento não encontrado"),
@@ -229,7 +263,11 @@ describe("AviamentoService", () => {
 
     describe("update", () => {
         it("atualiza aviamento existente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                custo_unitario: 5,
+            });
 
             prisma.aviamento.update.mockResolvedValue({
                 id: 1,
@@ -250,8 +288,8 @@ describe("AviamentoService", () => {
             });
         });
 
-        it("envia os dados corretamente ao prisma", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({
+        it("envia os dados corretamente ao prisma ignorando alteração de fabrico_id", async () => {
+            prisma.aviamento.findFirst.mockResolvedValue({
                 id: 1,
                 fabrico_id: 10,
                 custo_unitario: 5,
@@ -262,7 +300,7 @@ describe("AviamentoService", () => {
                 1,
                 {
                     nome: "Elástico",
-                    fabrico_id: 5,
+                    fabrico_id: 10,
                     unidade_de_medida: "METRO",
                     custo_unitario: 8,
                 },
@@ -273,15 +311,30 @@ describe("AviamentoService", () => {
                 where: { id: 1 },
                 data: {
                     nome: "Elástico",
-                    fabrico_id: 10,
                     unidade_de_medida: "METRO",
                     custo_unitario: 8,
+                    fabrico_id: 10,
                 },
             });
         });
 
+        it("rejeita se o fabrico_id informado no DTO for diferente do usuário", async () => {
+            await expect(
+                service.update(
+                    1,
+                    {
+                        nome: "zíper",
+                        fabrico_id: 99,
+                    },
+                    user,
+                ),
+            ).rejects.toThrow(
+                new BadRequestException("Não é permitido alterar o fabrico do aviamento"),
+            );
+        });
+
         it("invalida custos positivos persistidos quando o custo unitário muda", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({
+            prisma.aviamento.findFirst.mockResolvedValue({
                 id: 1,
                 fabrico_id: 10,
                 custo_unitario: 5,
@@ -302,7 +355,7 @@ describe("AviamentoService", () => {
         });
 
         it("preserva custo zero explícito ao mudar o custo unitário", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({
+            prisma.aviamento.findFirst.mockResolvedValue({
                 id: 1,
                 fabrico_id: 10,
                 custo_unitario: 5,
@@ -320,7 +373,7 @@ describe("AviamentoService", () => {
         });
 
         it("rejeita atualização de aviamento inexistente", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue(null);
+            prisma.aviamento.findFirst.mockResolvedValue(null);
 
             await expect(
                 service.update(
@@ -336,7 +389,7 @@ describe("AviamentoService", () => {
         });
 
         it("traduz nome duplicado ao atualizar", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
 
             prisma.aviamento.update.mockRejectedValue(
                 new PrismaClientKnownRequestError("duplicado", {
@@ -359,7 +412,7 @@ describe("AviamentoService", () => {
         });
 
         it("propaga erros inesperados", async () => {
-            prisma.aviamento.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.aviamento.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
 
             const error = new Error("Erro interno");
 

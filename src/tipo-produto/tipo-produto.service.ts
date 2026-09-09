@@ -1,44 +1,56 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
-import { CreateTipoProdutoDto } from "./dto/create-tipo-produto.dto";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
+import { PrismaService } from "src/prisma/prisma.service";
+import { CreateTipoProdutoDto } from "./dto/create-tipo-produto.dto";
 
 @Injectable()
 export class TipoProdutoService {
     constructor(private prisma: PrismaService) {}
 
-    async create(data: CreateTipoProdutoDto, user: BusinessAuthenticatedUser) {
-        const fabricoId = user.fabrico_id;
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico do tipo de produto");
+        }
+    }
+
+    async create(data: CreateTipoProdutoDto & { fabrico_id?: number }, userFabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosCreate } = data;
 
         try {
             return await this.prisma.tipoProduto.create({
                 data: {
-                    nome: data.nome,
-                    fabrico_id: fabricoId,
+                    ...dadosCreate,
+                    fabrico_id: userFabricoId,
                 },
             });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Já existe um tipo de produto com esse nome.");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um tipo de produto com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
-
             throw error;
         }
     }
 
-    async findAllByFabrico(fabricoId: number, user?: BusinessAuthenticatedUser) {
-        if (user && fabricoId !== user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
+    async findAllByFabrico(fabricoId: number) {
         return this.prisma.tipoProduto.findMany({
             where: {
-                fabrico_id: user?.fabrico_id ?? fabricoId,
+                fabrico_id: fabricoId,
             },
-            orderBy: {
-                nome: "asc",
-            },
+            orderBy: { nome: "asc" },
         });
     }
 }

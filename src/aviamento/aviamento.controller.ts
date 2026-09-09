@@ -3,6 +3,7 @@ import {
     Controller,
     Delete,
     Get,
+    NotFoundException,
     Param,
     ParseIntPipe,
     Post,
@@ -17,7 +18,7 @@ import { RolesGuard } from "src/common/guards/roles.guard";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { UpdateAviamentoDto } from "./dto/update-aviamento.dto";
 import { CurrentUser } from "src/common/decorators/current-user.decorator";
-import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
@@ -25,40 +26,48 @@ import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-use
 export class AviamentoController {
     constructor(private readonly aviamentoService: AviamentoService) {}
 
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        return user.fabrico_id;
+    }
+
     @Post()
-    create(@Body() data: CreateAviamentoDto, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.aviamentoService.create(data, user);
+    create(@Body() data: CreateAviamentoDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.aviamentoService.create(data, this.getFabricoId(user));
     }
 
     @Get()
-    findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
+    findAll(@CurrentUser() user: AuthenticatedUser) {
         return this.aviamentoService.findAll(user);
     }
 
-    @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.aviamentoService.getById(id, user);
-    }
-
-    @Get("/fabrico/:fabrico_id")
+    @Get("fabrico/:fabrico_id")
     findAllFabrico(
         @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
-        @CurrentUser() user: BusinessAuthenticatedUser,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
         return this.aviamentoService.findAllFabrico(fabrico_id, user);
     }
 
-    @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.aviamentoService.delete(id, user);
+    @Get(":id")
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.aviamentoService.getById(id, user);
     }
 
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdateAviamentoDto,
-        @CurrentUser() user: BusinessAuthenticatedUser,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
         return this.aviamentoService.update(id, data, user);
+    }
+
+    @Delete(":id")
+    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.aviamentoService.delete(id, user);
     }
 }

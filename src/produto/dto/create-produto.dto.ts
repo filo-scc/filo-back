@@ -40,6 +40,10 @@ export class CreateProdutoDto {
 
     @IsNumber()
     @IsOptional()
+    fabrico_id?: number;
+
+    @IsNumber()
+    @IsOptional()
     grade_versao_id?: number;
 
     @IsNumber()

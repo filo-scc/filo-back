@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsString } from "class-validator";
+import { IsEnum, IsNumber, IsOptional, IsString } from "class-validator";
 import { UnidadeDeMedida } from "@prisma/client";
 
 export class CreateTecidosDto {
@@ -11,4 +11,7 @@ export class CreateTecidosDto {
     @IsEnum(UnidadeDeMedida)
     unidade_de_medida: UnidadeDeMedida;
 
+    @IsOptional()
+    @IsNumber()
+    fabrico_id?: number;
 }

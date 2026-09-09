@@ -5,22 +5,29 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "src/prisma/prisma.service";
 import { CreateCorDto } from "./dto/create-cor.dto";
 import { UpdateCorDto } from "./dto/update-cor.dto";
 import { normalizeText } from "src/common/utils/string-normalizer";
-import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class CorService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async create(data: CreateCorDto, user: BusinessAuthenticatedUser) {
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico da cor");
+        }
+    }
+
+    async create(data: CreateCorDto, userFabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
         const nome = normalizeText(data.nome);
 
         const existente = await this.prisma.cor.findFirst({
             where: {
-                fabrico_id: user.fabrico_id,
+                fabrico_id: userFabricoId,
                 nome: {
                     equals: nome,
                     mode: Prisma.QueryMode.insensitive,
@@ -32,14 +39,14 @@ export class CorService {
             throw new ConflictException("Já existe uma cor com esse nome nesse fabrico");
         }
 
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosCreate } = data;
+
         try {
             const cor = await this.prisma.cor.create({
                 data: {
+                    ...dadosCreate,
                     nome,
-                    codigo_hex: data.codigo_hex,
-                    fabrico_id: user.fabrico_id,
-                    tipo: data.tipo,
-                    foto: data.foto,
+                    fabrico_id: userFabricoId,
                 },
             });
 
@@ -48,91 +55,81 @@ export class CorService {
                 data: cor,
             };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Dados inválidos");
-            }
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Cor já cadastrada");
-            }
-            throw error;
-        }
-    }
-
-    async findAll(user: BusinessAuthenticatedUser) {
-        try {
-            return this.prisma.cor.findMany({
-                where: { fabrico_id: user.fabrico_id },
-                orderBy: { nome: "asc" },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe uma cor com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number, user: BusinessAuthenticatedUser) {
-        if (fabrico_id !== user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        try {
-            return this.prisma.cor.findMany({
-                where: { fabrico_id: Number(fabrico_id) },
-                orderBy: { nome: "asc" },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
-            }
-            throw error;
-        }
+    async findAll(userFabricoId: number) {
+        return this.prisma.cor.findMany({
+            where: { fabrico_id: userFabricoId },
+            orderBy: { nome: "asc" },
+        });
     }
 
-    async findOne(id: number, user: BusinessAuthenticatedUser) {
-        try {
-            const cor = await this.prisma.cor.findUnique({ where: { id } });
-            if (!cor || cor.fabrico_id !== user.fabrico_id) {
-                throw new NotFoundException("Cor não encontrada");
-            }
-            return cor;
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
-            }
-            throw error;
-        }
+    async findAllByFabricoID(fabricoId: number) {
+        return this.prisma.cor.findMany({
+            where: { fabrico_id: fabricoId },
+            orderBy: { nome: "asc" },
+        });
     }
 
-    async update(id: number, data: UpdateCorDto, user: BusinessAuthenticatedUser) {
-        const corAtual = await this.findOne(id, user);
-        const nome = data.nome ? normalizeText(data.nome) : corAtual.nome;
-        const codigo_hex = data.codigo_hex ?? corAtual.codigo_hex;
-        const fabrico_id = corAtual.fabrico_id;
-
-        const existente = await this.prisma.cor.findFirst({
+    async findOne(id: number, userFabricoId?: number) {
+        const cor = await this.prisma.cor.findFirst({
             where: {
-                id: { not: id },
-                fabrico_id: Number(fabrico_id),
-                nome: {
-                    equals: nome,
-                    mode: Prisma.QueryMode.insensitive,
-                },
+                id,
+                ...(userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {}),
             },
         });
 
-        if (existente) {
-            throw new ConflictException("Já existe uma cor com esse nome nesse fabrico");
+        if (!cor) {
+            throw new NotFoundException("Cor não encontrada");
         }
+
+        return cor;
+    }
+
+    async update(id: number, data: UpdateCorDto, userFabricoId: number) {
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
+        const corAtual = await this.findOne(id, userFabricoId);
+        const nome = data.nome ? normalizeText(data.nome) : corAtual.nome;
+
+        if (data.nome) {
+            const existente = await this.prisma.cor.findFirst({
+                where: {
+                    id: { not: id },
+                    fabrico_id: userFabricoId,
+                    nome: {
+                        equals: nome,
+                        mode: Prisma.QueryMode.insensitive,
+                    },
+                },
+            });
+
+            if (existente) {
+                throw new ConflictException("Já existe uma cor com esse nome nesse fabrico");
+            }
+        }
+
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosUpdate } = data;
 
         try {
             const cor = await this.prisma.cor.update({
-                where: { id },
+                where: { id: corAtual.id },
                 data: {
-                    nome,
-                    codigo_hex,
-                    fabrico_id: Number(fabrico_id),
+                    ...dadosUpdate,
+                    ...(data.nome ? { nome } : {}),
+                    fabrico_id: corAtual.fabrico_id,
                 },
             });
 
@@ -141,21 +138,31 @@ export class CorService {
                 data: cor,
             };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Dados inválidos");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe uma cor com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async remove(id: number, user: BusinessAuthenticatedUser) {
-        await this.findOne(id, user);
+    async remove(id: number, userFabricoId: number) {
+        const cor = await this.findOne(id, userFabricoId);
 
         try {
-            const cor = await this.prisma.cor.delete({ where: { id } });
+            const corDeletada = await this.prisma.cor.delete({
+                where: { id: cor.id },
+            });
+
             return {
                 message: "Cor removida com sucesso",
-                data: cor,
+                data: corDeletada,
             };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -164,9 +171,6 @@ export class CorService {
                         "Não foi possível remover a cor porque ela está em uso",
                     );
                 }
-            }
-            if (error instanceof Prisma.PrismaClientValidationError) {
-                throw new BadRequestException("Parâmetros inválidos");
             }
             throw error;
         }
