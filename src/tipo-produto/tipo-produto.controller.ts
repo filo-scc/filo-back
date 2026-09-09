@@ -15,11 +15,11 @@ export class TipoProdutoController {
 
     @Post()
     create(@Body() data: CreateTipoProdutoDto, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.tipoProdutoService.create(data, user.fabrico_id);
+        return this.tipoProdutoService.create(data, user);
     }
 
     @Get()
     findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.tipoProdutoService.findAllByFabrico(user.fabrico_id);
+        return this.tipoProdutoService.findAllByFabrico(user.fabrico_id, user);
     }
 }
