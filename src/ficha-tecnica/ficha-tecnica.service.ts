@@ -90,6 +90,23 @@ export class FichaTecnicaService {
             throw new NotFoundException("Produto não encontrado para este fabrico");
         }
 
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id: data.pedido_id, fabrico_id: fabricoId },
+            select: { id: true },
+        });
+        if (!pedido) {
+            throw new NotFoundException("Pedido não encontrado para este fabrico");
+        }
+
+        if (data.etapa_atual_id) {
+            const etapa_atual = await this.etapaService.getById(Number(data.etapa_atual_id));
+            if (etapa_atual.fabrico_id !== fabricoId) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
+                );
+            }
+        }
+
         if (!produto.grade_versao_id) {
             throw new BadRequestException("Produto não possui grade definida");
         }
@@ -145,10 +162,10 @@ export class FichaTecnicaService {
         });
     }
 
-    async findAllByFabricoId(id: number) {
+    async findAllByFabricoId(fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { fabrico_id: Number(id), concluida: false },
+                where: { fabrico_id: Number(fabrico_id), concluida: false },
                 include: {
                     produto: {
                         include: {
@@ -200,10 +217,10 @@ export class FichaTecnicaService {
         }
     }
 
-    async findAllByEtapaId(id: number) {
+    async findAllByEtapaId(id: number, fabrico_id: number) {
         try {
-            return this.prisma.fichaTecnica.findMany({
-                where: { etapa_atual_id: Number(id) },
+            return await this.prisma.fichaTecnica.findMany({
+                where: { etapa_atual_id: Number(id), fabrico_id: fabrico_id },
                 include: {
                     produto: true,
                     etapa_atual: true,
@@ -232,9 +249,9 @@ export class FichaTecnicaService {
         }
     }
 
-    async findOne(id: number) {
-        const fichaBase = await this.prisma.fichaTecnica.findUnique({
-            where: { id },
+    async findOne(id: number, fabrico_id: number) {
+        const fichaBase = await this.prisma.fichaTecnica.findFirst({
+            where: { id, fabrico_id: fabrico_id },
             select: { produto_id: true },
         });
 
@@ -242,8 +259,8 @@ export class FichaTecnicaService {
             throw new NotFoundException("ficha não encontrada");
         }
 
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id },
+        const ficha = await this.prisma.fichaTecnica.findFirst({
+            where: { id, fabrico_id: fabrico_id },
             include: {
                 produto: {
                     include: {
@@ -304,11 +321,7 @@ export class FichaTecnicaService {
     }
 
     async update(id: number, data: UpdateFichaTecnicaDto, fabricoId: number) {
-        const ficha = await this.findOne(id);
-
-        if (ficha.fabrico_id !== Number(fabricoId)) {
-            throw new NotFoundException("Ficha não encontrada");
-        }
+        const ficha = await this.findOne(id, fabricoId);
 
         if (data.produto_id && data.produto_id !== ficha.produto_id) {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
@@ -361,6 +374,15 @@ export class FichaTecnicaService {
                 where: {
                     id: novaGradeVersaoId,
                     ativo: true,
+                    grade: {
+                        ativo: true,
+                        fabrico_grades: {
+                            some: {
+                                fabrico_id: fabricoId,
+                                ativo: true,
+                            },
+                        },
+                    },
                 },
                 select: {
                     id: true,
@@ -502,8 +524,8 @@ export class FichaTecnicaService {
         });
     }
 
-    async remove(id: number) {
-        await this.findOne(id);
+    async remove(id: number, fabrico_id: number) {
+        await this.findOne(id, fabrico_id);
 
         await this.prisma.fichaTecnica.delete({
             where: { id },

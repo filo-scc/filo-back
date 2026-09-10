@@ -28,19 +28,19 @@ export class FichaTecnicaController {
         return this.fichaTecnicaService.create(data, (req as any).user.fabrico_id);
     }
 
-    @Get("/fabrico/:id")
-    findAllByFabricoId(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findAllByFabricoId(id);
+    @Get()
+    findAllByFabricoId(@Req() req: Request) {
+        return this.fichaTecnicaService.findAllByFabricoId((req as any).user.fabrico_id);
     }
 
     @Get("/etapa/:id")
-    findAllByEtapaId(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findAllByEtapaId(id);
+    findAllByEtapaId(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
+        return this.fichaTecnicaService.findAllByEtapaId(id, (req as any).user.fabrico_id);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findOne(+id);
+    findOne(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
+        return this.fichaTecnicaService.findOne(+id, (req as any).user.fabrico_id);
     }
 
     @Put(":id")
@@ -53,7 +53,7 @@ export class FichaTecnicaController {
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
+        return this.fichaTecnicaService.remove(id, (req as any).user.fabrico_id);
     }
 }
