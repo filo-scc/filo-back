@@ -24,24 +24,16 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class CorController {
     constructor(private readonly corService: CorService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
     @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(@Body() data: CreateCorDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.corService.create(data, this.getFabricoId(user));
+        return this.corService.create(data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.corService.findAll(this.getFabricoId(user));
+        return this.corService.findAll(user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -50,7 +42,7 @@ export class CorController {
         @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        const currentFabricoId = this.getFabricoId(user);
+        const currentFabricoId = user.fabrico_id;
 
         if (fabrico_id !== currentFabricoId) {
             throw new NotFoundException("Fabrico não encontrado");
@@ -62,7 +54,7 @@ export class CorController {
     @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.corService.findOne(id, this.getFabricoId(user));
+        return this.corService.findOne(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -72,12 +64,12 @@ export class CorController {
         @Body() data: UpdateCorDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.corService.update(id, data, this.getFabricoId(user));
+        return this.corService.update(id, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.corService.remove(id, this.getFabricoId(user));
+        return this.corService.remove(id, user);
     }
 }

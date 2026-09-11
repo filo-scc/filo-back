@@ -9,6 +9,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { CreateCorDto } from "./dto/create-cor.dto";
 import { UpdateCorDto } from "./dto/update-cor.dto";
 import { normalizeText } from "src/common/utils/string-normalizer";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @Injectable()
 export class CorService {
@@ -20,14 +21,25 @@ export class CorService {
         }
     }
 
-    async create(data: CreateCorDto, userFabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+    private getFabricoId(user: AuthenticatedUser) {
+        if (user.cargo === "ADMIN") {
+            throw new BadRequestException("Usuário admin não possui fabrico associado");
+        }
+        if (user.cargo === "PROPRIETARIO" || user.cargo === "GERENTE") {
+            return user.fabrico_id;
+        }
+
+        throw new BadRequestException("Cargo inválido");
+    }
+
+    async create(data: CreateCorDto, user: AuthenticatedUser) {
+        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
 
         const nome = normalizeText(data.nome);
 
         const existente = await this.prisma.cor.findFirst({
             where: {
-                fabrico_id: userFabricoId,
+                fabrico_id: this.getFabricoId(user),
                 nome: {
                     equals: nome,
                     mode: Prisma.QueryMode.insensitive,
@@ -46,7 +58,7 @@ export class CorService {
                 data: {
                     ...dadosCreate,
                     nome,
-                    fabrico_id: userFabricoId,
+                    fabrico_id: this.getFabricoId(user),
                 },
             });
 
@@ -69,9 +81,9 @@ export class CorService {
         }
     }
 
-    async findAll(userFabricoId: number) {
+    async findAll(user: AuthenticatedUser) {
         return this.prisma.cor.findMany({
-            where: { fabrico_id: userFabricoId },
+            where: { fabrico_id: this.getFabricoId(user) },
             orderBy: { nome: "asc" },
         });
     }
@@ -83,11 +95,11 @@ export class CorService {
         });
     }
 
-    async findOne(id: number, userFabricoId?: number) {
+    async findOne(id: number, user: AuthenticatedUser) {
         const cor = await this.prisma.cor.findFirst({
             where: {
                 id,
-                ...(userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {}),
+                ...(this.getFabricoId(user) !== undefined ? { fabrico_id: this.getFabricoId(user) } : {}),
             },
         });
 
@@ -98,17 +110,17 @@ export class CorService {
         return cor;
     }
 
-    async update(id: number, data: UpdateCorDto, userFabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+    async update(id: number, data: UpdateCorDto, user: AuthenticatedUser) {
+        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
 
-        const corAtual = await this.findOne(id, userFabricoId);
+        const corAtual = await this.findOne(id, user);
         const nome = data.nome ? normalizeText(data.nome) : corAtual.nome;
 
         if (data.nome) {
             const existente = await this.prisma.cor.findFirst({
                 where: {
                     id: { not: id },
-                    fabrico_id: userFabricoId,
+                    fabrico_id: this.getFabricoId(user),
                     nome: {
                         equals: nome,
                         mode: Prisma.QueryMode.insensitive,
@@ -152,8 +164,8 @@ export class CorService {
         }
     }
 
-    async remove(id: number, userFabricoId: number) {
-        const cor = await this.findOne(id, userFabricoId);
+    async remove(id: number, user: AuthenticatedUser) {
+        const cor = await this.findOne(id, user);
 
         try {
             const corDeletada = await this.prisma.cor.delete({
