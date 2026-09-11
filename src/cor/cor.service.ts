@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
@@ -21,15 +22,11 @@ export class CorService {
         }
     }
 
-    private getFabricoId(user: AuthenticatedUser) {
-        if (user.cargo === "ADMIN") {
-            throw new BadRequestException("Usuário admin não possui fabrico associado");
-        }
+    private getFabricoId(user: AuthenticatedUser): number {
         if (user.cargo === "PROPRIETARIO" || user.cargo === "GERENTE") {
             return user.fabrico_id;
         }
-
-        throw new BadRequestException("Cargo inválido");
+        throw new ForbiddenException("Cargo do usuário não permite acessar esse recurso");
     }
 
     async create(data: CreateCorDto, user: AuthenticatedUser) {
@@ -99,7 +96,9 @@ export class CorService {
         const cor = await this.prisma.cor.findFirst({
             where: {
                 id,
-                ...(this.getFabricoId(user) !== undefined ? { fabrico_id: this.getFabricoId(user) } : {}),
+                ...(this.getFabricoId(user) !== undefined
+                    ? { fabrico_id: this.getFabricoId(user) }
+                    : {}),
             },
         });
 

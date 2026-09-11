@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
@@ -8,10 +9,21 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
 import { UpdateFabricoGradeDto } from "./dto/update-fabrico-grade.dto";
+import { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @Injectable()
 export class FabricoGradeService {
     constructor(private readonly prisma: PrismaService) {}
+
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (user.cargo === "ADMIN" || user.cargo === "PROPRIETARIO" || user.cargo === "GERENTE") {
+            if (!user.fabrico_id) {
+                throw new BadRequestException("Usuário não possui um fabrico associado");
+            }
+            return user.fabrico_id;
+        }
+        throw new ForbiddenException("Cargo do usuário não permite acessar esse recurso");
+    }
 
     private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
         if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
@@ -19,8 +31,14 @@ export class FabricoGradeService {
         }
     }
 
-    async create(data: CreateFabricoGradeDto, userFabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+    async create(data: CreateFabricoGradeDto, user: AuthenticatedUser) {
+        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+            throw new ForbiddenException(
+                "Usuário não tem permissão para criar vínculo de grade com fabrico",
+            );
+        }
+
+        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
 
         const grade = await this.prisma.grade.findUnique({
             where: { id: Number(data.grade_id) },
@@ -32,7 +50,7 @@ export class FabricoGradeService {
 
         const existente = await this.prisma.fabricoGrade.findFirst({
             where: {
-                fabrico_id: userFabricoId,
+                fabrico_id: this.getFabricoId(user),
                 grade_id: Number(data.grade_id),
             },
         });
@@ -41,13 +59,13 @@ export class FabricoGradeService {
             throw new ConflictException("Essa grade já está liberada para esse fabrico");
         }
 
-        const {...dadosCreate } = data;
+        const { ...dadosCreate } = data;
 
         try {
             const link = await this.prisma.fabricoGrade.create({
                 data: {
                     ...dadosCreate,
-                    fabrico_id: userFabricoId,
+                    fabrico_id: this.getFabricoId(user),
                     grade_id: Number(data.grade_id),
                     ativo: data.ativo ?? true,
                 },
@@ -77,9 +95,12 @@ export class FabricoGradeService {
         }
     }
 
-    async findAll(userFabricoId?: number) {
+    async findAll(user: AuthenticatedUser) {
         return this.prisma.fabricoGrade.findMany({
-            where: userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {},
+            where:
+                this.getFabricoId(user) !== undefined
+                    ? { fabrico_id: this.getFabricoId(user) }
+                    : {},
             include: {
                 fabrico: true,
                 grade: {
@@ -106,10 +127,10 @@ export class FabricoGradeService {
         });
     }
 
-    async findAllByFabricoID(fabricoId: number) {
+    async findAllByFabricoID(user: AuthenticatedUser) {
         return this.prisma.fabricoGrade.findMany({
             where: {
-                fabrico_id: fabricoId,
+                fabrico_id: this.getFabricoId(user),
                 ativo: true,
             },
             include: {
@@ -137,11 +158,13 @@ export class FabricoGradeService {
         });
     }
 
-    async findOne(id: number, userFabricoId?: number) {
+    async findOne(id: number, user: AuthenticatedUser) {
         const link = await this.prisma.fabricoGrade.findFirst({
             where: {
                 id,
-                ...(userFabricoId !== undefined ? { fabrico_id: userFabricoId } : {}),
+                ...(this.getFabricoId(user) !== undefined
+                    ? { fabrico_id: this.getFabricoId(user) }
+                    : {}),
             },
             include: {
                 fabrico: true,
@@ -172,12 +195,17 @@ export class FabricoGradeService {
         return link;
     }
 
-    async update(id: number, data: UpdateFabricoGradeDto, userFabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+    async update(id: number, data: UpdateFabricoGradeDto, user: AuthenticatedUser) {
+        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+            throw new ForbiddenException(
+                "Usuário não tem permissão para criar vínculo de grade com fabrico",
+            );
+        }
+        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
 
-        const linkAtual = await this.findOne(id, userFabricoId);
+        const linkAtual = await this.findOne(id, user);
 
-        const {...dadosUpdate } = data;
+        const { ...dadosUpdate } = data;
 
         try {
             const link = await this.prisma.fabricoGrade.update({
@@ -212,8 +240,13 @@ export class FabricoGradeService {
         }
     }
 
-    async remove(id: number, userFabricoId: number) {
-        const linkAtual = await this.findOne(id, userFabricoId);
+    async remove(id: number, user: AuthenticatedUser) {
+        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+            throw new ForbiddenException(
+                "Usuário não tem permissão para criar vínculo de grade com fabrico",
+            );
+        }
+        const linkAtual = await this.findOne(id, user);
 
         try {
             const link = await this.prisma.fabricoGrade.update({

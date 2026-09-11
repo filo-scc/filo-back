@@ -1,13 +1,42 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { FabricoGradeService } from "./fabrico-grade.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CreateFabricoGradeDto } from "./dto/create-fabrico-grade.dto";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 describe("FabricoGradeService", () => {
     let service: FabricoGradeService;
-    const userFabricoId = 1;
+
+    const mockAdminUser: AuthenticatedUser = {
+        id: 1,
+        cargo: "ADMIN",
+        fabrico_id: 1,
+    } as AuthenticatedUser;
+
+    const mockGerenteUser: AuthenticatedUser = {
+        id: 2,
+        cargo: "GERENTE",
+        fabrico_id: 1,
+    } as AuthenticatedUser;
+
+    const mockUserSemFabrico: AuthenticatedUser = {
+        id: 3,
+        cargo: "ADMIN",
+        fabrico_id: undefined,
+    } as any;
+
+    const mockUserCargoInvalido: AuthenticatedUser = {
+        id: 4,
+        cargo: "VENDEDOR" as any,
+        fabrico_id: 1,
+    } as AuthenticatedUser;
 
     const mockPrismaService = {
         grade: {
@@ -56,12 +85,12 @@ describe("FabricoGradeService", () => {
     describe("create", () => {
         const createDto: CreateFabricoGradeDto = { fabrico_id: 1, grade_id: 2, ativo: true };
 
-        it("deve criar um relacionamento fabrico-grade com sucesso", async () => {
+        it("deve criar um relacionamento fabrico-grade com sucesso para ADMIN", async () => {
             mockPrismaService.grade.findUnique.mockResolvedValue(mockGrade);
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(null);
             mockPrismaService.fabricoGrade.create.mockResolvedValue(mockFabricoGrade);
 
-            const resultado = await service.create(createDto, userFabricoId);
+            const resultado = await service.create(createDto, mockAdminUser);
 
             expect(resultado).toEqual({
                 message: "Grade liberada para o fabrico com sucesso",
@@ -70,10 +99,30 @@ describe("FabricoGradeService", () => {
             expect(mockPrismaService.fabricoGrade.create).toHaveBeenCalled();
         });
 
+        it("deve lançar ForbiddenException se o usuário for GERENTE ou PROPRIETARIO", async () => {
+            await expect(service.create(createDto, mockGerenteUser)).rejects.toThrow(
+                new ForbiddenException(
+                    "Usuário não tem permissão para criar vínculo de grade com fabrico",
+                ),
+            );
+        });
+
+        it("deve lançar BadRequestException se o usuário não possuir fabrico_id", async () => {
+            await expect(service.create(createDto, mockUserSemFabrico)).rejects.toThrow(
+                new BadRequestException("Usuário não possui um fabrico associado"),
+            );
+        });
+
+        it("deve lançar ForbiddenException se o cargo não for permitido", async () => {
+            await expect(service.create(createDto, mockUserCargoInvalido)).rejects.toThrow(
+                new ForbiddenException("Cargo do usuário não permite acessar esse recurso"),
+            );
+        });
+
         it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
             const invalidDto: CreateFabricoGradeDto = { fabrico_id: 99, grade_id: 2, ativo: true };
 
-            await expect(service.create(invalidDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(invalidDto, mockAdminUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico da grade"),
             );
         });
@@ -81,7 +130,7 @@ describe("FabricoGradeService", () => {
         it("deve lançar NotFoundException se a grade não existir", async () => {
             mockPrismaService.grade.findUnique.mockResolvedValue(null);
 
-            await expect(service.create(createDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(createDto, mockAdminUser)).rejects.toThrow(
                 new NotFoundException("Grade não encontrada"),
             );
         });
@@ -90,7 +139,7 @@ describe("FabricoGradeService", () => {
             mockPrismaService.grade.findUnique.mockResolvedValue(mockGrade);
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(mockFabricoGrade);
 
-            await expect(service.create(createDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(createDto, mockAdminUser)).rejects.toThrow(
                 new ConflictException("Essa grade já está liberada para esse fabrico"),
             );
         });
@@ -100,7 +149,7 @@ describe("FabricoGradeService", () => {
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(null);
             mockPrismaService.fabricoGrade.create.mockRejectedValue(mockPrismaValidationError);
 
-            await expect(service.create(createDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(createDto, mockAdminUser)).rejects.toThrow(
                 BadRequestException,
             );
         });
@@ -115,7 +164,7 @@ describe("FabricoGradeService", () => {
             );
             mockPrismaService.fabricoGrade.create.mockRejectedValue(prismaError);
 
-            await expect(service.create(createDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(createDto, mockAdminUser)).rejects.toThrow(
                 new ConflictException("Essa relação já existe"),
             );
         });
@@ -130,34 +179,36 @@ describe("FabricoGradeService", () => {
             );
             mockPrismaService.fabricoGrade.create.mockRejectedValue(prismaError);
 
-            await expect(service.create(createDto, userFabricoId)).rejects.toThrow(
+            await expect(service.create(createDto, mockAdminUser)).rejects.toThrow(
                 new NotFoundException("Relacionamento inválido"),
             );
         });
     });
 
     describe("findAll", () => {
-        it("deve retornar todos os relacionamentos filtrando por fabrico_id se fornecido", async () => {
+        it("deve retornar todos os relacionamentos filtrando por fabrico_id do usuário", async () => {
             mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
 
-            const resultado = await service.findAll(userFabricoId);
+            const resultado = await service.findAll(mockAdminUser);
 
             expect(resultado).toEqual([mockFabricoGrade]);
             expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
-                expect.objectContaining({ where: { fabrico_id: userFabricoId } }),
+                expect.objectContaining({ where: { fabrico_id: mockAdminUser.fabrico_id } }),
             );
         });
     });
 
     describe("findAllByFabricoID", () => {
-        it("deve retornar todas as grades ativas de um fabrico específico", async () => {
+        it("deve retornar todas as grades ativas do fabrico do usuário", async () => {
             mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
 
-            const resultado = await service.findAllByFabricoID(1);
+            const resultado = await service.findAllByFabricoID(mockAdminUser);
 
             expect(resultado).toEqual([mockFabricoGrade]);
             expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
-                expect.objectContaining({ where: { fabrico_id: 1, ativo: true } }),
+                expect.objectContaining({
+                    where: { fabrico_id: mockAdminUser.fabrico_id, ativo: true },
+                }),
             );
         });
     });
@@ -166,40 +217,50 @@ describe("FabricoGradeService", () => {
         it("deve retornar um relacionamento específico pelo ID", async () => {
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(mockFabricoGrade);
 
-            const resultado = await service.findOne(10, userFabricoId);
+            const resultado = await service.findOne(10, mockAdminUser);
 
             expect(resultado).toEqual(mockFabricoGrade);
             expect(mockPrismaService.fabricoGrade.findFirst).toHaveBeenCalledWith(
-                expect.objectContaining({ where: { id: 10, fabrico_id: userFabricoId } }),
+                expect.objectContaining({
+                    where: { id: 10, fabrico_id: mockAdminUser.fabrico_id },
+                }),
             );
         });
 
         it("deve lançar NotFoundException se o relacionamento não for encontrado", async () => {
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(null);
 
-            await expect(service.findOne(99, userFabricoId)).rejects.toThrow(
+            await expect(service.findOne(99, mockAdminUser)).rejects.toThrow(
                 new NotFoundException("Vínculo fabrico-grade não encontrado"),
             );
         });
     });
 
     describe("update", () => {
-        it("deve atualizar os dados do relacionamento com sucesso", async () => {
+        it("deve atualizar os dados do relacionamento com sucesso para ADMIN", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
             mockPrismaService.fabricoGrade.update.mockResolvedValue({
                 ...mockFabricoGrade,
                 ativo: false,
             });
 
-            const resultado = await service.update(10, { ativo: false }, userFabricoId);
+            const resultado = await service.update(10, { ativo: false }, mockAdminUser);
 
             expect(resultado.message).toEqual("Vínculo atualizado com sucesso");
             expect(resultado.data.ativo).toBe(false);
             expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalled();
         });
 
+        it("deve lançar ForbiddenException se o usuário for GERENTE ou PROPRIETARIO", async () => {
+            await expect(service.update(10, { ativo: false }, mockGerenteUser)).rejects.toThrow(
+                new ForbiddenException(
+                    "Usuário não tem permissão para criar vínculo de grade com fabrico",
+                ),
+            );
+        });
+
         it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
-            await expect(service.update(10, { fabrico_id: 99 }, userFabricoId)).rejects.toThrow(
+            await expect(service.update(10, { fabrico_id: 99 }, mockAdminUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico da grade"),
             );
         });
@@ -208,7 +269,7 @@ describe("FabricoGradeService", () => {
             jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
             mockPrismaService.fabricoGrade.update.mockRejectedValue(mockPrismaValidationError);
 
-            await expect(service.update(10, { ativo: false }, userFabricoId)).rejects.toThrow(
+            await expect(service.update(10, { ativo: false }, mockAdminUser)).rejects.toThrow(
                 BadRequestException,
             );
         });
@@ -218,7 +279,7 @@ describe("FabricoGradeService", () => {
                 new NotFoundException("Vínculo fabrico-grade não encontrado"),
             );
 
-            await expect(service.update(99, { ativo: false }, userFabricoId)).rejects.toThrow(
+            await expect(service.update(99, { ativo: false }, mockAdminUser)).rejects.toThrow(
                 NotFoundException,
             );
             expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
@@ -226,14 +287,14 @@ describe("FabricoGradeService", () => {
     });
 
     describe("remove", () => {
-        it("deve desativar a grade para o fabrico", async () => {
+        it("deve desativar a grade para o fabrico para ADMIN", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
             mockPrismaService.fabricoGrade.update.mockResolvedValue({
                 ...mockFabricoGrade,
                 ativo: false,
             });
 
-            const resultado = await service.remove(10, userFabricoId);
+            const resultado = await service.remove(10, mockAdminUser);
 
             expect(resultado.message).toEqual("Grade desativada para o fabrico com sucesso");
             expect(resultado.data.ativo).toBe(false);
@@ -245,11 +306,19 @@ describe("FabricoGradeService", () => {
             );
         });
 
+        it("deve lançar ForbiddenException se o usuário for GERENTE ou PROPRIETARIO", async () => {
+            await expect(service.remove(10, mockGerenteUser)).rejects.toThrow(
+                new ForbiddenException(
+                    "Usuário não tem permissão para criar vínculo de grade com fabrico",
+                ),
+            );
+        });
+
         it("deve lançar BadRequestException em caso de erro do Prisma", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
             mockPrismaService.fabricoGrade.update.mockRejectedValue(mockPrismaValidationError);
 
-            await expect(service.remove(10, userFabricoId)).rejects.toThrow(BadRequestException);
+            await expect(service.remove(10, mockAdminUser)).rejects.toThrow(BadRequestException);
         });
 
         it("deve lançar NotFoundException se tentar remover um vínculo que não existe", async () => {
@@ -257,7 +326,7 @@ describe("FabricoGradeService", () => {
                 new NotFoundException("Vínculo fabrico-grade não encontrado"),
             );
 
-            await expect(service.remove(99, userFabricoId)).rejects.toThrow(NotFoundException);
+            await expect(service.remove(99, mockAdminUser)).rejects.toThrow(NotFoundException);
             expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
         });
     });
