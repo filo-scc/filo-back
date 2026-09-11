@@ -155,33 +155,15 @@ export class FichaEtapaService {
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, fabrico_id: number) {
-        const atual = await this.getFichaEtapaOrFail(id, fabrico_id);
-
-        const ficha_tecnica_id = data.ficha_tecnica_id ?? atual.ficha_tecnica_id;
-        const etapa_id = data.etapa_id ?? atual.etapa_id;
-        const [, etapa] = await Promise.all([
-            this.fichaTecnicaService.findOne(ficha_tecnica_id, fabrico_id),
-            this.etapaService.getById(etapa_id),
-        ]);
-        this.assertMesmaFabrica(fabrico_id, etapa);
-
-        const vinculoExiste = await this.prisma.fichaEtapa.findFirst({
-            where: {
-                ficha_tecnica_id,
-                etapa_id,
-                NOT: { id },
-            },
-        });
-
-        if (vinculoExiste) {
-            throw new ConflictException("Esta etapa já está vinculada a esta ficha técnica");
-        }
+        await this.getFichaEtapaOrFail(id, fabrico_id);
 
         try {
-            return this.prisma.fichaEtapa.update({
+            return await this.prisma.fichaEtapa.update({
                 where: { id },
                 data: {
-                    ...data,
+                    observacoes: data.observacoes,
+                    data_inicio: data.data_inicio,
+                    data_fim: data.data_fim,
                 },
             });
         } catch (error) {

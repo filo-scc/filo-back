@@ -187,21 +187,35 @@ describe("FichaEtapaService", () => {
         expect(prisma.fichaEtapa.findMany).not.toHaveBeenCalled();
     });
 
-    it("atualiza vínculo existente", async () => {
-        prisma.fichaEtapa.findFirst
-            .mockResolvedValueOnce({ id: 1, ficha_tecnica_id: 10, etapa_id: 20 })
-            .mockResolvedValueOnce(null);
-        prisma.fichaEtapa.update.mockResolvedValue({ id: 1, etapa_id: 21 });
-
-        await expect(service.updateFichaEtapa(1, { etapa_id: 21 } as any, 30)).resolves.toEqual({
+    it("atualiza apenas os campos permitidos (observacoes, data_inicio, data_fim)", async () => {
+        prisma.fichaEtapa.findFirst.mockResolvedValue({
             id: 1,
-            etapa_id: 21,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
         });
-        expect(fichaTecnicaService.findOne).toHaveBeenCalledWith(10, 30);
-        expect(etapaService.getById).toHaveBeenCalledWith(21);
+        prisma.fichaEtapa.update.mockResolvedValue({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+            observacoes: "novo texto",
+        });
+
+        await expect(
+            service.updateFichaEtapa(1, { observacoes: "novo texto" } as any, 30),
+        ).resolves.toEqual({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+            observacoes: "novo texto",
+        });
+
         expect(prisma.fichaEtapa.update).toHaveBeenCalledWith({
             where: { id: 1 },
-            data: { etapa_id: 21 },
+            data: {
+                observacoes: "novo texto",
+                data_inicio: undefined,
+                data_fim: undefined,
+            },
         });
     });
 
@@ -246,6 +260,54 @@ describe("FichaEtapaService", () => {
         expect(prisma.fichaEtapa.updateMany).not.toHaveBeenCalled();
     });
 
+    it("ignora ficha_tecnica_id e etapa_id mesmo se vierem no payload", async () => {
+        prisma.fichaEtapa.findFirst.mockResolvedValue({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+        });
+        prisma.fichaEtapa.update.mockResolvedValue({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+        });
+
+        const payloadComCamposProibidos = {
+            observacoes: "tentativa de burlar",
+            ficha_tecnica_id: 999,
+            etapa_id: 888,
+        } as any;
+
+        await service.updateFichaEtapa(1, payloadComCamposProibidos, 30);
+
+        expect(prisma.fichaEtapa.update).toHaveBeenCalledWith({
+            where: { id: 1 },
+            data: {
+                observacoes: "tentativa de burlar",
+                data_inicio: undefined,
+                data_fim: undefined,
+            },
+        });
+
+        const dataEnviadaAoPrisma = prisma.fichaEtapa.update.mock.calls[0][0].data;
+        expect(dataEnviadaAoPrisma).not.toHaveProperty("ficha_tecnica_id");
+        expect(dataEnviadaAoPrisma).not.toHaveProperty("etapa_id");
+    });
+
+    it("não valida mais etapa/ficha técnica durante o update genérico", async () => {
+        prisma.fichaEtapa.findFirst.mockResolvedValue({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+        });
+        prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+        await service.updateFichaEtapa(1, { observacoes: "x" } as any, 30);
+
+        expect(fichaTecnicaService.findOne).not.toHaveBeenCalled();
+        expect(etapaService.getById).not.toHaveBeenCalled();
+    });
+
     it("rejeita update de vínculo inexistente", async () => {
         prisma.fichaEtapa.findFirst.mockResolvedValue(null);
 
@@ -254,29 +316,21 @@ describe("FichaEtapaService", () => {
         );
     });
 
-    it("rejeita update para vínculo duplicado", async () => {
-        prisma.fichaEtapa.findFirst
-            .mockResolvedValueOnce({ id: 1, ficha_tecnica_id: 10, etapa_id: 20 })
-            .mockResolvedValueOnce({ id: 2 });
-
-        await expect(service.updateFichaEtapa(1, {} as any, 30)).rejects.toThrow(
-            new ConflictException("Esta etapa já está vinculada a esta ficha técnica"),
-        );
-    });
-
-    it("rejeita update que ligaria ficha técnica e etapa de fábricas diferentes", async () => {
-        prisma.fichaEtapa.findFirst.mockResolvedValueOnce({
+    it("traduz conflito Prisma ao atualizar vínculo", async () => {
+        prisma.fichaEtapa.findFirst.mockResolvedValue({
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
         });
-        fichaTecnicaService.findOne.mockResolvedValue({ id: 10, fabrico_id: 30 });
-        etapaService.getById.mockResolvedValue({ id: 21, fabrico_id: 99 });
-
-        await expect(service.updateFichaEtapa(1, { etapa_id: 21 } as any, 30)).rejects.toThrow(
-            new NotFoundException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
+        prisma.fichaEtapa.update.mockRejectedValue(
+            new PrismaClientKnownRequestError("duplicado", {
+                code: "P2002",
+                clientVersion: "7.0.0",
+            }),
         );
-        expect(prisma.fichaEtapa.findFirst).toHaveBeenCalledTimes(1);
-        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+
+        await expect(service.updateFichaEtapa(1, { observacoes: "x" } as any, 30)).rejects.toThrow(
+            new ConflictException("Ficha Etapa já cadastrada"),
+        );
     });
 });
