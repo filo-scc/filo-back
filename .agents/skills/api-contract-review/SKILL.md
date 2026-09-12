@@ -7,19 +7,13 @@ description: Comparar contratos de API entre filo-back e filo-front, incluindo D
 
 Determine se produtor e consumidores conseguem conviver durante o deploy e se representam o mesmo contrato observável.
 
-## Governança
-
-- Estado: `Proposta`, candidata a piloto supervisionado.
-- Owner: Gheyson.
-- Substituto técnico: Arthur Capistrano.
-- Evals: `.agents/evals/api-contract-review/cases.json`.
-- Revisar até 2026-11-30 ou após mudança do versionamento/deploy da API.
+Use os parâmetros, permissões e o contrato de saída de [manifest.yaml](manifest.yaml). Esta skill é ativa e informativa: encontra riscos, mas não decide merge nem autoriza mudanças.
 
 ## Procedimento
 
-1. Aplique o `AGENTS.md`, `INV-API-*`, `INV-DATA-004/005` e invariantes do fluxo afetado.
-2. Fixe versões/base/head dos dois repositórios disponíveis. Não invente o lado ausente.
-3. Leia [references/protocol.md](references/protocol.md) e monte a tabela produtor × consumidor.
+1. Aplique o `AGENTS.md`, `INV-API-*`, `INV-DATA-004/005` e as invariantes do fluxo.
+2. Valide a entrada conforme o manifest e fixe versões/base/head dos repositórios disponíveis.
+3. Leia [references/protocol.md](references/protocol.md) e monte a matriz produtor × consumidor.
 4. Compare request, response, erros e comportamento transitório durante a ordem real de deploy.
 5. Conteste cada diferença: nem toda adição é incompatível, e nem todo build verde prova compatibilidade.
 
@@ -30,6 +24,6 @@ Determine se produtor e consumidores conseguem conviver durante o deploy e se re
 - Não exponha dado real de cliente em fixture ou relatório.
 - Mudança coordenada em dois PRs ainda precisa funcionar durante a janela entre deploys.
 
-## Entrega e falha segura
+## Entrega
 
-Inclua matriz de campos/erros, consumidores encontrados, cenários de convivência, ordem mínima de deploy, findings completos, descartes e limitações. Se um repositório ou especificação necessária não estiver disponível, declare o contrato como não comprovado e indique exatamente o artefato necessário.
+Siga as seções de saída do manifest. Se faltar produtor, consumidor ou especificação necessária, declare o contrato como não comprovado e indique o artefato necessário.

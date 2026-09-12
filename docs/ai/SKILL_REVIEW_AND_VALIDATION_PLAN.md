@@ -4,11 +4,11 @@
 
 | Campo | Valor |
 | --- | --- |
-| Status | Em execução incremental |
-| Escopo | `filo-back`, `filo-front` e skills compartilhadas |
+| Status | Em uso prático e melhoria contínua |
+| Escopo | Skills canônicas do `filo-back`; e sincronização com `filo-front`|
 | Fonte de governança | `AGENTS.md` e `docs/ai/FILO_AI_BLUEPRINT.md` |
 | Padrão técnico | `docs/ai/SKILL_QUALITY_STANDARD.md` |
-| Estratégia | Piloto, revisão por ondas e promoção humana |
+| Estratégia | Revisão integral, validação determinística e ajustes após uso real |
 
 ## 1. Objetivo
 
@@ -27,9 +27,9 @@ As skills serão tratadas por risco e dependência:
 5. `api-contract-review`;
 6. `kanban-transition-review`;
 7. `github-pr-review`;
-8. `release-pr-sync`.
+8. `filo-update-email`.
 
-As skills compartilhadas serão planejadas para backend e frontend. Antes de sincronizar arquivos, confirme o repositório, a branch e o commit do frontend, pois o workspace observado não contém os artefatos `.agents/` descritos pelo Blueprint.
+O `filo-back` é a fonte canônica nesta etapa. A sincronização das skills compartilhadas com o frontend será tratada separadamente para evitar duas fontes concorrentes.
 
 ## 3. Decisões do planejamento
 
@@ -41,7 +41,8 @@ As skills compartilhadas serão planejadas para backend e frontend. Antes de sin
 - A documentação será escrita em português, com chaves técnicas em inglês.
 - O catálogo HTML será gerado localmente e não será versionado.
 - O corpus atual será substituído pelo formato do Skill Creator somente após uma prova de compatibilidade sem perda semântica.
-- Iterações usarão amostras estratificadas; o corpus completo será executado antes de uma recomendação de promoção.
+- As skills revisadas entram como `ativa-informativa`, sem autoridade automática de gate, merge, deploy ou aceite de risco.
+- O corpus completo será preservado e validado estruturalmente; calibração comportamental será ajustada após uso real.
 - O padrão será referenciado pelo `AGENTS.md`; validação em CI será tratada em uma fase posterior e exigirá autorização própria.
 
 ## 4. Arquitetura dos artefatos
@@ -85,20 +86,19 @@ Saída: inventário verificável e baseline preservada.
 2. Criar `manifest.schema.json`, `manifest.template.yaml` e `workflows.yaml`.
 3. Definir perfis de permissão e o significado de `documented`, `enforced`, `human-gated` e `unsupported`.
 4. Criar validador local sem adicionar dependências.
-5. Criar um manifesto piloto para `tenant-isolation-review`.
+5. Usar `tenant-isolation-review` como referência de estrutura para os demais manifests.
 
 Saída: contrato canônico validável.
 
-### Fase 2 - prova de migração dos evals
+### Fase 2 - migração determinística dos evals
 
-1. Selecionar um caso de cada categoria do corpus de `tenant-isolation-review`.
-2. Converter para `evals/evals.json` compatível com o Skill Creator.
+1. Converter os corpora legados para `evals/evals.json` compatível com o Skill Creator.
+2. Preservar o corpus completo de cada skill.
 3. Preservar ID FILO, categoria, resultado, severidade, invariantes, obrigações e proibições.
-4. Validar o arquivo com o validador local e com as ferramentas do Skill Creator.
-5. Comparar a pontuação possível antes e depois da conversão.
-6. Não remover o `cases.json` enquanto a equivalência não estiver comprovada.
+4. Validar os arquivos com o validador local e com as ferramentas disponíveis do Skill Creator.
+5. Não remover o `cases.json` enquanto houver consumidor legado.
 
-Saída: decisão registrada de prosseguir, ajustar ou interromper a migração.
+Saída: corpus integral migrado sem perda estrutural detectada.
 
 ### Fase 3 - ferramentas locais
 
@@ -123,11 +123,11 @@ Para cada skill:
 7. avaliar `scripts/`, `assets/` e `references/`;
 8. adicionar exemplo positivo, negativo e de saída;
 9. migrar evals;
-10. executar amostra comparativa;
-11. coletar feedback humano;
-12. iterar até estabilizar.
+10. executar validação determinística integral;
+11. coletar feedback durante o uso real;
+12. iterar quando forem observados falsos positivos, falsos negativos ou ambiguidades.
 
-Saída: versão candidata validada qualitativamente.
+Saída: versão ativa-informativa, sujeita a melhoria contínua.
 
 ### Fase 5 - acionamento
 
@@ -222,17 +222,17 @@ Continuam válidos os critérios do Blueprint, inclusive 100% de detecção dos 
 | Custo excessivo | Amostra por iteração e corpus completo apenas na qualificação |
 | Scripts sem benefício | Exigir justificativa e consumidor concreto |
 
-## 11. Primeiro incremento
+## 11. Incremento atual
 
 O primeiro incremento contém:
 
 - este plano;
 - o padrão de qualidade;
 - schema, template e validador;
-- manifesto e exemplos de `tenant-isolation-review`;
-- amostra convertida de seus evals;
+- manifests e exemplos das oito skills canônicas;
+- corpora comportamentais convertidos integralmente e casos de acionamento;
 - portal HTML mínimo gerado localmente;
 - atualização do contrato de entrada de `github-pr-review` para comando ou URL canônica;
-- comparação humana do piloto pelo viewer.
+- guia curto de uso e fluxos integrados.
 
-Somente depois dessa revisão o padrão deve ser replicado para as demais skills.
+O uso prático alimentará ajustes posteriores; promoção para gate continua fora deste incremento.

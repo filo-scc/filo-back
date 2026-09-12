@@ -7,18 +7,11 @@ description: Auditar integridade de dados do backend FILO em operações compost
 
 Verifique invariantes persistidas e comportamento sob falha, repetição e concorrência, propondo apenas a correção mínima segura.
 
-## Governança
-
-- Estado: `Proposta`, candidata a piloto supervisionado.
-- Owner: Gheyson.
-- Substitutos: Arthur Capistrano para backend e Lucas de Holanda para qualidade/segurança.
-- Escopo: `filo-back` e contratos consumidos pelo frontend quando necessários à prova.
-- Evals: `.agents/evals/data-integrity-review/cases.json`.
-- Revisar até 2026-11-30 ou após mudança relevante no modelo transacional.
+Use os parâmetros, permissões e o contrato de saída de [manifest.yaml](manifest.yaml). A skill é ativa e informativa; não executa escrita em banco.
 
 ## Procedimento
 
-1. Aplique `INV-DATA-*`, `INV-ORD-*`, `INV-FT-*` e o `AGENTS.md`.
+1. Aplique `AGENTS.md`, `INV-DATA-*`, `INV-ORD-*` e `INV-FT-*`; valide a entrada.
 2. Leia [references/protocol.md](references/protocol.md).
 3. Defina o estado válido antes/depois e todas as escritas, leituras e efeitos externos da operação.
 4. Verifique validação integral, transação, constraints, retry, concorrência, precisão e exclusão.
@@ -31,6 +24,6 @@ Verifique invariantes persistidas e comportamento sob falha, repetição e conco
 - Arredondamento é comercial `ROUND_HALF_UP`, com escala explícita no contrato.
 - Política geral de retenção/soft delete ainda está pendente; não amplie hard delete por conveniência.
 
-## Entrega e falha segura
+## Entrega
 
-Inclua mapa de estado, fronteiras transacionais, cenários de falha/concorrência, findings completos, descartes e limitações. Não aplique migration, seed, reset ou escrita em banco compartilhado. Se a atomicidade depender de serviço externo ou isolamento de banco não disponível, declare o ponto não comprovado.
+Siga as seções do manifest. Não aplique migration, seed, reset ou escrita em banco compartilhado. Se a prova depender de serviço externo ou isolamento de banco indisponível, declare o ponto não comprovado.

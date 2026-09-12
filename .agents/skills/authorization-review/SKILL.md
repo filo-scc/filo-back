@@ -7,18 +7,12 @@ description: Revisar autenticação, papéis, autorização por ação/recurso e
 
 Construa uma matriz ator × ação × recurso e verifique que o backend aplica a decisão vigente em todos os caminhos relevantes.
 
-## Governança
-
-- Estado: `Proposta`, candidata a piloto supervisionado.
-- Owner: Gheyson.
-- Revisão independente para risco crítico/alto: qualidade e segurança, com Lucas de Holanda como substituto.
-- Evals: `.agents/evals/authorization-review/cases.json`.
-- Revisar até 2026-11-30 ou após mudança de JWT, papéis ou sessões.
+Use os parâmetros, permissões e o contrato de saída de [manifest.yaml](manifest.yaml). Esta skill é ativa e informativa; findings críticos/altos continuam sujeitos a decisão humana.
 
 ## Procedimento
 
-1. Aplique o `AGENTS.md` e as invariantes `INV-AUTH-*`; leia [references/protocol.md](references/protocol.md).
-2. Fixe o modo e o escopo. Em revisão de PR, separe regressão do diff de dívida preexistente.
+1. Aplique o `AGENTS.md` e `INV-AUTH-*`; valide a entrada e leia [references/protocol.md](references/protocol.md).
+2. Fixe modo e escopo. Em PR, separe regressão do diff de dívida preexistente.
 3. Identifique autenticação, papel, fábrica, ação, recurso, estado da sessão e ponto efetivo de autorização.
 4. Teste ou demonstre caminhos permitido, negado, sessão alterada e chamada direta à API.
 5. Conteste cada candidato antes de emitir finding.
@@ -30,8 +24,6 @@ Construa uma matriz ator × ação × recurso e verifique que o backend aplica a
 - Papel global deve ser explícito e auditável. Um `fabrico_id` técnico não concede nem restringe sozinho o poder de `ADMIN`.
 - Interface oculta, rota privada ou ausência de botão não substitui enforcement do backend.
 
-## Entrega e falha segura
+## Entrega
 
-Inclua matriz de autorização, sessão/revogação, findings completos, candidatos descartados, verificações e limitações. Não publique, não altere permissões e não implemente correção sem autorização.
-
-Se o modelo de papéis, o guard efetivo ou o estado de sessão não estiver disponível, classifique o ponto como não comprovado e indique a evidência necessária. Não invente capacidade.
+Siga as seções do manifest. Não publique, altere permissões ou implemente correções sem autorização. Se modelo de papéis, guard efetivo ou sessão não estiver disponível, classifique o ponto como não comprovado e peça a evidência necessária.

@@ -8,13 +8,14 @@ governance:
   reviewers:
     - Arthur Capistrano
     - Lucas de Holanda
-  lifecycle_status: proposta
+  lifecycle_status: ativa-informativa
   last_review: 2026-09-12
   next_review: 2026-11-30
 scope:
   repositories:
     - filo-back
     - filo-front
+  canonical_repository: filo-back
   objective: Demonstrar se recursos com posse direta ou derivada permanecem limitados à fábrica autorizada em todas as superfícies relevantes.
   non_objectives:
     - Fazer revisão genérica de segurança sem superfície multi-tenant.
@@ -36,15 +37,26 @@ input:
     - name: target
       type: string-or-artifact
       required: true
+      origin: usuário, diff, PR ou contexto autorizado
+      validation: Deve identificar um fluxo, artefato ou superfície multi-tenant concreta.
+      default: null
+      example: PATCH /pedidos/:id e seu service
       description: Fluxo, diff, código, endpoint, job ou contrato que será auditado.
     - name: review_mode
       type: enum
       required: false
+      origin: usuário ou inferência inequívoca do pedido
+      validation: Um de revisão de diff/PR, auditoria de fluxo ou desenho de testes.
       description: Revisão de diff/PR, auditoria de fluxo ou desenho de testes; deve ser inferido quando inequívoco.
       default: auditoria de fluxo
+      example: revisão de diff/PR
     - name: actor_context
       type: object
       required: false
+      origin: contexto autenticado documentado, código ou usuário
+      validation: Deve separar papel, identidade e fábrica sem tratar input do cliente como prova de autorização.
+      default: null
+      example: "{ role: GERENTE, fabrico_id: 10 }"
       description: Papel, identidade e fábrica do ator, quando já estiverem disponíveis.
   artifacts:
     - AGENTS.md
@@ -64,6 +76,12 @@ output:
     - Verificações e limitações
   no_findings: Concluir com `Nenhum finding de isolamento mantido` e preservar cobertura, descartes e limitações.
   insufficient_evidence: Parar a conclusão afetada, classificar o ponto como não comprovado e indicar o artefato necessário.
+  limitations:
+    - O frontend pode demonstrar exposição ou contrato inseguro, mas não comprova enforcement sem o backend.
+    - Ausência de finding não prova isolamento fora das superfícies e caminhos auditados.
+  prohibited_claims:
+    - Declarar autorização garantida por rota privada, botão oculto ou fabrico_id enviado pelo cliente.
+    - Afirmar isolamento total sem percorrer posse derivada e casos negativos A/B relevantes.
 workflow:
   required_steps:
     - Aplicar AGENTS.md e as invariantes tenant vigentes.
@@ -113,6 +131,13 @@ evaluation:
   behavioral: evals/evals.json
   triggers: evals/trigger-evals.json
   legacy_source: ../../evals/tenant-isolation-review/cases.json
+  minimum_categories:
+    positive: 5
+    negative: 5
+    adversarial: 3
+    prompt_injection: 1
+    insufficient_evidence: 1
+  minimum_trigger_cases: 10
 examples:
   positive: Audite a atualização de pedido e confirme se o novo cliente pertence à fábrica do usuário autenticado.
   negative: Revise se a rota de login exige senha forte, sem investigar recursos ou dados de fábricas.

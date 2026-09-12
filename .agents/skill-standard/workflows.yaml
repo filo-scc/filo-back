@@ -104,30 +104,23 @@ workflows:
         label: Revisar evidências do fluxo
         detail: Confirmar regras de produto e riscos antes de integrar a mudança.
 
-  - id: release-promotion
-    title: Promoção de develop para master
-    description: Prepara o PR de release sem transformar a automação em autoridade de merge ou deploy.
+  - id: release-communication
+    title: Comunicação de novidades
+    description: Transforma mudanças comprovadamente disponíveis em um HTML de email revisável, sem acessar destinatários ou enviar a campanha.
     steps:
       - type: action
-        label: Comparar develop e master
-        detail: Fixar repositório, branches, commits, arquivos e head SHA.
-      - type: skill
-        label: Criar ou sincronizar o PR draft
-        skill: release-pr-sync
-        detail: Atualizar somente título e corpo autorizados, sem merge, push ou deploy.
+        label: Reunir evidências da release
+        detail: Fixar versão, mudanças, público e estado real de disponibilidade.
       - type: decision
-        label: Existem riscos de deploy?
-        detail: Procurar migrations, contratos compartilhados e dependências de ordem.
+        label: A novidade está disponível?
+        detail: Código local, PR aberto e planejamento permanecem como rascunho NÃO ENVIAR.
       - type: skill
-        label: Qualificar riscos encontrados
-        skills:
-          - prisma-migration-review
-          - api-contract-review
-          - data-integrity-review
-        detail: Executar somente as revisões exigidas pelas mudanças da release.
+        label: Criar o HTML do anúncio
+        skill: filo-update-email
+        detail: Separar novidades para todos, fabricação sob demanda e produção própria.
       - type: action
-        label: Consolidar prontidão e rollback
-        detail: Registrar checks do head exato, limitações e pontos de recuperação.
+        label: Validar conteúdo e compatibilidade
+        detail: Executar o validador do HTML e, quando possível, inspecionar desktop e mobile.
       - type: human
-        label: Decidir merge e janela de deploy
-        detail: A automação informa; liderança e revisores autorizados decidem.
+        label: Aprovar conteúdo e envio
+        detail: Classificação, destinatários, rodapé da plataforma e envio continuam sob responsabilidade humana.

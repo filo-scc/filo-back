@@ -7,13 +7,7 @@ description: Auditar transições de fichas no Kanban do FILO, incluindo ordem, 
 
 Verifique a máquina de estados e prove que ficha, histórico e efeitos auxiliares permanecem coerentes sob falha, retry e concorrência.
 
-## Governança
-
-- Estado: `Proposta`, candidata a piloto supervisionado.
-- Owner: Gheyson.
-- Substitutos: Arthur Capistrano para implementação e Lucas de Holanda para qualidade/segurança.
-- Evals: `.agents/evals/kanban-transition-review/cases.json`.
-- Revisar até 2026-11-30 ou após mudança do fluxo de produção/job.
+Use os parâmetros, permissões e o contrato de saída de [manifest.yaml](manifest.yaml). A skill é ativa e informativa; não altera fichas nem executa jobs.
 
 ## Contrato vigente
 
@@ -26,14 +20,12 @@ Verifique a máquina de estados e prove que ficha, histórico e efeitos auxiliar
 
 ## Procedimento
 
-1. Aplique `INV-KAN-*`, invariantes tenant e o `AGENTS.md`.
+1. Aplique `AGENTS.md`, `INV-KAN-*` e invariantes tenant; valide a entrada.
 2. Leia [references/protocol.md](references/protocol.md).
 3. Reconstrua estado inicial, origem esperada, destino, ator, fábrica, histórico e efeitos auxiliares.
 4. Verifique caminho feliz, salto, retorno, retry, falha intermediária, duas transferências e disputa com o job.
 5. Conteste findings contra transações, constraints, estado esperado e comportamento preexistente.
 
-## Entrega e falha segura
+## Entrega
 
-Produza matriz de transições, linha do tempo, análise de atomicidade/concorrência, findings completos, descartes e limitações. Não mova fichas reais, não execute jobs e não altere código ou produção sem autorização.
-
-Sem origem persistida, ordem das etapas ou contrato do job, não conclua que a transição é válida: registre a evidência ausente.
+Siga as seções do manifest. Sem origem persistida, ordem das etapas ou contrato do job, não conclua que a transição é válida: registre a evidência ausente.

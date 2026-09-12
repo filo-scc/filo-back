@@ -7,14 +7,7 @@ description: Auditar isolamento entre fábricas no backend, contratos do fronten
 
 Encontre caminhos concretos de leitura, mutação ou associação entre fábricas e produza evidências acionáveis sem ampliar o escopo para uma auditoria genérica.
 
-## Governança
-
-- Estado: `Proposta`, candidata a piloto supervisionado.
-- Owner: Gheyson.
-- Revisão independente para risco crítico/alto: qualidade e segurança, com Lucas de Holanda como substituto.
-- Contrato: [manifest.yaml](manifest.yaml).
-- Evals em migração: [evals/evals.json](evals/evals.json), preservando temporariamente `.agents/evals/tenant-isolation-review/cases.json` como fonte legada.
-- Revisar até 2026-11-30 ou após mudança do modelo de identidade/fábrica.
+Use os parâmetros, permissões e o contrato de saída de [manifest.yaml](manifest.yaml). A skill é ativa e informativa; findings críticos/altos continuam sujeitos a decisão humana. Os casos comportamentais estão em [evals/evals.json](evals/evals.json) e os de acionamento em [evals/trigger-evals.json](evals/trigger-evals.json).
 
 ## Antes da análise
 
@@ -32,41 +25,4 @@ Encontre caminhos concretos de leitura, mutação ou associação entre fábrica
 
 ## Entrega
 
-Apresente mapa de superfícies verificadas, matriz A/B, findings mantidos e candidatos descartados. Cada finding deve obedecer ao contrato do FILO: severidade, confiança, localização, evidência, causa, exploração, impacto nos clientes, escopo, impacto existente, correção mínima segura, teste de regressão e limitações.
-
-Se faltar código do backend, identidade ou relação de posse necessária, pare a conclusão afetada e declare a evidência necessária. Se nenhum caminho sobreviver à contestação, conclua `Nenhum finding de isolamento mantido`.
-
-## Exemplos de uso
-
-**Entrada positiva:**
-
-```text
-Audite a atualização de pedido e confirme se o novo cliente pertence à fábrica do usuário autenticado.
-```
-
-**Não acionar esta skill:**
-
-```text
-Revise a expiração do access token após uma troca de senha, sem hipótese de cruzamento entre fábricas.
-```
-
-Use `authorization-review` nesse segundo caso, pois o risco central é sessão e autorização, não isolamento tenant.
-
-**Saída resumida:**
-
-```md
-## Matriz A/B
-
-| Operação | A→A | A→B | Evidência |
-| --- | --- | --- | --- |
-| Atualizar cliente do pedido | Permitida | Vulnerável | O novo cliente é buscado apenas por `id` |
-
-## Findings mantidos
-
-### Pedido pode ser associado a cliente de outra fábrica
-
-Severidade: Crítica.
-Confiança: Alta.
-Invariantes: `INV-TEN-003`, `INV-ORD-002`.
-...
-```
+Siga as seções do manifest. Se faltar backend, identidade ou relação de posse, pare a conclusão afetada e declare a evidência necessária. Sem candidato sobrevivente, conclua `Nenhum finding de isolamento mantido`.

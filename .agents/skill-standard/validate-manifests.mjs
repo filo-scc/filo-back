@@ -41,7 +41,15 @@ function checkResourcePaths(skillRoot, values, label) {
     }
 }
 
-function validateEvals(path, skillName) {
+const evalCategories = [
+    "positive",
+    "negative",
+    "adversarial",
+    "prompt_injection",
+    "insufficient_evidence",
+];
+
+function validateEvals(path, skillName, minimumCategories = {}) {
     if (!existsSync(path)) {
         errors.push(`${skillName}: evals ausentes em ${path}`);
         return;
@@ -59,6 +67,7 @@ function validateEvals(path, skillName) {
         return;
     }
     const ids = new Set();
+    const categoryCounts = Object.fromEntries(evalCategories.map((category) => [category, 0]));
     for (const [index, item] of data.evals.entries()) {
         const label = `${skillName}.evals[${index}]`;
         if (!Number.isInteger(item.id) || ids.has(item.id)) errors.push(`${label}.id inválido ou duplicado`);
@@ -69,10 +78,25 @@ function validateEvals(path, skillName) {
         requireList(item.expectations, `${label}.expectations`);
         requireText(item.case_id, `${label}.case_id`);
         requireText(item.category, `${label}.category`);
+        if (!Object.hasOwn(categoryCounts, item.category)) {
+            errors.push(`${label}.category inválida`);
+        } else {
+            categoryCounts[item.category] += 1;
+        }
+    }
+    for (const category of evalCategories) {
+        const minimum = minimumCategories?.[category];
+        if (!Number.isInteger(minimum) || minimum < 0) {
+            errors.push(`${skillName}.evaluation.minimum_categories.${category} inválido`);
+        } else if (categoryCounts[category] < minimum) {
+            errors.push(
+                `${skillName}: ${category} possui ${categoryCounts[category]}, mínimo declarado ${minimum}`,
+            );
+        }
     }
 }
 
-function validateTriggerEvals(path, skillName) {
+function validateTriggerEvals(path, skillName, minimumCases) {
     if (!existsSync(path)) {
         errors.push(`${skillName}: trigger evals ausentes em ${path}`);
         return;
@@ -84,8 +108,12 @@ function validateTriggerEvals(path, skillName) {
         errors.push(`${skillName}: trigger evals inválidos (${error.message})`);
         return;
     }
-    if (!Array.isArray(data) || data.length < 10) {
-        errors.push(`${skillName}: trigger evals deve possuir ao menos 10 consultas no piloto`);
+    if (!Number.isInteger(minimumCases) || minimumCases < 1) {
+        errors.push(`${skillName}.evaluation.minimum_trigger_cases inválido`);
+        return;
+    }
+    if (!Array.isArray(data) || data.length < minimumCases) {
+        errors.push(`${skillName}: trigger evals deve possuir ao menos ${minimumCases} consultas`);
         return;
     }
     for (const [index, item] of data.entries()) {
@@ -96,17 +124,19 @@ function validateTriggerEvals(path, skillName) {
     }
 }
 
-const manifests = readdirSync(skillsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(skillsRoot, entry.name, "manifest.yaml")))
+const skillDirectories = readdirSync(skillsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-const availableSkills = new Set(
-    readdirSync(skillsRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name),
+const manifests = skillDirectories.filter((name) =>
+    existsSync(join(skillsRoot, name, "manifest.yaml")),
 );
+const availableSkills = new Set(skillDirectories);
 
 if (manifests.length === 0) errors.push("nenhum manifest.yaml encontrado");
+for (const skillName of skillDirectories.filter((name) => !manifests.includes(name))) {
+    errors.push(`${skillName}: manifest.yaml ausente`);
+}
 
 for (const skillName of manifests) {
     const skillRoot = join(skillsRoot, skillName);
@@ -138,6 +168,10 @@ for (const skillName of manifests) {
     requireText(manifest.governance?.owner, `${skillName}.governance.owner`);
     requireList(manifest.governance?.reviewers, `${skillName}.governance.reviewers`);
     requireList(manifest.scope?.repositories, `${skillName}.scope.repositories`);
+    requireText(manifest.scope?.canonical_repository, `${skillName}.scope.canonical_repository`);
+    if (!manifest.scope?.repositories?.includes(manifest.scope?.canonical_repository)) {
+        errors.push(`${skillName}.scope.canonical_repository deve constar em repositories`);
+    }
     requireText(manifest.scope?.objective, `${skillName}.scope.objective`);
     requireList(manifest.scope?.non_objectives, `${skillName}.scope.non_objectives`);
     requireList(manifest.invocation?.triggers, `${skillName}.invocation.triggers`);
@@ -146,6 +180,8 @@ for (const skillName of manifests) {
     requireList(manifest.input?.artifacts, `${skillName}.input.artifacts`, true);
     requireList(manifest.input?.preconditions, `${skillName}.input.preconditions`);
     requireList(manifest.output?.required_sections, `${skillName}.output.required_sections`);
+    requireList(manifest.output?.limitations, `${skillName}.output.limitations`);
+    requireList(manifest.output?.prohibited_claims, `${skillName}.output.prohibited_claims`);
     requireList(manifest.workflow?.required_steps, `${skillName}.workflow.required_steps`);
     requireList(manifest.permissions?.tools, `${skillName}.permissions.tools`);
     requireList(manifest.resources?.references, `${skillName}.resources.references`, true);
@@ -172,6 +208,14 @@ for (const skillName of manifests) {
         requireText(parameter?.name, `${skillName}.input.parameters[${index}].name`);
         requireText(parameter?.type, `${skillName}.input.parameters[${index}].type`);
         requireText(parameter?.description, `${skillName}.input.parameters[${index}].description`);
+        requireText(parameter?.origin, `${skillName}.input.parameters[${index}].origin`);
+        requireText(parameter?.validation, `${skillName}.input.parameters[${index}].validation`);
+        if (!Object.hasOwn(parameter ?? {}, "default")) {
+            errors.push(`${skillName}.input.parameters[${index}].default ausente`);
+        }
+        if (!Object.hasOwn(parameter ?? {}, "example")) {
+            errors.push(`${skillName}.input.parameters[${index}].example ausente`);
+        }
         if (typeof parameter?.required !== "boolean") {
             errors.push(`${skillName}.input.parameters[${index}].required deve ser boolean`);
         }
@@ -189,10 +233,39 @@ for (const skillName of manifests) {
         }
     }
 
+    const skillPath = join(skillRoot, "SKILL.md");
+    if (!existsSync(skillPath)) {
+        errors.push(`${skillName}: SKILL.md ausente`);
+    } else {
+        const skillContent = readFileSync(skillPath, "utf8");
+        const frontmatterMatch = skillContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        if (!frontmatterMatch) {
+            errors.push(`${skillName}: frontmatter ausente no SKILL.md`);
+        } else {
+            const frontmatter = yaml.load(frontmatterMatch[1]);
+            if (frontmatter?.name !== skillName) errors.push(`${skillName}: name divergente no SKILL.md`);
+            requireText(frontmatter?.description, `${skillName}.SKILL.description`);
+        }
+        for (const reference of manifest.resources?.references ?? []) {
+            if (!skillContent.includes(reference)) {
+                errors.push(`${skillName}: referência não roteada pelo SKILL.md: ${reference}`);
+            }
+        }
+    }
+
+    const metadataPath = join(skillRoot, "agents", "openai.yaml");
+    if (existsSync(metadataPath)) {
+        const metadata = yaml.load(readFileSync(metadataPath, "utf8"));
+        const implicitExpected = manifest.invocation?.mode !== "explicit";
+        if (metadata?.policy?.allow_implicit_invocation !== implicitExpected) {
+            errors.push(`${skillName}: invocation.mode diverge de agents/openai.yaml`);
+        }
+    }
+
     const behaviorPath = join(skillRoot, manifest.evaluation?.behavioral ?? "");
     const triggerPath = join(skillRoot, manifest.evaluation?.triggers ?? "");
-    validateEvals(behaviorPath, skillName);
-    validateTriggerEvals(triggerPath, skillName);
+    validateEvals(behaviorPath, skillName, manifest.evaluation?.minimum_categories);
+    validateTriggerEvals(triggerPath, skillName, manifest.evaluation?.minimum_trigger_cases);
     if (
         manifest.evaluation?.legacy_source &&
         !existsSync(join(skillRoot, manifest.evaluation.legacy_source))

@@ -25,10 +25,10 @@ function list(values) {
 
 function parameters(values) {
     if (!Array.isArray(values) || values.length === 0) return '<p class="empty">Nenhum parâmetro declarado.</p>';
-    return `<div class="table-wrap"><table><thead><tr><th>Nome</th><th>Tipo</th><th>Obrigatório</th><th>Descrição</th></tr></thead><tbody>${values
+    return `<div class="table-wrap"><table><thead><tr><th>Nome</th><th>Tipo</th><th>Obrigatório</th><th>Origem</th><th>Validação</th><th>Padrão</th><th>Exemplo</th><th>Descrição</th></tr></thead><tbody>${values
         .map(
             (item) =>
-                `<tr><td><code>${escapeHtml(item.name)}</code></td><td>${escapeHtml(item.type)}</td><td>${item.required ? "Sim" : "Não"}</td><td>${escapeHtml(item.description)}</td></tr>`,
+                `<tr><td><code>${escapeHtml(item.name)}</code></td><td>${escapeHtml(item.type)}</td><td>${item.required ? "Sim" : "Não"}</td><td>${escapeHtml(item.origin)}</td><td>${escapeHtml(item.validation)}</td><td>${escapeHtml(item.default)}</td><td>${escapeHtml(item.example)}</td><td>${escapeHtml(item.description)}</td></tr>`,
         )
         .join("")}</tbody></table></div>`;
 }
@@ -81,7 +81,7 @@ const cards = skills
             </div>
 
             <section><h3>Contrato de entrada</h3>${parameters(skill.input.parameters)}<h4>Precondições</h4>${list(skill.input.preconditions)}</section>
-            <section><h3>Contrato de saída</h3><p><strong>Formato:</strong> ${escapeHtml(skill.output.format)}</p>${list(skill.output.required_sections)}<p><strong>Sem findings:</strong> ${escapeHtml(skill.output.no_findings)}</p><p><strong>Evidência insuficiente:</strong> ${escapeHtml(skill.output.insufficient_evidence)}</p></section>
+            <section><h3>Contrato de saída</h3><p><strong>Formato:</strong> ${escapeHtml(skill.output.format)}</p>${list(skill.output.required_sections)}<p><strong>Sem findings:</strong> ${escapeHtml(skill.output.no_findings)}</p><p><strong>Evidência insuficiente:</strong> ${escapeHtml(skill.output.insufficient_evidence)}</p><h4>Limitações</h4>${list(skill.output.limitations)}<h4>Afirmações proibidas</h4>${list(skill.output.prohibited_claims)}</section>
 
             <div class="grid">
                 <section><h3>Fluxo obrigatório</h3>${list(skill.workflow.required_steps)}<p><strong>Espaço para adaptação:</strong> ${escapeHtml(skill.workflow.improvisation)}</p></section>
@@ -94,7 +94,7 @@ const cards = skills
             </div>
 
             <section><h3>Exemplos</h3><p><strong>Positivo:</strong> ${escapeHtml(skill.examples.positive)}</p><p><strong>Negativo:</strong> ${escapeHtml(skill.examples.negative)}</p><pre>${escapeHtml(skill.examples.output)}</pre></section>
-            <footer>Owner: ${escapeHtml(skill.governance.owner)} · Próxima revisão: ${escapeHtml(skill.governance.next_review)} · Repositórios: ${escapeHtml(skill.scope.repositories.join(", "))}</footer>
+            <footer>Owner: ${escapeHtml(skill.governance.owner)} · Próxima revisão: ${escapeHtml(skill.governance.next_review)} · Repositório canônico: ${escapeHtml(skill.scope.canonical_repository)} · Repositórios: ${escapeHtml(skill.scope.repositories.join(", "))}</footer>
         </article>`,
     )
     .join("");
