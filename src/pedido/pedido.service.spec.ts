@@ -31,7 +31,9 @@ describe("PedidoService", () => {
 
         produto: {
             findMany: jest.fn(),
+            findFirst: jest.fn(),
             update: jest.fn(),
+            updateMany: jest.fn(),
         },
 
         gradeVersao: {
@@ -199,7 +201,9 @@ describe("PedidoService", () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany
                 .mockResolvedValueOnce([{ id: 5, grade_versao_id: 3 }])
+                .mockResolvedValueOnce([{ id: 5 }])
                 .mockResolvedValueOnce([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.produto.findFirst.mockResolvedValue({ id: 5 });
             mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
@@ -307,6 +311,7 @@ describe("PedidoService", () => {
         it("não deve calcular valor_total quando o pedido não tem cliente", async () => {
             mockPrismaService.produto.findMany
                 .mockResolvedValueOnce([{ id: 5, grade_versao_id: 3 }])
+                .mockResolvedValueOnce([{ id: 5 }])
                 .mockResolvedValueOnce([{ id: 5, custo_total: 10 }]);
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
@@ -595,7 +600,9 @@ describe("PedidoService", () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany
                 .mockResolvedValueOnce([{ id: 6, grade_versao_id: 3 }])
+                .mockResolvedValueOnce([{ id: 6 }])
                 .mockResolvedValueOnce([{ id: 6, custo_total: 8 }]);
+            mockPrismaService.produto.findFirst.mockResolvedValue({ id: 6 });
             mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
@@ -779,6 +786,49 @@ describe("PedidoService", () => {
 
             expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
             expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+        });
+
+        it("deve rejeitar sincronização de preço quando o produto não pertence ao fabrico", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 5,
+                                quantidade: 30,
+                                parceiros: [{ parceiro_id: 9, preco: 4 }],
+                            },
+                        ],
+                    },
+                    1,
+                ),
+            ).rejects.toThrow(NotFoundException);
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 5,
+                                quantidade: 30,
+                                parceiros: [{ parceiro_id: 9, preco: 4 }],
+                            },
+                        ],
+                    },
+                    1,
+                ),
+            ).rejects.toThrow("Um ou mais produtos não pertencem a este fabrico");
+
+            expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+            expect(mockProdutoService.recalcularCustoTotal).not.toHaveBeenCalled();
         });
 
         it("deve rejeitar pedido inexistente no fabrico", async () => {

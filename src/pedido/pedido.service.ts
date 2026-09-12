@@ -126,6 +126,7 @@ export class PedidoService {
                         tx,
                         fichasDto,
                         produtos,
+                        fabricoId,
                     );
 
                     // Os preços de parceiro alteram o custo_total do produto, então
@@ -327,7 +328,12 @@ export class PedidoService {
                         : new Map<CreatePedidoFichaDto, number | null>();
 
                     const gradePorProduto = fichasNovas.length
-                        ? await this.alinharGradesDosProdutos(tx, fichasNovas, produtosNovos)
+                        ? await this.alinharGradesDosProdutos(
+                              tx,
+                              fichasNovas,
+                              produtosNovos,
+                              fabricoId,
+                          )
                         : new Map<number, number>();
 
                     if (idsParaRemover.length) {
@@ -402,6 +408,7 @@ export class PedidoService {
                                             grade_versao_id: fichaDb.grade_versao_id,
                                         },
                                     ],
+                                    fabricoId,
                                 );
                                 gradeVersaoId = gradeMap.get(fichaDb.produto_id)!;
                             }
@@ -611,7 +618,18 @@ export class PedidoService {
         tx: Prisma.TransactionClient,
         fichasDto: CreatePedidoFichaDto[],
         produtos: { id: number; grade_versao_id: number | null }[],
+        fabricoId: number,
     ): Promise<Map<number, number>> {
+        const produtoIds = [...new Set(fichasDto.map((ficha) => Number(ficha.produto_id)))];
+        const produtosDoFabrico = await tx.produto.findMany({
+            where: { id: { in: produtoIds }, fabrico_id: fabricoId },
+            select: { id: true },
+        });
+
+        if (produtosDoFabrico.length !== produtoIds.length) {
+            throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
+        }
+
         const gradePorProduto = new Map<number, number | null>(
             produtos.map((produto) => [produto.id, produto.grade_versao_id]),
         );
@@ -637,10 +655,14 @@ export class PedidoService {
                     throw new BadRequestException("Versão de grade inválida ou inativa");
                 }
 
-                await tx.produto.update({
-                    where: { id: produtoId },
+                const atualizados = await tx.produto.updateMany({
+                    where: { id: produtoId, fabrico_id: fabricoId },
                     data: { grade_versao_id: gradeDesejada },
                 });
+
+                if (atualizados.count === 0) {
+                    throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
+                }
             }
 
             gradePorProduto.set(produtoId, gradeDesejada);
@@ -809,6 +831,15 @@ export class PedidoService {
 
         const produtoId = Number(fichaDto.produto_id);
         const parceiroIds = [...new Set(parceiros.map((parceiro) => Number(parceiro.parceiro_id)))];
+
+        const produto = await tx.produto.findFirst({
+            where: { id: produtoId, fabrico_id: fabricoId },
+            select: { id: true },
+        });
+
+        if (!produto) {
+            throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
+        }
 
         const parceirosValidos = await tx.parceiro.findMany({
             where: { id: { in: parceiroIds }, fabrico_id: fabricoId },
