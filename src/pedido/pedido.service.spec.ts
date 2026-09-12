@@ -4,9 +4,21 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 describe("PedidoService", () => {
     let service: PedidoService;
+
+    const usuario: AuthenticatedUser = {
+        id: 1,
+        email: "gerente@teste.com",
+        nome: "Gerente",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 1,
+        fabrico: { id: 1, ativo: true },
+    };
+
 
     const mockPrismaService = {
         pedido: {
@@ -145,7 +157,7 @@ describe("PedidoService", () => {
                     quantidade: 10,
                     custo_total: 125.5,
                 },
-                1,
+                usuario,
             );
 
             expect(result).toEqual(pedido);
@@ -170,7 +182,7 @@ describe("PedidoService", () => {
                         quantidade: 1,
                         cliente_id: 99,
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(NotFoundException);
         });
@@ -220,7 +232,7 @@ describe("PedidoService", () => {
         it("deve criar pedido, ficha e vínculos dentro de uma única transação", async () => {
             prepararCenarioFeliz();
 
-            const resultado = await service.createCompleto(dtoBase, 1);
+            const resultado = await service.createCompleto(dtoBase, usuario);
 
             expect(resultado).toEqual({ id: 100, numero: 7 });
             expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
@@ -336,7 +348,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
@@ -355,7 +367,7 @@ describe("PedidoService", () => {
             mockPrismaService.produto.findMany.mockResolvedValueOnce([]);
 
             await expect(
-                service.createCompleto({ fichas: [{ produto_id: 5, quantidade: 1 }] }, 1),
+                service.createCompleto({ fichas: [{ produto_id: 5, quantidade: 1 }] }, usuario),
             ).rejects.toThrow(NotFoundException);
 
             expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
@@ -366,11 +378,11 @@ describe("PedidoService", () => {
             prepararCenarioFeliz();
             mockPrismaService.cor.findMany.mockResolvedValue([]);
 
-            await expect(service.createCompleto(dtoBase, 1)).rejects.toThrow(BadRequestException);
+            await expect(service.createCompleto(dtoBase, usuario)).rejects.toThrow(BadRequestException);
         });
 
         it("deve exigir ao menos uma ficha técnica", async () => {
-            await expect(service.createCompleto({ fichas: [] }, 1)).rejects.toThrow(
+            await expect(service.createCompleto({ fichas: [] }, usuario)).rejects.toThrow(
                 BadRequestException,
             );
         });
@@ -404,7 +416,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(resultado).toEqual({ id: 100, cliente_id: 8 });
@@ -459,7 +471,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
@@ -497,7 +509,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
@@ -533,7 +545,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(BadRequestException);
 
@@ -550,7 +562,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow("Uma ou mais etapas não pertencem ao fabrico do pedido");
         });
@@ -571,7 +583,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(BadRequestException);
 
@@ -588,7 +600,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow("Para alterar a grade da ficha, envie também itens ou cores_ids");
 
@@ -629,7 +641,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.fichaEtapa.deleteMany).toHaveBeenCalledWith({
@@ -678,7 +690,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
@@ -720,7 +732,7 @@ describe("PedidoService", () => {
                         },
                     ],
                 },
-                1,
+                usuario,
             );
 
             expect(mockPrismaService.clienteProduto.upsert).not.toHaveBeenCalled();
@@ -741,7 +753,7 @@ describe("PedidoService", () => {
                 service.updateCompleto(
                     100,
                     { fichas: [{ id: 999, produto_id: 5, quantidade: 1 }] },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(BadRequestException);
 
@@ -764,7 +776,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(BadRequestException);
 
@@ -780,7 +792,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow("Não é permitido alterar o produto da ficha");
 
@@ -806,7 +818,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(NotFoundException);
 
@@ -823,7 +835,7 @@ describe("PedidoService", () => {
                             },
                         ],
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow("Um ou mais produtos não pertencem a este fabrico");
 
@@ -835,12 +847,12 @@ describe("PedidoService", () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
             await expect(
-                service.updateCompleto(100, { fichas: [{ produto_id: 5, quantidade: 1 }] }, 1),
+                service.updateCompleto(100, { fichas: [{ produto_id: 5, quantidade: 1 }] }, usuario),
             ).rejects.toThrow(NotFoundException);
         });
 
         it("deve exigir ao menos uma ficha técnica", async () => {
-            await expect(service.updateCompleto(100, { fichas: [] }, 1)).rejects.toThrow(
+            await expect(service.updateCompleto(100, { fichas: [] }, usuario)).rejects.toThrow(
                 BadRequestException,
             );
         });
@@ -858,7 +870,7 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.findMany.mockResolvedValue(pedidos);
 
-            const result = await service.findAll(1);
+            const result = await service.findAll(usuario);
 
             expect(result).toEqual(pedidos);
 
@@ -884,7 +896,7 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
 
-            const result = await service.getById(1, 1);
+            const result = await service.getById(1, usuario);
 
             expect(result).toEqual(pedido);
             expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith({
@@ -895,7 +907,7 @@ describe("PedidoService", () => {
         it("deve lançar NotFoundException se pedido não existir no fabrico", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
-            await expect(service.getById(1, 1)).rejects.toThrow(NotFoundException);
+            await expect(service.getById(1, usuario)).rejects.toThrow(NotFoundException);
         });
     });
 
@@ -911,7 +923,7 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.findMany.mockResolvedValue(pedidos);
 
-            const result = await service.findAllCliente(7, 1);
+            const result = await service.findAllCliente(7, usuario);
 
             expect(result).toEqual(pedidos);
 
@@ -944,7 +956,7 @@ describe("PedidoService", () => {
                     finalizado: true,
                     custo_total: 140.75,
                 },
-                1,
+                usuario,
             );
 
             expect(result).toEqual(pedidoAtualizado);
@@ -967,7 +979,7 @@ describe("PedidoService", () => {
                     {
                         finalizado: true,
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(NotFoundException);
         });
@@ -986,7 +998,7 @@ describe("PedidoService", () => {
                     {
                         cliente_id: 99,
                     },
-                    1,
+                    usuario,
                 ),
             ).rejects.toThrow(NotFoundException);
         });
@@ -1003,7 +1015,7 @@ describe("PedidoService", () => {
 
             mockPrismaService.pedido.delete.mockResolvedValue(pedido);
 
-            const result = await service.delete(1, 1);
+            const result = await service.delete(1, usuario);
 
             expect(result).toEqual("O pedido com o id 1 foi deletado com sucesso");
 
@@ -1017,7 +1029,7 @@ describe("PedidoService", () => {
         it("deve lançar erro se pedido não existir no fabrico", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
-            await expect(service.delete(1, 1)).rejects.toThrow(NotFoundException);
+            await expect(service.delete(1, usuario)).rejects.toThrow(NotFoundException);
         });
     });
 });

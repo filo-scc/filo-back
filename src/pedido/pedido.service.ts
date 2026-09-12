@@ -14,6 +14,7 @@ import { CreatePedidoCompletoDto, CreatePedidoFichaDto } from "./dto/create-pedi
 import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const PALETA_13_CORES = [
     "#7FA9B8",
@@ -38,7 +39,9 @@ export class PedidoService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(data: CreatePedidoDto, fabricoId: number): Promise<Pedido> {
+    async create(data: CreatePedidoDto, user: AuthenticatedUser): Promise<Pedido> {
+        const fabricoId = user.fabrico_id!;
+
         if (data.cliente_id) {
             const clienteExists = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -92,7 +95,8 @@ export class PedidoService {
      * (itens da matriz, etapa inicial, parceiros e cliente-produto) em uma única
      * transação: ou tudo é persistido, ou nada é.
      */
-    async createCompleto(data: CreatePedidoCompletoDto, fabricoId: number) {
+    async createCompleto(data: CreatePedidoCompletoDto, user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
         const fichasDto = data.fichas ?? [];
 
         if (!fichasDto.length) {
@@ -223,7 +227,8 @@ export class PedidoService {
      * troca de cliente, inclusão, remoção, edição de matriz/parceiros
      * e ajuste de preço/referência do cliente.
      */
-    async updateCompleto(id: number, data: UpdatePedidoCompletoDto, fabricoId: number) {
+    async updateCompleto(id: number, data: UpdatePedidoCompletoDto, user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
         const fichasDto = data.fichas ?? [];
 
         if (!fichasDto.length) {
@@ -964,7 +969,9 @@ export class PedidoService {
         };
     }
 
-    async findAll(fabricoId: number) {
+    async findAll(user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
+
         return this.prisma.pedido.findMany({
             where: { fabrico_id: fabricoId },
             include: {
@@ -976,7 +983,9 @@ export class PedidoService {
         });
     }
 
-    async getById(id: number, fabricoId: number) {
+    async getById(id: number, user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
+
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -988,7 +997,9 @@ export class PedidoService {
         return pedido;
     }
 
-    async delete(id: number, fabricoId: number) {
+    async delete(id: number, user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
+
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -1001,7 +1012,9 @@ export class PedidoService {
         return `O pedido com o id ${id} foi deletado com sucesso`;
     }
 
-    async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
+    async update(id: number, data: UpdatePedidoDto, user: AuthenticatedUser): Promise<Pedido> {
+        const fabricoId = user.fabrico_id!;
+
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -1033,7 +1046,9 @@ export class PedidoService {
         });
     }
 
-    async findAllCliente(cliente_id: number, fabricoId: number) {
+    async findAllCliente(cliente_id: number, user: AuthenticatedUser) {
+        const fabricoId = user.fabrico_id!;
+
         return this.prisma.pedido.findMany({
             where: { cliente_id, fabrico_id: fabricoId },
         });
