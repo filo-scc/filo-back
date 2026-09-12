@@ -418,13 +418,56 @@ describe("PedidoService", () => {
                 }),
             );
 
+            expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
+                where: { id: 200 },
+                data: { quantidade: 999 },
+            });
+
             expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
                 where: { id: 100 },
                 data: expect.objectContaining({
                     cliente_id: 8,
+                    quantidade: 999,
+                    custo_total: 9990,
+                    valor_total: 24975,
+                }),
+            });
+        });
+
+        it("deve atualizar a quantidade da ficha mesmo sem itens ou cores_ids", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                ...pedidoExistente,
+                fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 20, pedido_id: 100 }],
+            });
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
+
+            await service.updateCompleto(
+                100,
+                {
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                        },
+                    ],
+                },
+                1,
+            );
+
+            expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
+                where: { id: 200 },
+                data: { quantidade: 30 },
+            });
+            expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
                     quantidade: 30,
                     custo_total: 300,
-                    valor_total: 750,
+                    valor_total: 0,
                 }),
             });
         });

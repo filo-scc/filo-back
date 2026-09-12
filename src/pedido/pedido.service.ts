@@ -342,6 +342,7 @@ export class PedidoService {
 
                         const temEdicaoDeMatriz =
                             Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+                        const novaQuantidade = Number(fichaDto.quantidade) || 0;
 
                         if (temEdicaoDeMatriz) {
                             let gradeVersaoId = fichaDb.grade_versao_id;
@@ -375,13 +376,19 @@ export class PedidoService {
                             await tx.fichaTecnica.update({
                                 where: { id: fichaDb.id },
                                 data: {
-                                    quantidade: Number(fichaDto.quantidade) || 0,
+                                    quantidade: novaQuantidade,
                                     grade_versao_id: gradeVersaoId,
                                 },
                             });
 
-                            fichaDb.quantidade = Number(fichaDto.quantidade) || 0;
+                            fichaDb.quantidade = novaQuantidade;
                             fichaDb.grade_versao_id = gradeVersaoId;
+                        } else if (novaQuantidade !== fichaDb.quantidade) {
+                            await tx.fichaTecnica.update({
+                                where: { id: fichaDb.id },
+                                data: { quantidade: novaQuantidade },
+                            });
+                            fichaDb.quantidade = novaQuantidade;
                         }
 
                         if (Array.isArray(fichaDto.parceiros)) {
