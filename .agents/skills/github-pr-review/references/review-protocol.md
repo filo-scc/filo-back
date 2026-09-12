@@ -1,39 +1,36 @@
-# Protocolo de revisão
+# Protocolo compartilhado de revisão
 
 ## Primeira passagem: descoberta
 
-- Confirme base, head, commits e escopo real do diff.
-- Leia cada arquivo alterado com contexto suficiente para entender o fluxo.
-- Compare com a base quando isso distinguir regressão de comportamento preexistente.
-- Siga chamadas, estados, contratos e persistência além do trecho alterado quando necessário.
-- Procure testes existentes e cenários afetados.
-- Classifique as áreas críticas como afetadas, não afetadas ou não verificáveis.
-- Registre candidatos antes de concluir que são problemas.
+- Fixe número, URL, base SHA, head SHA, commits e escopo real do diff.
+- Leia cada arquivo alterado com contexto suficiente para seguir chamadas, estado, contrato e persistência.
+- Compare com a base para distinguir regressão de comportamento preexistente.
+- Procure testes existentes, consumidores e cenários afetados.
+- Classifique cada área de risco como `afetada`, `não afetada` ou `limitação`, sempre com justificativa curta.
+- Registre candidatos sem tratá-los antecipadamente como findings.
 
-Um candidato precisa descrever um caminho concreto entre a mudança e o efeito observado. Não mantenha hipóteses baseadas apenas no nome de uma função, em um trecho isolado ou em preferência pessoal.
+Um candidato precisa descrever um caminho concreto entre a mudança e o efeito. Nome de função, trecho isolado, preferência pessoal ou check verde não bastam.
 
 ## Segunda passagem: contestação
 
 Para cada candidato, responda:
 
-1. O comportamento pode realmente ocorrer com os contratos e dados disponíveis?
+1. O comportamento pode ocorrer com os contratos e dados comprovados?
 2. O PR introduziu ou agravou o problema?
-3. Há código posterior, fallback, validação ou commit do próprio PR que já o resolve?
-4. O impacto no comportamento existente foi identificado de forma concreta?
-5. As linhas citadas contêm a causa ou o ponto apropriado para comentar?
-6. A sugestão resolve a causa sem ampliar desnecessariamente o escopo?
-7. A severidade corresponde ao impacto demonstrado?
-8. A confiança corresponde à força da evidência e às limitações?
-9. A exploração ou sequência de acionamento foi descrita sem especulação?
-10. O impacto nos clientes e o escopo afetado são concretos?
-11. A correção proposta é a mínima que elimina a causa com segurança?
-12. Há um teste de regressão capaz de falhar antes e passar depois?
+3. Outro trecho, fallback, validação ou commit do PR já o resolve?
+4. A localização contém a causa ou o ponto apropriado de correção?
+5. O impacto, o escopo e o gatilho são concretos?
+6. A severidade respeita as invariantes canônicas e o impacto demonstrado?
+7. A confiança corresponde à evidência disponível?
+8. A correção sugerida elimina a causa com o menor escopo seguro?
+9. Há teste de regressão que falha antes e passa depois?
+10. O head permaneceu o mesmo durante a análise?
 
-Descarte o candidato quando a evidência negar o problema, ele for apenas preexistente sem agravamento, depender de suposição não verificável ou representar somente limpeza/refatoração opcional. Registre o descarte resumidamente no documento.
+Descarte o candidato quando a evidência negar o problema, ele for preexistente sem agravamento, depender de suposição material não verificável ou representar apenas limpeza opcional. Registre o descarte resumidamente.
 
 ## Roteamento de risco
 
-Determine a cobertura a partir do diff e do código relacionado. Para cada área abaixo, registre `afetada`, `não afetada` ou `limitação`, com uma justificativa curta:
+Registre `afetada`, `não afetada` ou `limitação` para:
 
 - isolamento entre fábricas;
 - autenticação e autorização;
@@ -42,76 +39,60 @@ Determine a cobertura a partir do diff e do código relacionado. Para cada área
 - integridade, precisão e migrations;
 - contrato entre frontend e backend.
 
-Quando afetada, verifique no mínimo:
-
-- **Isolamento:** origem da fábrica, queries por ID, relações aninhadas, listas, uploads, jobs e tentativa cruzada entre duas fábricas.
-- **Autorização:** ator, papel, ação, recurso e validação no backend; ocultação no frontend não comprova segurança.
-- **Pedidos e fichas:** atomicidade, itens adicionados/removidos, totais, batch, repetição e sucesso parcial.
-- **Kanban:** origem, destino, pré-condições, idempotência, duas operações concorrentes e recuperação de falha.
-- **Dados e migrations:** tipo, nulabilidade, precisão, constraint, backfill, compatibilidade, ordem de deploy e rollback.
-- **Contrato:** campos, tipos, enums, erros, estados, consumidores e convivência entre versões.
-
-Não expanda a revisão para uma auditoria total do produto quando a área não tiver relação concreta com o PR.
+Não expanda a revisão para uma auditoria total quando a área não tiver relação concreta com o PR.
 
 ## Severidade
 
-- **Crítica:** vazamento entre fábricas, corrupção ou perda relevante de dados, comprometimento de conta, indisponibilidade central ou ação destrutiva sem recuperação razoável.
-- **Alta:** autorização indevida relevante, persistência incorreta, quebra de fluxo principal, migration perigosa ou integração incompatível com impacto significativo.
-- **Média:** defeito funcional restrito, caso de borda provável, inconsistência recuperável ou degradação com contorno disponível.
-- **Baixa:** problema comprovado e localizado, sem impacto significativo em fluxo central.
+As severidades e os níveis previstos nas invariantes canônicas prevalecem. Não reduza uma severidade normativa usando esta análise.
 
-Crítica e alta são potenciais bloqueios de merge. Não classifique preferência de estilo como baixa; remova-a dos apontamentos.
+Para calibrar dentro da faixa permitida, documente:
+
+- natureza: leitura, mutação, perda, indisponibilidade ou degradação;
+- alcance: registro, fluxo, fábrica, múltiplas fábricas ou sistema;
+- sensibilidade e relevância dos dados;
+- ator, pré-condições e facilidade de acionamento;
+- duração, detectabilidade e possibilidade de recuperação;
+- impacto operacional, financeiro e de compatibilidade.
+
+Referência geral:
+
+- **Crítica:** violação classificada como crítica pelas invariantes, comprometimento de conta, perda/corrupção relevante, indisponibilidade central ou ação destrutiva sem recuperação razoável.
+- **Alta:** autorização indevida relevante, persistência incorreta, quebra de fluxo principal, migration perigosa ou incompatibilidade significativa.
+- **Média:** defeito restrito ou recuperável, caso de borda provável ou degradação com contorno seguro.
+- **Baixa:** defeito comprovado e localizado sem impacto significativo em fluxo central.
+
+Não use severidade baixa para estilo. Se a evidência não comprovar impacto, descarte ou registre como limitação; não rebaixe artificialmente.
 
 ## Confiança
 
-- **Confirmada:** reproduzida por teste/execução ou demonstrada diretamente por contrato e caminho determinístico.
-- **Alta:** caminho e pré-condições estão comprovados no código; a execução não foi necessária ou possível.
-- **Média:** evidência concreta sustenta o risco, mas uma dependência externa ou estado não disponível impede confirmação completa.
-- **Baixa:** faltam evidências materiais. Não mantenha como finding; mova para limitações ou candidatos descartados e descreva como verificar.
+- **Confirmada:** reproduzida ou demonstrada diretamente por contrato e caminho determinístico.
+- **Alta:** caminho e pré-condições comprovados; execução não necessária ou indisponível.
+- **Média:** há evidência concreta, mas falta dependência externa ou estado para confirmação completa.
+- **Baixa:** faltam evidências materiais; não mantenha como finding.
 
-Severidade mede impacto; confiança mede força da evidência. Não reduza a severidade para compensar baixa confiança.
+Severidade mede impacto; confiança mede força da evidência.
 
 ## Contrato do finding
 
-Para cada finding mantido:
+Cada finding deve explicitar:
 
-- **Título:** descreva o efeito, não apenas o componente.
-- **Localização:** cite linhas do head que contêm a causa ou o ponto apropriado de correção.
-- **Evidência:** mantenha o trecho curto e conecte código/contrato/execução ao comportamento.
-- **Problema e causa:** separe o que acontece de por que acontece.
-- **Exploração possível:** para segurança, informe ator, pré-condições e sequência; para defeito funcional, use `Não aplicável` e descreva o gatilho concreto.
-- **Impacto nos clientes:** indique confidencialidade, dados, operação, disponibilidade, finanças ou experiência; não use impacto genérico.
-- **Escopo afetado:** informe fábricas, perfis, registros, versões ou fluxos conhecidos; declare quando não puder quantificar.
-- **Impacto no existente:** identifique regressão, quebra de contrato, alteração de dados, incompatibilidade ou ausência de comprometimento comprovado.
-- **Correção mínima segura:** elimine a causa sem exigir refatoração adjacente desnecessária.
-- **Teste de regressão:** descreva um caso que falha antes e passa depois, incluindo pré-condição e resultado esperado.
-- **Limitações:** registre evidências ausentes, checks não executados e dependências da conclusão.
-
-Quando a conclusão depender de dado, migration, ambiente ou contrato indisponível, ajuste a confiança e formule a verificação necessária; não apresente hipótese como fato.
+- título orientado ao efeito;
+- localização no head e evidência curta;
+- comportamento incorreto e causa técnica;
+- ator/sequência para segurança ou gatilho concreto para defeito funcional;
+- impacto nos clientes e escopo afetado;
+- regressão, quebra de contrato ou outro impacto no existente;
+- correção mínima segura;
+- teste de regressão com pré-condição, ação e resultado esperado;
+- limitações e checks pendentes;
+- mensagem curta, autocontida e colaborativa para o PR.
 
 ## Verificações
 
-Descubra os checks pelos arquivos e scripts do repositório. Rode apenas os relevantes e disponíveis. Não use comandos que reescrevam arquivos e não instale dependências sem autorização. Registre:
+Descubra checks pelos scripts e instruções do repositório. Rode apenas os relevantes e não destrutivos. Registre comando, resultado, avisos e omissões justificadas.
 
-- comando executado;
-- resultado;
-- avisos relevantes;
-- checks não executados e o motivo.
-
-Uma execução bem-sucedida de lint ou build não invalida um problema funcional demonstrado. Da mesma forma, uma falha ambiental não prova regressão no PR.
-
-Não execute formatter, lint com `--fix` ou outro comando que reescreva arquivos em uma revisão somente leitura.
-
-## Mensagem curta
-
-A mensagem pronta para o PR deve conter contexto suficiente para ser entendida no trecho comentado, efeito concreto e uma sugestão. Prefira duas ou três frases e encerre colaborativamente.
-
-Exemplo de formato:
-
-```md
-Ao remover uma cor, ela deixa de aparecer na tabela, mas continua sendo somada no valor persistido. Isso pode salvar um total diferente do mostrado ao usuário. Podemos calcular o valor salvo apenas a partir das cores selecionadas?
-```
+Lint, build ou validação estrutural não invalida defeito funcional demonstrado. Falha ambiental não prova regressão. Não execute formatter, `--fix`, migration, seed ou qualquer escrita em banco compartilhado.
 
 ## Resultado sem findings
 
-Se nenhum candidato sobreviver, mantenha metadados, cobertura de risco, checks, limitações e candidatos descartados. Não preserve blocos fictícios e conclua com `Nenhum finding mantido`.
+Mantenha metadados, cobertura, compatibilidade, checks, limitações e candidatos descartados. Remova blocos fictícios e conclua `Nenhum finding mantido`.

@@ -1,10 +1,16 @@
-# Revisão do PR {{PR_NUMBER}} - findings
+# Revisão do PR {{PR_NUMBER}} — {{REPOSITORY}}
 
-PR: {{PR_URL}}  
-Título: {{PR_TITLE}}  
-Base: `{{BASE_REF}}` (`{{BASE_SHA}}`)  
-Branch: `{{HEAD_REF}}`  
+PR: {{PR_URL}}
+
+Título: {{PR_TITLE}}
+
+Base: `{{BASE_REF}}` (`{{BASE_SHA}}`)
+
+Branch: `{{HEAD_REF}}`
+
 Head revisado: `{{HEAD_SHA}}`
+
+Modo de inspeção: `{{INSPECTION_MODE}}`
 
 Escopo: {{REVIEW_SCOPE}}
 
@@ -25,27 +31,28 @@ Escopo: {{REVIEW_SCOPE}}
 
 {{OVERALL_COMPATIBILITY_AND_REGRESSION_ASSESSMENT}}
 
-## Verificações executadas
+## Verificações
 
 ```bash
-{{COMMANDS_RUN}}
+{{COMMANDS_RUN_OR_NONE}}
 ```
 
-{{CHECK_RESULTS}}
+{{CHECK_RESULTS_AND_OMISSIONS}}
 
 ## Limitações globais
 
 - {{GLOBAL_LIMITATION_OR_NONE}}
 
-## 1. {{EFFECT_ORIENTED_FINDING_TITLE}}
+<!-- Use este bloco para findings críticos/altos, segurança, dados ou deploy. Remova a instrução e blocos não usados. -->
+## {{INDEX}}. {{EFFECT_ORIENTED_FINDING_TITLE}}
 
-Severidade: {{CRITICA_ALTA_MEDIA_OU_BAIXA}}.
+Severidade: {{SEVERITY}}.
 
-Confiança: {{CONFIRMADA_ALTA_OU_MEDIA}}.
+Confiança: {{CONFIDENCE}}.
 
-Onde:
+Invariantes: {{INVARIANTS_OR_NONE}}.
 
-- `{{FILE_PATH}}:{{START_LINE}}-{{END_LINE}}`
+Onde: `{{FILE_PATH}}:{{START_LINE}}-{{END_LINE}}`
 
 Evidência:
 
@@ -53,21 +60,17 @@ Evidência:
 {{MINIMAL_RELEVANT_CODE}}
 ```
 
-{{EVIDENCE_CONNECTING_CODE_TO_BEHAVIOR}}
-
 Problema: {{OBSERVED_INCORRECT_BEHAVIOR}}
 
 Causa técnica: {{TECHNICAL_CAUSE}}
 
-Exploração possível: {{ACTOR_PRECONDITIONS_AND_SEQUENCE_OR_NOT_APPLICABLE_WITH_TRIGGER}}
+Exploração ou gatilho: {{ACTOR_PRECONDITIONS_AND_SEQUENCE_OR_FUNCTIONAL_TRIGGER}}
 
 Impacto nos clientes: {{CUSTOMER_IMPACT}}
 
 Escopo afetado: {{AFFECTED_FACTORIES_ROLES_RECORDS_VERSIONS_OR_FLOWS}}
 
 Impacto no existente: {{REGRESSION_COMPATIBILITY_OR_DATA_IMPACT}}
-
-Exemplo concreto: {{CONCRETE_SCENARIO}}
 
 Correção mínima segura: {{MINIMUM_SAFE_FIX}}
 
@@ -78,7 +81,30 @@ Limitações do finding: {{MISSING_EVIDENCE_UNRUN_CHECKS_OR_NONE}}
 Mensagem curta para o PR:
 
 ```md
-{{SHORT_SELF_CONTAINED_MESSAGE_ENDING_WITH_A_CONCRETE_SUGGESTION}}
+{{SHORT_SELF_CONTAINED_COLLABORATIVE_MESSAGE}}
+```
+
+<!-- Use este bloco compacto somente para findings médios/baixos. Todos os campos continuam obrigatórios. -->
+## {{INDEX}}. {{EFFECT_ORIENTED_FINDING_TITLE}}
+
+**Classificação:** {{SEVERITY}}; confiança {{CONFIDENCE}}; invariantes {{INVARIANTS_OR_NONE}}.
+
+**Onde e evidência:** `{{FILE_PATH}}:{{START_LINE}}-{{END_LINE}}` — {{MINIMAL_EVIDENCE_AND_CONNECTION}}
+
+**Efeito e causa:** {{OBSERVED_BEHAVIOR_AND_TECHNICAL_CAUSE}}
+
+**Gatilho/exploração:** {{ACTOR_SEQUENCE_OR_FUNCTIONAL_TRIGGER}}
+
+**Impacto e escopo:** {{CUSTOMER_EXISTING_BEHAVIOR_AND_AFFECTED_SCOPE}}
+
+**Correção e regressão:** {{MINIMUM_SAFE_FIX_AND_FAILS_BEFORE_PASSES_AFTER_TEST}}
+
+**Limitações:** {{MISSING_EVIDENCE_UNRUN_CHECKS_OR_NONE}}
+
+Mensagem curta para o PR:
+
+```md
+{{SHORT_SELF_CONTAINED_COLLABORATIVE_MESSAGE}}
 ```
 
 ## Pontos reavaliados e não mantidos como correção

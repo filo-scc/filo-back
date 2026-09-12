@@ -5,7 +5,7 @@
         {
             "id": "GITHUB-P01",
             "category": "positive",
-            "prompt": "Use $github-pr-review com gh pr checkout 101 para revisar este diff sanitizado.",
+            "prompt": "Use $github-pr-review para revisar o PR 101 do filo-back em modo isolado.",
             "fixture": "PR adiciona GET /pedidos que chama prisma.pedido.findMany() sem filtro; controller permite GERENTE e base usava fabrico_id autenticado.",
             "expected": {
                 "outcome": "finding",
@@ -21,7 +21,7 @@
         {
             "id": "GITHUB-P02",
             "category": "positive",
-            "prompt": "Use $github-pr-review com gh pr checkout 102 para revisar este formulário.",
+            "prompt": "Use $github-pr-review para revisar https://github.com/filo-scc/filo-front/pull/102.",
             "fixture": "Diff troca payload explícito por if (quantidade) e if (finalizado); valores 0 e false deixam de ser enviados embora sejam válidos no contrato.",
             "expected": {
                 "outcome": "finding",
@@ -264,7 +264,7 @@
         {
             "id": "GITHUB-S01",
             "category": "insufficient_evidence",
-            "prompt": "Use $github-pr-review com gh pr checkout 116.",
+            "prompt": "Use $github-pr-review para revisar o PR 116 deste repositório.",
             "fixture": "gh pr view e checkout falham por repositório inacessível. Não há diff, base, head, arquivos ou metadados locais confiáveis.",
             "expected": {
                 "outcome": "stop",

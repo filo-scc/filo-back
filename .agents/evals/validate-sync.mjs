@@ -7,6 +7,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const frontendRoot = resolve(repositoryRoot, "../filo-front");
 
 const sharedDirectories = [
+    ".agents/skills/filo-update-email",
     ".agents/skills/tenant-isolation-review",
     ".agents/skills/authorization-review",
     ".agents/skills/api-contract-review",
