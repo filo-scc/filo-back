@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 const mockPrismaService = {
     $transaction: jest.fn(async (callback) => await callback(mockPrismaService)),
     $queryRaw: jest.fn(),
+    $executeRaw: jest.fn(),
     fichaTecnica: {
         create: jest.fn(),
         update: jest.fn(),
@@ -216,9 +217,7 @@ describe("FichaTecnicaService", () => {
                 pedido_id: 100,
                 concluida: true,
             });
-            prismaService.fichaTecnica.count
-                .mockResolvedValueOnce(1)
-                .mockResolvedValueOnce(0);
+            prismaService.fichaTecnica.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
             prismaService.pedido.updateMany.mockResolvedValue({ count: 1 });
 
             await service.update(1, { concluida: true } as any, 20);

@@ -61,7 +61,16 @@ describe("PedidoController", () => {
 
         await controller.createCompleto(dto as any, usuario);
 
-        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, usuario);
+        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, usuario, undefined);
+    });
+
+    it("deve criar pedido completo com chave de idempotência do header", async () => {
+        const dto = { fichas: [{ produto_id: 1, quantidade: 5 }] };
+        mockPedidoService.createCompleto.mockResolvedValue({ id: 1 });
+
+        await controller.createCompleto(dto as any, usuario, "req-9");
+
+        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, usuario, "req-9");
     });
 
     it("deve editar pedido completo com fabrico do usuário autenticado", async () => {

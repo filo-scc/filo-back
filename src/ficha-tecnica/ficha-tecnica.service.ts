@@ -8,6 +8,7 @@ import { EtapaService } from "../etapa/etapa.service";
 import { FabricoService } from "../fabrico/fabrico.service";
 import { Prisma } from "@prisma/client";
 import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
+import { lockFabricoNumeracao, proximoNumeroFicha } from "src/common/utils/concurrency";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -125,17 +126,10 @@ export class FichaTecnicaService {
             throw new BadRequestException("Grade sem tamanhos configurados");
         }
 
-        const ultimaFichaTecnica = await this.prisma.fichaTecnica.findFirst({
-            where: {
-                fabrico_id,
-            },
-            orderBy: {
-                id: "desc",
-            },
-        });
-        const numero = (ultimaFichaTecnica?.numero ?? 0) + 1;
-
         return this.prisma.$transaction(async (tx) => {
+            await lockFabricoNumeracao(tx, fabrico_id);
+            const numero = await proximoNumeroFicha(tx, fabrico_id);
+
             // 1. cria ficha
             const ficha = await tx.fichaTecnica.create({
                 data: {
@@ -149,13 +143,6 @@ export class FichaTecnicaService {
 
             // ⚠️ IMPORTANTE:
             // não cria cores automaticamente (usuário define depois)
-
-            // 2. cria estrutura base (sem cor ainda)
-            // 👉 aqui você pode decidir:
-            // opção A: criar vazio (recomendado)
-            // opção B: criar placeholder
-
-            // vou seguir opção A (melhor UX e menos lixo no banco)
 
             return ficha;
         });

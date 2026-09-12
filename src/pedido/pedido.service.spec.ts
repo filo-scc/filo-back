@@ -20,7 +20,6 @@ describe("PedidoService", () => {
         fabrico: { id: 1, ativo: true },
     };
 
-
     const mockPrismaService = {
         pedido: {
             create: jest.fn(),
@@ -108,6 +107,8 @@ describe("PedidoService", () => {
         },
 
         $transaction: jest.fn(),
+        $executeRaw: jest.fn(),
+        $queryRaw: jest.fn(),
     };
 
     const mockProdutoService = {
@@ -137,6 +138,8 @@ describe("PedidoService", () => {
         mockPrismaService.$transaction.mockImplementation(
             async (callback: (tx: unknown) => unknown) => callback(mockPrismaService),
         );
+        mockPrismaService.$executeRaw.mockResolvedValue(1);
+        mockPrismaService.$queryRaw.mockResolvedValue([{ id: 100 }]);
         mockPrismaService.fichaTecnica.count.mockResolvedValue(1);
         mockPrismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
         mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
@@ -251,6 +254,7 @@ describe("PedidoService", () => {
 
             expect(resultado).toEqual({ id: 100, numero: 7 });
             expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+            expect(mockPrismaService.$executeRaw).toHaveBeenCalled();
 
             expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
@@ -425,6 +429,43 @@ describe("PedidoService", () => {
             });
         });
 
+        it("deve reutilizar o pedido quando a chave de idempotência já existe", async () => {
+            const existente = { id: 100, numero: 7, fichas_tecnicas: [] };
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, grade_versao_id: 3 }]);
+            mockPrismaService.pedido.findFirst.mockResolvedValue(existente);
+
+            const resultado = await service.createCompleto(
+                { ...dtoBase, idempotency_key: "req-1" },
+                usuario,
+            );
+
+            expect(resultado).toEqual(existente);
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { fabrico_id: 1, idempotency_key: "req-1" },
+                }),
+            );
+        });
+
+        it("deve devolver o pedido criado se outro request gravar a mesma chave durante a transação", async () => {
+            prepararCenarioFeliz();
+            const existente = { id: 100, numero: 7 };
+            mockPrismaService.pedido.findFirst
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(existente);
+
+            const resultado = await service.createCompleto(
+                { ...dtoBase, idempotency_key: "req-2" },
+                usuario,
+            );
+
+            expect(resultado).toEqual(existente);
+            expect(mockPrismaService.$executeRaw).toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+        });
+
         it("deve rejeitar produto de outro fabrico antes de abrir a transação", async () => {
             mockPrismaService.produto.findMany.mockResolvedValueOnce([]);
 
@@ -452,7 +493,9 @@ describe("PedidoService", () => {
             prepararCenarioFeliz();
             mockPrismaService.cor.findMany.mockResolvedValue([]);
 
-            await expect(service.createCompleto(dtoBase, usuario)).rejects.toThrow(BadRequestException);
+            await expect(service.createCompleto(dtoBase, usuario)).rejects.toThrow(
+                BadRequestException,
+            );
         });
 
         it("deve rejeitar grade não liberada para o fabrico", async () => {
@@ -565,6 +608,8 @@ describe("PedidoService", () => {
 
             expect(resultado).toEqual({ id: 100, cliente_id: 8 });
             expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+            expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+            expect(mockPrismaService.$executeRaw).toHaveBeenCalled();
             expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
             expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
 
@@ -914,7 +959,7 @@ describe("PedidoService", () => {
                 ),
             ).rejects.toThrow(BadRequestException);
 
-            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
         });
 
         it("deve rejeitar tentativa de alterar o produto de uma ficha existente", async () => {
@@ -953,7 +998,6 @@ describe("PedidoService", () => {
                 ),
             ).rejects.toThrow("Não é permitido alterar o produto da ficha");
 
-            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
             expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
         });
 

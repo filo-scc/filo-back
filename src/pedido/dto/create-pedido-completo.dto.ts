@@ -8,6 +8,7 @@ import {
     IsNumber,
     IsOptional,
     IsString,
+    MaxLength,
     Min,
     ValidateNested,
 } from "class-validator";
@@ -106,6 +107,11 @@ export class CreatePedidoCompletoDto {
     @IsOptional()
     @IsBoolean()
     usarCorPaleta?: boolean;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(128)
+    idempotency_key?: string;
 
     @IsArray()
     @ArrayMinSize(1)

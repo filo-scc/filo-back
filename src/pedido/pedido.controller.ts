@@ -7,6 +7,7 @@ import {
     Param,
     Delete,
     Put,
+    Headers,
     UseGuards,
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
@@ -35,8 +36,9 @@ export class PedidoController {
     async createCompleto(
         @Body() createPedidoCompletoDto: CreatePedidoCompletoDto,
         @CurrentUser() user: AuthenticatedUser,
+        @Headers("idempotency-key") idempotencyKey?: string,
     ) {
-        return this.pedidoService.createCompleto(createPedidoCompletoDto, user);
+        return this.pedidoService.createCompleto(createPedidoCompletoDto, user, idempotencyKey);
     }
 
     @Get()
