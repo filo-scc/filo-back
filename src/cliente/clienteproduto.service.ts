@@ -121,6 +121,7 @@ export class ClienteProdutoService {
                 where: {
                     cliente_id,
                     cliente: { fabrico_id: fabricoId },
+                    produto: { fabrico_id: fabricoId },
                 },
                 select: {
                     nome_para_cliente: true,
@@ -155,6 +156,7 @@ export class ClienteProdutoService {
             return await this.prisma.clienteProduto.findMany({
                 where: {
                     produto_id,
+                    cliente: { fabrico_id: fabricoId },
                     produto: { fabrico_id: fabricoId },
                 },
                 select: {

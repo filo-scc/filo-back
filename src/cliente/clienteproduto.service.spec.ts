@@ -140,7 +140,11 @@ describe("ClienteProdutoService", () => {
             { produto: { id: 2 } },
         ]);
         expect(prisma.clienteProduto.findMany).toHaveBeenCalledWith({
-            where: { cliente_id: 1, cliente: { fabrico_id: FABRICO_ID } },
+            where: {
+                cliente_id: 1,
+                cliente: { fabrico_id: FABRICO_ID },
+                produto: { fabrico_id: FABRICO_ID },
+            },
             select: {
                 nome_para_cliente: true,
                 preco_padrao: true,
@@ -178,7 +182,11 @@ describe("ClienteProdutoService", () => {
             { cliente: { nome: "Loja" } },
         ]);
         expect(prisma.clienteProduto.findMany).toHaveBeenCalledWith({
-            where: { produto_id: 2, produto: { fabrico_id: FABRICO_ID } },
+            where: {
+                produto_id: 2,
+                cliente: { fabrico_id: FABRICO_ID },
+                produto: { fabrico_id: FABRICO_ID },
+            },
             select: {
                 nome_para_cliente: true,
                 preco_padrao: true,
