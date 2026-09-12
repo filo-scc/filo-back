@@ -102,18 +102,18 @@ describe("ParceiroProdutoService", () => {
         produtoService.getById.mockResolvedValue(produtoTenant);
         parceiroService.getById.mockRejectedValue(new NotFoundException("Parceiro nao encontrado"));
 
-        await expect(service.createParceiroProduto(1, 2, { preco: 15 }, userTenant)).rejects.toThrow(
-            NotFoundException,
-        );
+        await expect(
+            service.createParceiroProduto(1, 2, { preco: 15 }, userTenant),
+        ).rejects.toThrow(NotFoundException);
     });
 
     it("retorna 404 quando o produto pertence a outro fabrico", async () => {
         produtoService.getById.mockResolvedValue({ id: 2, fabrico_id: 11 });
         parceiroService.getById.mockResolvedValue(parceiroTenant);
 
-        await expect(service.createParceiroProduto(1, 2, { preco: 15 }, userTenant)).rejects.toThrow(
-            NotFoundException,
-        );
+        await expect(
+            service.createParceiroProduto(1, 2, { preco: 15 }, userTenant),
+        ).rejects.toThrow(NotFoundException);
     });
 
     it("rejeita create duplicado", async () => {
@@ -121,9 +121,9 @@ describe("ParceiroProdutoService", () => {
         parceiroService.getById.mockResolvedValue(parceiroTenant);
         prisma.parceiroProduto.findUnique.mockResolvedValue({ parceiro_id: 1, produto_id: 2 });
 
-        await expect(service.createParceiroProduto(1, 2, { preco: 15 }, userTenant)).rejects.toThrow(
-            ConflictException,
-        );
+        await expect(
+            service.createParceiroProduto(1, 2, { preco: 15 }, userTenant),
+        ).rejects.toThrow(ConflictException);
     });
 
     it("remove vinculo existente do tenant autenticado", async () => {
@@ -209,11 +209,11 @@ describe("ParceiroProdutoService", () => {
         prisma.parceiroProduto.findUnique.mockResolvedValue({ parceiro_id: 1, produto_id: 2 });
         prisma.parceiroProduto.update.mockResolvedValue({ preco: 20 });
 
-        await expect(service.updateParceiroProduto(1, 2, { preco: 20 }, userTenant)).resolves.toEqual(
-            {
-                preco: 20,
-            },
-        );
+        await expect(
+            service.updateParceiroProduto(1, 2, { preco: 20 }, userTenant),
+        ).resolves.toEqual({
+            preco: 20,
+        });
         expect(prisma.parceiroProduto.update).toHaveBeenCalledWith({
             where: { produto_id_parceiro_id: { produto_id: 2, parceiro_id: 1 } },
             data: { preco: 20 },
@@ -226,9 +226,9 @@ describe("ParceiroProdutoService", () => {
         parceiroService.getById.mockResolvedValue(parceiroTenant);
         prisma.parceiroProduto.findUnique.mockResolvedValue(null);
 
-        await expect(service.updateParceiroProduto(1, 2, { preco: 20 }, userTenant)).rejects.toThrow(
-            NotFoundException,
-        );
+        await expect(
+            service.updateParceiroProduto(1, 2, { preco: 20 }, userTenant),
+        ).rejects.toThrow(NotFoundException);
     });
 
     it("busca vinculo apenas dentro do tenant autenticado", async () => {

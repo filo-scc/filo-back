@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+    Injectable,
+    ConflictException,
+    NotFoundException,
+    ForbiddenException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
@@ -80,10 +85,7 @@ export class ParceiroProdutoService {
 
         if (!vinculo) throw new NotFoundException("Vinculo nao encontrado");
 
-        if (
-            vinculo.produto.fabrico_id !== fabricoId ||
-            vinculo.parceiro.fabrico_id !== fabricoId
-        ) {
+        if (vinculo.produto.fabrico_id !== fabricoId || vinculo.parceiro.fabrico_id !== fabricoId) {
             throw new NotFoundException("Vinculo nao encontrado");
         }
 

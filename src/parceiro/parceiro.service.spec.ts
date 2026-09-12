@@ -298,10 +298,7 @@ describe("ParceiroService", () => {
         it("deve consultar categoria dentro do tenant autenticado", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
 
-            const result = await service.getParceirosByFabricoECategoria(
-                "Costura",
-                userFabrico1,
-            );
+            const result = await service.getParceirosByFabricoECategoria("Costura", userFabrico1);
 
             expect(result).toEqual([mockParceiro]);
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith({

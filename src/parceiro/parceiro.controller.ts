@@ -76,10 +76,6 @@ export class ParceiroController {
         @Param("categoria") categoria: string,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.parceiroService.getParceirosByFabricoECategoria(
-            categoria,
-            user,
-            fabricoId,
-        );
+        return this.parceiroService.getParceirosByFabricoECategoria(categoria, user, fabricoId);
     }
 }

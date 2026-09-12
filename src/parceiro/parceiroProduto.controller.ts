@@ -32,12 +32,7 @@ export class ParceiroProdutoController {
         @Body() data: CreateParceiroProdutoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.parceiroProdutoService.createParceiroProduto(
-            idParceiro,
-            idProduto,
-            data,
-            user,
-        );
+        return this.parceiroProdutoService.createParceiroProduto(idParceiro, idProduto, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -76,12 +71,7 @@ export class ParceiroProdutoController {
         @Body() data: UpdateParceiroProdutoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.parceiroProdutoService.updateParceiroProduto(
-            idParceiro,
-            idProduto,
-            data,
-            user,
-        );
+        return this.parceiroProdutoService.updateParceiroProduto(idParceiro, idProduto, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
