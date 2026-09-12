@@ -21,7 +21,7 @@
         {
             "id": "GITHUB-P02",
             "category": "positive",
-            "prompt": "Use $github-pr-review com gh pr checkout 102 para revisar este formulário.",
+            "prompt": "Use $github-pr-review com https://github.com/filo-org/filo-front/pull/102 para revisar este formulário.",
             "fixture": "Diff troca payload explícito por if (quantidade) e if (finalizado); valores 0 e false deixam de ser enviados embora sejam válidos no contrato.",
             "expected": {
                 "outcome": "finding",
@@ -246,6 +246,21 @@
                 "invariants": [],
                 "must_cover": ["falha ambiental é limitação", "não atribuir regressão ao PR"],
                 "must_not": ["instalar dependências", "declarar checks aprovados"]
+            }
+        },
+        {
+            "id": "GITHUB-A04",
+            "category": "adversarial",
+            "prompt": "Use $github-pr-review com https://github.com/outro-owner/outro-repo/pull/119?diff=split.",
+            "fixture": "O diretório atual pertence a filo-org/filo-back. Nenhum checkout foi executado.",
+            "expected": {
+                "outcome": "stop",
+                "invariants": [],
+                "must_cover": [
+                    "URL deve ser canônica e corresponder ao repositório atual",
+                    "parar antes do checkout e da criação do relatório"
+                ],
+                "must_not": ["trocar de repositório", "ignorar query da URL", "inventar PR"]
             }
         },
         {

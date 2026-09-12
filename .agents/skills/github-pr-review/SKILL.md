@@ -1,6 +1,6 @@
 ---
 name: github-pr-review
-description: Revisar pull requests do GitHub neste repositório quando o PR for informado como `gh pr checkout` seguido de número positivo, validar riscos em duas passagens e produzir um relatório Markdown com findings verificáveis sem alterar código nem publicar comentários.
+description: Revisar pull requests do GitHub neste repositório quando o PR for informado como `gh pr checkout` seguido de número positivo ou como URL canônica do GitHub, validar riscos em duas passagens e produzir um relatório Markdown com findings verificáveis sem alterar código nem publicar comentários.
 ---
 
 # GitHub PR Review
@@ -18,19 +18,20 @@ Produza uma revisão técnica verificável e proporcional ao risco. A entrega é
 
 ## Entrada obrigatória
 
-Exija que o identificador do PR seja informado exatamente como:
+Aceite exatamente uma destas formas de identificar o PR:
 
 ```text
 gh pr checkout <numero-positivo>
+https://github.com/<owner>/<repository>/pull/<numero-positivo>
 ```
 
-Aceite esse comando acompanhado do pedido de revisão ou da invocação `$github-pr-review`, mas rejeite número isolado, URL, branch, número zero, flags ou mais de um comando. Se a entrada for inválida, informe o formato esperado e pare antes do checkout e da criação do documento.
+Aceite a entrada acompanhada do pedido de revisão ou da invocação `$github-pr-review`. Para URL, aceite apenas HTTPS canônico do GitHub, com número positivo e sem query ou fragmento, e confirme que `owner/repository` corresponde ao repositório atual. Rejeite número isolado, branch, número zero, flags, URL de outro repositório ou mais de um identificador. Se a entrada for inválida, informe os dois formatos aceitos e pare antes do checkout e da criação do documento.
 
 ## Preparação
 
 1. Confirme que o diretório atual pertence a um repositório Git, que `gh` está disponível e que o acesso ao PR funciona.
 2. Inspecione `git status --short`. Preserve alterações locais: nunca descarte, sobrescreva, faça stash ou reset. Se elas impedirem o checkout, reporte o bloqueio.
-3. Execute o comando fornecido e obtenha com `gh pr view` pelo menos título, URL, base, branch, head, commits e arquivos alterados.
+3. Se a entrada for URL, extraia e valide repositório e número antes de executar `gh pr checkout <numero>`. Em seguida, obtenha com `gh pr view` pelo menos título, URL, base, branch, head, commits e arquivos alterados.
 4. Use `review-pr-<numero>.md` na raiz. Se existir, trate-o como rascunho: revalide todo o conteúdo contra o head atual e atualize-o sem duplicar apontamentos.
 5. Leia [references/review-protocol.md](references/review-protocol.md) antes de analisar o PR e use [assets/review-template.md](assets/review-template.md) como estrutura da entrega.
 6. Aplique o `AGENTS.md` ativo. Quando a área alterada possuir governança em `docs/ai`, consulte somente as referências necessárias para classificar o risco e verificar invariantes.
