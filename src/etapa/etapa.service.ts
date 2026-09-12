@@ -3,12 +3,16 @@ import {
     ConflictException,
     NotFoundException,
     BadRequestException,
+    ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
 import { UpdateEtapaDto } from "./dto/update-etapa.dto";
 import { Prisma } from "@prisma/client";
 import { ProdutoService } from "src/produto/produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+
+type FabricoScope = AuthenticatedUser | number;
 
 @Injectable()
 export class EtapaService {
@@ -28,7 +32,37 @@ export class EtapaService {
         return produtos.map((produto) => produto.id);
     }
 
-    async create(data: CreateEtapaDto) {
+    private resolverFabricoId(scope: FabricoScope, fabricoInformado?: number): number {
+        if (typeof scope === "number") {
+            return scope;
+        }
+
+        if (scope.cargo === "ADMIN") {
+            if (!fabricoInformado) {
+                throw new BadRequestException("O fabrico deve ser informado pelo administrador");
+            }
+
+            return Number(fabricoInformado);
+        }
+
+        if (!scope.fabrico_id) {
+            throw new ForbiddenException("Usuário não está associado a um fabrico");
+        }
+
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== scope.fabrico_id) {
+            throw new BadRequestException(
+                "Não é permitido escolher um fabrico diferente do usuário autenticado",
+            );
+        }
+
+        return scope.fabrico_id;
+    }
+
+    async create(data: CreateEtapaDto, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
+        const dadosEtapa = { ...data };
+        delete dadosEtapa.fabrico_id;
+
         if (data.icone_id) {
             const icone = await this.prisma.icone.findUnique({
                 where: { id: data.icone_id },
@@ -41,11 +75,12 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
-                const produtoIds = await this.obterProdutosDosFabricos([data.fabrico_id], tx);
+                const produtoIds = await this.obterProdutosDosFabricos([fabricoId], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.create({
                     data: {
-                        ...data,
+                        ...dadosEtapa,
+                        fabrico_id: fabricoId,
                     },
                 });
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
@@ -66,10 +101,19 @@ export class EtapaService {
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
+    async findAll(user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+
+        return this.findAllByFabricoID(fabricoId, user);
+    }
+
+    async findAllByFabricoID(fabrico_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user, fabrico_id);
+
         try {
             return this.prisma.etapa.findMany({
-                where: { fabrico_id: Number(fabrico_id) },
+                where: { fabrico_id: fabricoId },
+                orderBy: { ordem: "asc" },
                 include: {
                     icone: true,
                     icone_verde: true,
@@ -89,13 +133,13 @@ export class EtapaService {
         }
     }
 
-    async getAll() {
-        return this.prisma.etapa.findMany();
-    }
-
-    async getById(id: number) {
-        const etapa = await this.prisma.etapa.findUnique({
-            where: { id },
+    async getById(id: number, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope);
+        const etapa = await this.prisma.etapa.findFirst({
+            where: {
+                id,
+                fabrico_id: fabricoId,
+            },
         });
 
         if (!etapa) {
@@ -105,8 +149,11 @@ export class EtapaService {
         return etapa;
     }
 
-    async update(id: number, data: UpdateEtapaDto) {
-        const etapaAtual = await this.getById(id);
+    async update(id: number, data: UpdateEtapaDto, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope, data.fabrico_id);
+        const etapaAtual = await this.getById(id, fabricoId);
+        const dadosEtapa = { ...data };
+        delete dadosEtapa.fabrico_id;
 
         if (data.icone_id !== undefined && data.icone_id !== null) {
             const icone = await this.prisma.icone.findUnique({
@@ -120,15 +167,12 @@ export class EtapaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
-                const produtoIds = await this.obterProdutosDosFabricos(
-                    [etapaAtual.fabrico_id, data.fabrico_id ?? etapaAtual.fabrico_id],
-                    tx,
-                );
+                const produtoIds = await this.obterProdutosDosFabricos([etapaAtual.fabrico_id], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.update({
                     where: { id },
                     data: {
-                        ...data,
+                        ...dadosEtapa,
                     },
                 });
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
@@ -149,8 +193,9 @@ export class EtapaService {
         }
     }
 
-    async delete(id: number) {
-        const etapa = await this.getById(id);
+    async delete(id: number, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope);
+        const etapa = await this.getById(id, fabricoId);
 
         return this.prisma.$transaction(async (tx) => {
             const produtoIds = await this.obterProdutosDosFabricos([etapa.fabrico_id], tx);

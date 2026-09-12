@@ -2,6 +2,10 @@ import { IsDateString, IsInt, IsOptional, IsString } from "class-validator";
 
 export class CreateFichaEtapaDto {
     @IsOptional()
+    @IsInt()
+    fabrico_id?: number;
+
+    @IsOptional()
     @IsDateString()
     data_inicio?: string;
 
