@@ -8,7 +8,6 @@ import {
     Delete,
     UseGuards,
     ParseIntPipe,
-    NotFoundException,
 } from "@nestjs/common";
 import { EtapaService } from "./etapa.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
@@ -24,45 +23,31 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class EtapaController {
     constructor(private readonly etapaService: EtapaService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Post()
     create(@Body() data: CreateEtapaDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.etapaService.create(data, this.getFabricoId(user));
+        return this.etapaService.create(data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     getAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.etapaService.findAllByFabricoID(this.getFabricoId(user));
+        return this.etapaService.findAll(user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
     findAllByFabricoID(
         @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        const currentFabricoId = this.getFabricoId(user);
-
-        if (fabrico_id !== currentFabricoId) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return this.etapaService.findAllByFabricoID(currentFabricoId);
+        return this.etapaService.findAllByFabricoID(fabrico_id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.etapaService.getById(id, this.getFabricoId(user));
+        return this.etapaService.getById(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -72,12 +57,12 @@ export class EtapaController {
         @Body() data: UpdateEtapaDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.etapaService.update(id, data, this.getFabricoId(user));
+        return this.etapaService.update(id, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.etapaService.delete(id, this.getFabricoId(user));
+        return this.etapaService.delete(id, user);
     }
 }

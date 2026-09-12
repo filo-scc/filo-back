@@ -8,7 +8,6 @@ import {
     ParseIntPipe,
     UseGuards,
     Controller,
-    NotFoundException,
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -25,18 +24,10 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class FichaEtapaController {
     constructor(private readonly fichaEtapaService: FichaEtapaService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Post()
     createFichaEtapa(@Body() data: CreateFichaEtapaDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.fichaEtapaService.createFichaEtapa(data, this.getFabricoId(user));
+        return this.fichaEtapaService.createFichaEtapa(data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -45,7 +36,7 @@ export class FichaEtapaController {
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaEtapaService.deleteFichaEtapa(idFichaEtapa, this.getFabricoId(user));
+        return this.fichaEtapaService.deleteFichaEtapa(idFichaEtapa, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -54,7 +45,7 @@ export class FichaEtapaController {
         @Param("ficha_tecnica_id", ParseIntPipe) idFichaTecnica: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaEtapaService.getByFichaTecnica(idFichaTecnica, this.getFabricoId(user));
+        return this.fichaEtapaService.getByFichaTecnica(idFichaTecnica, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -63,7 +54,7 @@ export class FichaEtapaController {
         @Param("etapa_id", ParseIntPipe) idEtapa: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaEtapaService.getByEtapa(idEtapa, this.getFabricoId(user));
+        return this.fichaEtapaService.getByEtapa(idEtapa, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -72,21 +63,16 @@ export class FichaEtapaController {
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaEtapaService.finalizarFichaEtapa(idFichaEtapa, this.getFabricoId(user));
+        return this.fichaEtapaService.finalizarFichaEtapa(idFichaEtapa, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Put(":ficha_etapa_id")
     updateFichaEtapa(
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,
         @Body() data: UpdateFichaEtapaDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaEtapaService.updateFichaEtapa(
-            idFichaEtapa,
-            data,
-            this.getFabricoId(user),
-        );
+        return this.fichaEtapaService.updateFichaEtapa(idFichaEtapa, data, user);
     }
 }
-

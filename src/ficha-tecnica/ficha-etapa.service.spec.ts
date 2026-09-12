@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaEtapaService } from "./ficha-etapa.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
 
@@ -9,6 +10,24 @@ describe("FichaEtapaService", () => {
     let prisma: any;
     let fichaTecnicaService: any;
     let etapaService: any;
+    const gerenteFabrico30: AuthenticatedUser = {
+        id: 10,
+        email: "gerente@filo.test",
+        nome: "Gerente",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 30,
+        fabrico: { id: 30, ativo: true },
+    };
+    const admin: AuthenticatedUser = {
+        id: 99,
+        email: "admin@filo.test",
+        nome: "Admin",
+        foto_de_perfil: null,
+        cargo: "ADMIN",
+        fabrico_id: null,
+        fabrico: null,
+    };
 
     beforeEach(() => {
         prisma = {
@@ -40,10 +59,10 @@ describe("FichaEtapaService", () => {
         prisma.fichaEtapa.create.mockResolvedValue({ id: 1 });
 
         await expect(
-            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, gerenteFabrico30),
         ).resolves.toEqual({ id: 1 });
         expect(fichaTecnicaService.findOne).toHaveBeenCalledWith(10);
-        expect(etapaService.getById).toHaveBeenCalledWith(20);
+        expect(etapaService.getById).toHaveBeenCalledWith(20, 30);
         expect(prisma.fichaEtapa.create).toHaveBeenCalledWith({
             data: {
                 ficha_tecnica_id: 10,
@@ -52,6 +71,42 @@ describe("FichaEtapaService", () => {
             },
         });
         expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("permite criação por admin quando o fabrico é informado no body", async () => {
+        prisma.fichaEtapa.findUnique.mockResolvedValue(null);
+        prisma.fichaEtapa.create.mockResolvedValue({ id: 1 });
+
+        await service.createFichaEtapa(
+            { ficha_tecnica_id: 10, etapa_id: 20, fabrico_id: 30 },
+            admin,
+        );
+
+        expect(etapaService.getById).toHaveBeenCalledWith(20, 30);
+        expect(prisma.fichaEtapa.create).toHaveBeenCalledWith({
+            data: {
+                ficha_tecnica_id: 10,
+                etapa_id: 20,
+                data_inicio: expect.any(Date),
+            },
+        });
+    });
+
+    it("rejeita criação por admin sem fabrico informado", async () => {
+        await expect(
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, admin),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+    });
+
+    it("rejeita criação tenant com fabrico_id diferente do usuário autenticado", async () => {
+        await expect(
+            service.createFichaEtapa(
+                { ficha_tecnica_id: 10, etapa_id: 20, fabrico_id: 99 },
+                gerenteFabrico30,
+            ),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
     });
 
     it("registra uma única vez o instante de produção ao entrar na última etapa", async () => {
@@ -63,11 +118,14 @@ describe("FichaEtapaService", () => {
         prisma.etapa.findFirst.mockResolvedValue({ id: 20 });
 
         try {
-            await service.createFichaEtapa({
-                ficha_tecnica_id: 10,
-                etapa_id: 20,
-                data_inicio: dataInicioInformadaPeloCliente,
-            });
+            await service.createFichaEtapa(
+                {
+                    ficha_tecnica_id: 10,
+                    etapa_id: 20,
+                    data_inicio: dataInicioInformadaPeloCliente,
+                },
+                gerenteFabrico30,
+            );
         } finally {
             jest.useRealTimers();
         }
@@ -89,7 +147,7 @@ describe("FichaEtapaService", () => {
         prisma.fichaEtapa.findUnique.mockResolvedValue({ id: 1 });
 
         await expect(
-            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, gerenteFabrico30),
         ).rejects.toThrow(
             new ConflictException("Esta etapa já está vinculada a esta ficha técnica"),
         );
@@ -100,7 +158,7 @@ describe("FichaEtapaService", () => {
         etapaService.getById.mockResolvedValue({ id: 20, fabrico_id: 99 });
 
         await expect(
-            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, gerenteFabrico30),
         ).rejects.toThrow(
             new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
         );
@@ -119,7 +177,7 @@ describe("FichaEtapaService", () => {
         );
 
         await expect(
-            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, gerenteFabrico30),
         ).rejects.toThrow(new ConflictException("Ficha Etapa já cadastrada"));
     });
 
@@ -133,22 +191,25 @@ describe("FichaEtapaService", () => {
         );
 
         await expect(
-            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }),
+            service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, gerenteFabrico30),
         ).rejects.toThrow(new NotFoundException("Ficha Etapa não encontrado"));
     });
 
     it("remove vínculo existente", async () => {
-        prisma.fichaEtapa.findUnique.mockResolvedValue({ id: 1 });
+        prisma.fichaEtapa.findUnique.mockResolvedValue({
+            id: 1,
+            ficha_tecnica: { fabrico_id: 30 },
+        });
         prisma.fichaEtapa.delete.mockResolvedValue({ id: 1 });
 
-        await expect(service.deleteFichaEtapa(1)).resolves.toEqual({ id: 1 });
+        await expect(service.deleteFichaEtapa(1, gerenteFabrico30)).resolves.toEqual({ id: 1 });
         expect(prisma.fichaEtapa.delete).toHaveBeenCalledWith({ where: { id: 1 } });
     });
 
     it("rejeita remoção de vínculo inexistente", async () => {
         prisma.fichaEtapa.findUnique.mockResolvedValue(null);
 
-        await expect(service.deleteFichaEtapa(1)).rejects.toThrow(
+        await expect(service.deleteFichaEtapa(1, gerenteFabrico30)).rejects.toThrow(
             new NotFoundException("FichaEtapa não encontrada"),
         );
     });
@@ -156,7 +217,7 @@ describe("FichaEtapaService", () => {
     it("lista vínculos por ficha técnica", async () => {
         prisma.fichaEtapa.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.getByFichaTecnica(10)).resolves.toEqual([{ id: 1 }]);
+        await expect(service.getByFichaTecnica(10, gerenteFabrico30)).resolves.toEqual([{ id: 1 }]);
         expect(fichaTecnicaService.findOne).toHaveBeenCalledWith(10);
         expect(prisma.fichaEtapa.findMany).toHaveBeenCalledWith({
             where: { ficha_tecnica_id: 10 },
@@ -167,10 +228,10 @@ describe("FichaEtapaService", () => {
     it("lista vínculos por etapa", async () => {
         prisma.fichaEtapa.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.getByEtapa(20)).resolves.toEqual([{ id: 1 }]);
-        expect(etapaService.getById).toHaveBeenCalledWith(20);
+        await expect(service.getByEtapa(20, gerenteFabrico30)).resolves.toEqual([{ id: 1 }]);
+        expect(etapaService.getById).toHaveBeenCalledWith(20, 30);
         expect(prisma.fichaEtapa.findMany).toHaveBeenCalledWith({
-            where: { etapa_id: 20 },
+            where: { etapa_id: 20, ficha_tecnica: { fabrico_id: 30 } },
             include: { ficha_tecnica: true },
         });
     });
@@ -180,15 +241,18 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
+            ficha_tecnica: { fabrico_id: 30 },
         });
         prisma.fichaEtapa.findFirst.mockResolvedValue(null);
         prisma.fichaEtapa.update.mockResolvedValue({ id: 1, etapa_id: 21 });
 
-        await expect(service.updateFichaEtapa(1, { etapa_id: 21 })).resolves.toEqual({
+        await expect(
+            service.updateFichaEtapa(1, { etapa_id: 21 }, gerenteFabrico30),
+        ).resolves.toEqual({
             id: 1,
             etapa_id: 21,
         });
-        expect(etapaService.getById).toHaveBeenCalledWith(21);
+        expect(etapaService.getById).toHaveBeenCalledWith(21, 30);
         expect(prisma.fichaEtapa.update).toHaveBeenCalledWith({
             where: { id: 1 },
             data: { etapa_id: 21 },
@@ -202,6 +266,7 @@ describe("FichaEtapaService", () => {
             ficha_tecnica_id: 10,
             etapa_id: 20,
             data_fim: null,
+            ficha_tecnica: { fabrico_id: 30 },
         };
         const fichaFinalizada = { ...fichaAberta, data_fim: instanteServidor };
         jest.useFakeTimers().setSystemTime(instanteServidor);
@@ -210,7 +275,9 @@ describe("FichaEtapaService", () => {
             .mockResolvedValueOnce(fichaFinalizada);
 
         try {
-            await expect(service.finalizarFichaEtapa(1)).resolves.toEqual(fichaFinalizada);
+            await expect(service.finalizarFichaEtapa(1, gerenteFabrico30)).resolves.toEqual(
+                fichaFinalizada,
+            );
         } finally {
             jest.useRealTimers();
         }
@@ -228,10 +295,13 @@ describe("FichaEtapaService", () => {
             ficha_tecnica_id: 10,
             etapa_id: 20,
             data_fim: dataFimOriginal,
+            ficha_tecnica: { fabrico_id: 30 },
         };
         prisma.fichaEtapa.findUnique.mockResolvedValue(fichaFinalizada);
 
-        await expect(service.finalizarFichaEtapa(1)).resolves.toEqual(fichaFinalizada);
+        await expect(service.finalizarFichaEtapa(1, gerenteFabrico30)).resolves.toEqual(
+            fichaFinalizada,
+        );
 
         expect(prisma.fichaEtapa.updateMany).not.toHaveBeenCalled();
     });
@@ -239,7 +309,7 @@ describe("FichaEtapaService", () => {
     it("rejeita update de vínculo inexistente", async () => {
         prisma.fichaEtapa.findUnique.mockResolvedValue(null);
 
-        await expect(service.updateFichaEtapa(1, {})).rejects.toThrow(
+        await expect(service.updateFichaEtapa(1, {}, gerenteFabrico30)).rejects.toThrow(
             new NotFoundException("FichaEtapa não encontrada"),
         );
     });
@@ -249,10 +319,11 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
+            ficha_tecnica: { fabrico_id: 30 },
         });
         prisma.fichaEtapa.findFirst.mockResolvedValue({ id: 2 });
 
-        await expect(service.updateFichaEtapa(1, {})).rejects.toThrow(
+        await expect(service.updateFichaEtapa(1, {}, gerenteFabrico30)).rejects.toThrow(
             new ConflictException("Esta etapa já está vinculada a esta ficha técnica"),
         );
     });
@@ -262,11 +333,14 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
+            ficha_tecnica: { fabrico_id: 30 },
         });
         fichaTecnicaService.findOne.mockResolvedValue({ id: 10, fabrico_id: 30 });
         etapaService.getById.mockResolvedValue({ id: 21, fabrico_id: 99 });
 
-        await expect(service.updateFichaEtapa(1, { etapa_id: 21 })).rejects.toThrow(
+        await expect(
+            service.updateFichaEtapa(1, { etapa_id: 21 }, gerenteFabrico30),
+        ).rejects.toThrow(
             new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
         );
         expect(prisma.fichaEtapa.findFirst).not.toHaveBeenCalled();

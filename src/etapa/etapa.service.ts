@@ -3,12 +3,16 @@ import {
     ConflictException,
     NotFoundException,
     BadRequestException,
+    ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateEtapaDto } from "./dto/create-etapa.dto";
 import { UpdateEtapaDto } from "./dto/update-etapa.dto";
 import { Prisma } from "@prisma/client";
 import { ProdutoService } from "src/produto/produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+
+type FabricoScope = AuthenticatedUser | number;
 
 @Injectable()
 export class EtapaService {
@@ -28,14 +32,36 @@ export class EtapaService {
         return produtos.map((produto) => produto.id);
     }
 
-    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
-        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
-            throw new BadRequestException("Não é permitido alterar o fabrico da etapa");
+    private resolverFabricoId(scope: FabricoScope, fabricoInformado?: number): number {
+        if (typeof scope === "number") {
+            return scope;
         }
+
+        if (scope.cargo === "ADMIN") {
+            if (!fabricoInformado) {
+                throw new BadRequestException("O fabrico deve ser informado pelo administrador");
+            }
+
+            return Number(fabricoInformado);
+        }
+
+        if (!scope.fabrico_id) {
+            throw new ForbiddenException("Usuário não está associado a um fabrico");
+        }
+
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== scope.fabrico_id) {
+            throw new BadRequestException(
+                "Não é permitido escolher um fabrico diferente do usuário autenticado",
+            );
+        }
+
+        return scope.fabrico_id;
     }
 
-    async create(data: CreateEtapaDto, fabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, fabricoId);
+    async create(data: CreateEtapaDto, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
+        const dadosEtapa = { ...data };
+        delete dadosEtapa.fabrico_id;
 
         if (data.icone_id) {
             const icone = await this.prisma.icone.findUnique({
@@ -53,7 +79,7 @@ export class EtapaService {
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
                 const etapa = await tx.etapa.create({
                     data: {
-                        ...data,
+                        ...dadosEtapa,
                         fabrico_id: fabricoId,
                     },
                 });
@@ -75,10 +101,18 @@ export class EtapaService {
         }
     }
 
-    async findAllByFabricoID(fabrico_id: number) {
+    async findAll(user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+
+        return this.findAllByFabricoID(fabricoId, user);
+    }
+
+    async findAllByFabricoID(fabrico_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user, fabrico_id);
+
         try {
             return this.prisma.etapa.findMany({
-                where: { fabrico_id: Number(fabrico_id) },
+                where: { fabrico_id: fabricoId },
                 orderBy: { ordem: "asc" },
                 include: {
                     icone: true,
@@ -99,15 +133,12 @@ export class EtapaService {
         }
     }
 
-    async getAll() {
-        return this.prisma.etapa.findMany();
-    }
-
-    async getById(id: number, fabricoId?: number) {
+    async getById(id: number, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope);
         const etapa = await this.prisma.etapa.findFirst({
             where: {
                 id,
-                ...(fabricoId !== undefined ? { fabrico_id: fabricoId } : {}),
+                fabrico_id: fabricoId,
             },
         });
 
@@ -118,10 +149,11 @@ export class EtapaService {
         return etapa;
     }
 
-    async update(id: number, data: UpdateEtapaDto, fabricoId: number) {
-        this.assertFabricoImutavel(data.fabrico_id, fabricoId);
+    async update(id: number, data: UpdateEtapaDto, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope, data.fabrico_id);
         const etapaAtual = await this.getById(id, fabricoId);
-        const { fabrico_id: _fabricoIdIgnorado, ...dadosEtapa } = data;
+        const dadosEtapa = { ...data };
+        delete dadosEtapa.fabrico_id;
 
         if (data.icone_id !== undefined && data.icone_id !== null) {
             const icone = await this.prisma.icone.findUnique({
@@ -161,7 +193,8 @@ export class EtapaService {
         }
     }
 
-    async delete(id: number, fabricoId: number) {
+    async delete(id: number, scope: FabricoScope) {
+        const fabricoId = this.resolverFabricoId(scope);
         const etapa = await this.getById(id, fabricoId);
 
         return this.prisma.$transaction(async (tx) => {
