@@ -103,6 +103,10 @@ export class PedidoService {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
         }
 
+        for (const fichaDto of fichasDto) {
+            this.assertSomaItensIgualQuantidade(fichaDto);
+        }
+
         if (data.cliente_id) {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -233,6 +237,15 @@ export class PedidoService {
 
         if (!fichasDto.length) {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
+        }
+
+        for (const fichaDto of fichasDto) {
+            const temEdicaoDeMatriz =
+                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+
+            if (temEdicaoDeMatriz || fichaDto.id == null) {
+                this.assertSomaItensIgualQuantidade(fichaDto);
+            }
         }
 
         const pedido = await this.prisma.pedido.findFirst({
@@ -434,6 +447,12 @@ export class PedidoService {
                             updateData.quantidade = novaQuantidade;
                             updateData.grade_versao_id = gradeVersaoId;
                             fichaDb.grade_versao_id = gradeVersaoId;
+                        } else {
+                            await this.assertMatrizPersistidaCompativel(
+                                tx,
+                                fichaDb.id,
+                                novaQuantidade,
+                            );
                         }
 
                         if (Object.keys(updateData).length) {
@@ -742,6 +761,61 @@ export class PedidoService {
      * selecionada recebe uma linha por tamanho da grade, com quantidade zero
      * quando o usuário não preencheu aquela combinação.
      */
+    private assertSomaItensIgualQuantidade(fichaDto: CreatePedidoFichaDto) {
+        const quantidade = Number(fichaDto.quantidade) || 0;
+        const itensDto = fichaDto.itens ?? [];
+        const temMatriz =
+            Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+
+        if (quantidade > 0 && !temMatriz) {
+            throw new BadRequestException(
+                "Informe a matriz (itens ou cores_ids) quando a quantidade da ficha for positiva",
+            );
+        }
+
+        if (!temMatriz) {
+            return;
+        }
+
+        const somaItens = itensDto.reduce(
+            (total, item) => total + (Number(item.quantidade) || 0),
+            0,
+        );
+
+        if (somaItens !== quantidade) {
+            throw new BadRequestException(
+                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
+            );
+        }
+    }
+
+    private async assertMatrizPersistidaCompativel(
+        tx: Prisma.TransactionClient,
+        fichaId: number,
+        quantidade: number,
+    ) {
+        const agregado = await tx.fichaTecnicaItem.aggregate({
+            where: { ficha_tecnica_id: fichaId },
+            _sum: { quantidade: true },
+            _count: { _all: true },
+        });
+
+        const soma = Number(agregado._sum.quantidade ?? 0);
+        const totalItens = agregado._count._all;
+
+        if (quantidade > 0 && totalItens === 0) {
+            throw new BadRequestException(
+                "A ficha com quantidade positiva precisa ter matriz de itens",
+            );
+        }
+
+        if (soma !== quantidade) {
+            throw new BadRequestException(
+                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
+            );
+        }
+    }
+
     private async criarItensDaFicha(
         tx: Prisma.TransactionClient,
         fichaId: number,
@@ -749,6 +823,8 @@ export class PedidoService {
         fabricoId: number,
         fichaDto: CreatePedidoFichaDto,
     ) {
+        this.assertSomaItensIgualQuantidade(fichaDto);
+
         const itensDto = fichaDto.itens ?? [];
         const coresIds = [
             ...new Set([
@@ -756,8 +832,14 @@ export class PedidoService {
                 ...itensDto.map((item) => Number(item.cor_id)),
             ]),
         ];
+        const quantidade = Number(fichaDto.quantidade) || 0;
 
         if (!coresIds.length) {
+            if (quantidade > 0) {
+                throw new BadRequestException(
+                    "Informe a matriz (itens ou cores_ids) quando a quantidade da ficha for positiva",
+                );
+            }
             return;
         }
 
@@ -803,6 +885,17 @@ export class PedidoService {
             }
 
             quantidadePorChave.set(chave, Number(item.quantidade) || 0);
+        }
+
+        const somaMatriz = [...quantidadePorChave.values()].reduce(
+            (total, valor) => total + valor,
+            0,
+        );
+
+        if (somaMatriz !== quantidade) {
+            throw new BadRequestException(
+                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
+            );
         }
 
         await tx.fichaTecnicaItem.createMany({

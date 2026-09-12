@@ -93,6 +93,7 @@ describe("PedidoService", () => {
         fichaTecnicaItem: {
             createMany: jest.fn(),
             deleteMany: jest.fn(),
+            aggregate: jest.fn(),
         },
 
         fichaEtapa: {
@@ -140,6 +141,10 @@ describe("PedidoService", () => {
         mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
         mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
         mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+        mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+            _sum: { quantidade: 30 },
+            _count: { _all: 1 },
+        });
     });
 
     it("should be defined", () => {
@@ -378,7 +383,19 @@ describe("PedidoService", () => {
             mockPrismaService.produto.findMany.mockResolvedValueOnce([]);
 
             await expect(
-                service.createCompleto({ fichas: [{ produto_id: 5, quantidade: 1 }] }, usuario),
+                service.createCompleto(
+                    {
+                        fichas: [
+                            {
+                                produto_id: 5,
+                                quantidade: 1,
+                                cores_ids: [1],
+                                itens: [{ cor_id: 1, grade_versao_item_id: 11, quantidade: 1 }],
+                            },
+                        ],
+                    },
+                    usuario,
+                ),
             ).rejects.toThrow(NotFoundException);
 
             expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
@@ -418,6 +435,46 @@ describe("PedidoService", () => {
             );
         });
 
+        it("deve rejeitar ficha com quantidade positiva sem matriz no createCompleto", async () => {
+            await expect(
+                service.createCompleto(
+                    {
+                        fichas: [{ produto_id: 5, quantidade: 30 }],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Informe a matriz (itens ou cores_ids) quando a quantidade da ficha for positiva",
+            );
+
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("deve rejeitar matriz cuja soma diverge da quantidade da ficha", async () => {
+            prepararCenarioFeliz();
+
+            await expect(
+                service.createCompleto(
+                    {
+                        ...dtoBase,
+                        fichas: [
+                            {
+                                ...dtoBase.fichas[0],
+                                quantidade: 30,
+                                itens: [
+                                    { cor_id: 1, grade_versao_item_id: 11, quantidade: 5 },
+                                    { cor_id: 1, grade_versao_item_id: 12, quantidade: 5 },
+                                ],
+                            },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
+            );
+        });
+
         it("deve exigir ao menos uma ficha técnica", async () => {
             await expect(service.createCompleto({ fichas: [] }, usuario)).rejects.toThrow(
                 BadRequestException,
@@ -438,6 +495,10 @@ describe("PedidoService", () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 8, fabrico_id: 1 });
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 8 });
+            mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                _sum: { quantidade: 30 },
+                _count: { _all: 1 },
+            });
 
             const resultado = await service.updateCompleto(
                 100,
@@ -447,7 +508,7 @@ describe("PedidoService", () => {
                         {
                             id: 200,
                             produto_id: 5,
-                            quantidade: 999,
+                            quantidade: 30,
                             preco_padrao: 25,
                             nome_para_cliente: "Nova ref",
                         },
@@ -472,23 +533,18 @@ describe("PedidoService", () => {
                 }),
             );
 
-            expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
-                where: { id: 200 },
-                data: { quantidade: 999 },
-            });
-
             expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
                 where: { id: 100 },
                 data: expect.objectContaining({
                     cliente_id: 8,
-                    quantidade: 999,
-                    custo_total: 9990,
-                    valor_total: 24975,
+                    quantidade: 30,
+                    custo_total: 300,
+                    valor_total: 750,
                 }),
             });
         });
 
-        it("deve atualizar a quantidade da ficha mesmo sem itens ou cores_ids", async () => {
+        it("deve atualizar a quantidade da ficha sem reenviar matriz quando a soma já confere", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue({
                 ...pedidoExistente,
                 fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 20, pedido_id: 100 }],
@@ -496,6 +552,10 @@ describe("PedidoService", () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
+            mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                _sum: { quantidade: 30 },
+                _count: { _all: 2 },
+            });
 
             await service.updateCompleto(
                 100,
@@ -524,6 +584,32 @@ describe("PedidoService", () => {
                     valor_total: 0,
                 }),
             });
+        });
+
+        it("deve rejeitar quantidade positiva sem matriz coerente na ficha existente", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                _sum: { quantidade: 10 },
+                _count: { _all: 1 },
+            });
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 5,
+                                quantidade: 30,
+                            },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
+            );
         });
 
         it("deve persistir observacoes e etapa_atual_id em ficha existente sem matriz", async () => {
@@ -556,7 +642,6 @@ describe("PedidoService", () => {
             expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
                 where: { id: 200 },
                 data: {
-                    quantidade: 30,
                     observacoes: "Obs atualizada",
                     etapa_atual_id: 40,
                 },
@@ -873,7 +958,20 @@ describe("PedidoService", () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
             await expect(
-                service.updateCompleto(100, { fichas: [{ produto_id: 5, quantidade: 1 }] }, usuario),
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                produto_id: 5,
+                                quantidade: 1,
+                                cores_ids: [1],
+                                itens: [{ cor_id: 1, grade_versao_item_id: 11, quantidade: 1 }],
+                            },
+                        ],
+                    },
+                    usuario,
+                ),
             ).rejects.toThrow(NotFoundException);
         });
 
