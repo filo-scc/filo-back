@@ -1,0 +1,32 @@
+{
+    "pilot_round_id": "",
+    "repository_commit": "",
+    "skill": "",
+    "skill_version": "1.0",
+    "case_id": "",
+    "executor": "",
+    "reviewer_primary": "",
+    "reviewer_secondary": "",
+    "model": "",
+    "configuration": "",
+    "started_at": "",
+    "duration_seconds": null,
+    "reported_cost": null,
+    "response_artifact": "",
+    "observed_outcome": "",
+    "score": {
+        "decision": null,
+        "evidence_and_cause": null,
+        "severity_and_invariants": null,
+        "exploitation_impact_scope": null,
+        "fix_and_regression": null,
+        "contest_and_limits": null,
+        "process_safety": null,
+        "total": null
+    },
+    "findings_accepted": null,
+    "findings_rejected": null,
+    "findings_duplicated": null,
+    "output_contract_complete": null,
+    "notes": ""
+}
