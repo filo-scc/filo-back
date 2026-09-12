@@ -20,64 +20,51 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("PROPRIETARIO", "GERENTE")
 @Controller("tecidos")
 export class TecidosController {
     constructor(private readonly tecidosService: TecidosService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
-    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(@Body() data: CreateTecidosDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.tecidosService.create(data, this.getFabricoId(user));
+        return this.tecidosService.create(data,user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.tecidosService.findAll(this.getFabricoId(user));
+        return this.tecidosService.findAll(user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.tecidosService.findOne(id, this.getFabricoId(user));
+        return this.tecidosService.findOne(id, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get("fabrico/:idFabrico")
     findAllByFabrico(
         @Param("idFabrico", ParseIntPipe) idFabrico: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        const fabricoId = this.getFabricoId(user);
+        const fabricoId = user.fabrico_id;
 
         if (idFabrico !== fabricoId) {
             throw new NotFoundException("Fabrico não encontrado");
         }
 
-        return this.tecidosService.findAllByFabrico(idFabrico);
+        return this.tecidosService.findAllByFabrico(user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdateTecidosDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.tecidosService.update(id, data, this.getFabricoId(user));
+        return this.tecidosService.update(id, data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.tecidosService.remove(id, this.getFabricoId(user));
+        return this.tecidosService.remove(id, user);
     }
 }

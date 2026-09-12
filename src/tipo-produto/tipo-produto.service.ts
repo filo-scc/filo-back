@@ -7,6 +7,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateTipoProdutoDto } from "./dto/create-tipo-produto.dto";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class TipoProdutoService {
@@ -18,7 +19,15 @@ export class TipoProdutoService {
         }
     }
 
-    async create(data: CreateTipoProdutoDto & { fabrico_id?: number }, userFabricoId: number) {
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
+    }
+
+    async create(data: CreateTipoProdutoDto & { fabrico_id?: number }, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
 
         const { ...dadosCreate } = data;
@@ -45,7 +54,8 @@ export class TipoProdutoService {
         }
     }
 
-    async findAllByFabrico(fabricoId: number) {
+    async findAllByFabrico(user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         return this.prisma.tipoProduto.findMany({
             where: {
                 fabrico_id: fabricoId,

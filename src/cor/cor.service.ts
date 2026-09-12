@@ -23,10 +23,10 @@ export class CorService {
     }
 
     private getFabricoId(user: AuthenticatedUser): number {
-        if (user.cargo === "PROPRIETARIO" || user.cargo === "GERENTE") {
-            return user.fabrico_id;
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
         }
-        throw new ForbiddenException("Cargo do usuário não permite acessar esse recurso");
+        return user.fabrico_id;
     }
 
     async create(data: CreateCorDto, user: AuthenticatedUser) {

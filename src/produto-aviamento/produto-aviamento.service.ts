@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";
 import { UpdateProdutoAviamentoDto } from "./dto/update-produto-aviamento.dto";
 import { ProdutoService } from "../produto/produto.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoAviamentoService {
@@ -23,24 +24,31 @@ export class ProdutoAviamentoService {
         }
     }
 
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
+    }
+
     async create(
         createProdutoAviamentoDto: CreateProdutoAviamentoDto & { fabrico_id?: number },
-        fabricoId: number,
+        user: AuthenticatedUser,
     ) {
-        this.assertFabricoImutavel(createProdutoAviamentoDto.fabrico_id, fabricoId);
+        this.assertFabricoImutavel(createProdutoAviamentoDto.fabrico_id, this.getFabricoId(user));
 
         const { fabrico_id: _fabricoIdIgnorado, ...dadosDto } = createProdutoAviamentoDto;
 
         try {
             const produtoExiste = await this.prisma.produto.findFirst({
-                where: { id: dadosDto.produto_id, fabrico_id: fabricoId },
+                where: { id: dadosDto.produto_id, fabrico_id: this.getFabricoId(user) },
             });
             if (!produtoExiste) {
                 throw new NotFoundException("Produto não encontrado");
             }
 
             const aviamentoExiste = await this.prisma.aviamento.findFirst({
-                where: { id: dadosDto.aviamento_id, fabrico_id: fabricoId },
+                where: { id: dadosDto.aviamento_id, fabrico_id: this.getFabricoId(user) },
             });
             if (!aviamentoExiste) {
                 throw new NotFoundException("Aviamento não encontrado");
@@ -77,11 +85,11 @@ export class ProdutoAviamentoService {
         }
     }
 
-    async findAll(fabricoId: number) {
+    async findAll(user: AuthenticatedUser) {
         return this.prisma.produtoAviamento.findMany({
             where: {
-                produto: { fabrico_id: fabricoId },
-                aviamento: { fabrico_id: fabricoId },
+                produto: { fabrico_id: this.getFabricoId(user) },
+                aviamento: { fabrico_id: this.getFabricoId(user) },
             },
             include: {
                 produto: true,
@@ -90,12 +98,12 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async findOne(id: number, fabricoId: number) {
+    async findOne(id: number, user: AuthenticatedUser) {
         const relacao = await this.prisma.produtoAviamento.findFirst({
             where: {
                 id,
-                produto: { fabrico_id: fabricoId },
-                aviamento: { fabrico_id: fabricoId },
+                produto: { fabrico_id: this.getFabricoId(user) },
+                aviamento: { fabrico_id: this.getFabricoId(user) },
             },
             include: {
                 produto: true,
@@ -112,7 +120,8 @@ export class ProdutoAviamentoService {
         return relacao;
     }
 
-    async findAllByProduto(produto_id: number, fabricoId: number) {
+    async findAllByProduto(produto_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         const produtoExiste = await this.prisma.produto.findFirst({
             where: { id: produto_id, fabrico_id: fabricoId },
         });
@@ -127,7 +136,8 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async findAllByAviamento(aviamento_id: number, fabricoId: number) {
+    async findAllByAviamento(aviamento_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         const aviamentoExiste = await this.prisma.aviamento.findFirst({
             where: { id: aviamento_id, fabrico_id: fabricoId },
         });
@@ -145,11 +155,12 @@ export class ProdutoAviamentoService {
     async update(
         id: number,
         payload: UpdateProdutoAviamentoDto & { fabrico_id?: number },
-        fabricoId: number,
+        user: AuthenticatedUser,
     ) {
+        const fabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(payload.fabrico_id, fabricoId);
 
-        const vinculoExistente = await this.findOne(id, fabricoId);
+        const vinculoExistente = await this.findOne(id, user);
         const { fabrico_id: _fabricoIdIgnorado, ...dadosPayload } = payload;
 
         const quantidadeInformada = dadosPayload.quantidade !== undefined;
@@ -196,8 +207,8 @@ export class ProdutoAviamentoService {
         }
     }
 
-    async remove(id: number, fabricoId: number) {
-        const vinculoExistente = await this.findOne(id, fabricoId);
+    async remove(id: number, user: AuthenticatedUser) {
+        const vinculoExistente = await this.findOne(id, user);
 
         try {
             return await this.prisma.$transaction(async (tx) => {

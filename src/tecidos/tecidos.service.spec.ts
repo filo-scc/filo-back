@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { TecidosService } from "./tecidos.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
 
@@ -33,7 +34,17 @@ const mockProdutoService = {
 
 describe("TecidosService", () => {
     let service: TecidosService;
-    const fabricoId = 10;
+
+    const mockUser: AuthenticatedUser = {
+        id: 1,
+        cargo: "PROPRIETARIO",
+        fabrico_id: 10,
+    } as AuthenticatedUser;
+
+    const mockUserSemFabrico: AuthenticatedUser = {
+        id: 2,
+        cargo: "PROPRIETARIO",
+    } as AuthenticatedUser;
 
     const mockTecido = {
         id: 1,
@@ -70,23 +81,35 @@ describe("TecidosService", () => {
         });
     });
 
+    it("deve estar definido", () => {
+        expect(service).toBeDefined();
+    });
+
+    describe("Validação de usuário", () => {
+        it("deve lançar BadRequestException se o usuário não possuir fabrico_id", async () => {
+            await expect(service.findAll(mockUserSemFabrico)).rejects.toThrow(
+                new BadRequestException("Usuário não possui um fabrico associado"),
+            );
+        });
+    });
+
     describe("create", () => {
         it("deve criar um tecido com sucesso", async () => {
             mockPrismaService.tecido.create.mockResolvedValue(mockTecido);
 
             const dto = { nome: "Algodão" };
-            const result = await service.create(dto, fabricoId);
+            const result = await service.create(dto, mockUser);
 
             expect(result).toEqual(mockTecido);
             expect(mockPrismaService.tecido.create).toHaveBeenCalledWith({
-                data: { ...dto, fabrico_id: fabricoId },
+                data: { ...dto, fabrico_id: mockUser.fabrico_id },
             });
         });
 
         it("deve lançar BadRequestException se fabrico_id diferente for informado", async () => {
             const dto = { nome: "Algodão", fabrico_id: 99 };
 
-            await expect(service.create(dto, fabricoId)).rejects.toThrow(
+            await expect(service.create(dto, mockUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do tecido"),
             );
             expect(mockPrismaService.tecido.create).not.toHaveBeenCalled();
@@ -100,7 +123,7 @@ describe("TecidosService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "Algodão" }, fabricoId)).rejects.toThrow(
+            await expect(service.create({ nome: "Algodão" }, mockUser)).rejects.toThrow(
                 new ConflictException("Tecido já existe"),
             );
         });
@@ -113,7 +136,7 @@ describe("TecidosService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "Algodão" }, fabricoId)).rejects.toThrow(
+            await expect(service.create({ nome: "Algodão" }, mockUser)).rejects.toThrow(
                 new NotFoundException("Fabrico não encontrado"),
             );
         });
@@ -123,11 +146,11 @@ describe("TecidosService", () => {
         it("deve retornar uma lista de tecidos do fabrico", async () => {
             mockPrismaService.tecido.findMany.mockResolvedValue([mockTecido]);
 
-            const result = await service.findAll(fabricoId);
+            const result = await service.findAll(mockUser);
 
             expect(result).toEqual([mockTecido]);
             expect(mockPrismaService.tecido.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: fabricoId },
+                where: { fabrico_id: mockUser.fabrico_id },
                 orderBy: { nome: "asc" },
             });
         });
@@ -137,18 +160,18 @@ describe("TecidosService", () => {
         it("deve retornar um tecido com sucesso", async () => {
             mockPrismaService.tecido.findFirst.mockResolvedValue(mockTecido);
 
-            const result = await service.findOne(1, fabricoId);
+            const result = await service.findOne(1, mockUser);
 
             expect(result).toEqual(mockTecido);
             expect(mockPrismaService.tecido.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: fabricoId },
+                where: { id: 1, fabrico_id: mockUser.fabrico_id },
             });
         });
 
         it("deve lançar NotFoundException se o tecido não for encontrado", async () => {
             mockPrismaService.tecido.findFirst.mockResolvedValue(null);
 
-            await expect(service.findOne(99, fabricoId)).rejects.toThrow(
+            await expect(service.findOne(99, mockUser)).rejects.toThrow(
                 new NotFoundException("Tecido não encontrado"),
             );
         });
@@ -158,11 +181,11 @@ describe("TecidosService", () => {
         it("deve retornar todos os tecidos de um determinado fabrico", async () => {
             mockPrismaService.tecido.findMany.mockResolvedValue([mockTecido]);
 
-            const result = await service.findAllByFabrico(10);
+            const result = await service.findAllByFabrico(mockUser);
 
             expect(result).toEqual([mockTecido]);
             expect(mockPrismaService.tecido.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 10 },
+                where: { fabrico_id: mockUser.fabrico_id },
                 orderBy: { nome: "asc" },
             });
         });
@@ -177,11 +200,11 @@ describe("TecidosService", () => {
             mockPrismaService.tecido.update.mockResolvedValue(tecidoAtualizado);
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: mockProduto.id }]);
 
-            const result = await service.update(1, updateDto, fabricoId);
+            const result = await service.update(1, updateDto, mockUser);
 
             expect(result).toEqual(tecidoAtualizado);
             expect(mockPrismaService.tecido.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: fabricoId },
+                where: { id: 1, fabrico_id: mockUser.fabrico_id },
             });
             expect(mockPrismaService.tecido.update).toHaveBeenCalledWith({
                 where: { id: 1 },
@@ -199,7 +222,7 @@ describe("TecidosService", () => {
 
         it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
             await expect(
-                service.update(1, { nome: "Seda", fabrico_id: 99 }, fabricoId),
+                service.update(1, { nome: "Seda", fabrico_id: 99 }, mockUser),
             ).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do tecido"),
             );
@@ -208,7 +231,7 @@ describe("TecidosService", () => {
         it("deve lançar NotFoundException se o tecido não existir para atualização", async () => {
             mockPrismaService.tecido.findFirst.mockResolvedValue(null);
 
-            await expect(service.update(99, { nome: "Seda" }, fabricoId)).rejects.toThrow(
+            await expect(service.update(99, { nome: "Seda" }, mockUser)).rejects.toThrow(
                 new NotFoundException("Tecido não encontrado"),
             );
         });
@@ -222,7 +245,7 @@ describe("TecidosService", () => {
                 }),
             );
 
-            await expect(service.update(1, { nome: "Seda" }, fabricoId)).rejects.toThrow(
+            await expect(service.update(1, { nome: "Seda" }, mockUser)).rejects.toThrow(
                 new ConflictException("Tecido com esse nome já existe"),
             );
         });
@@ -234,11 +257,11 @@ describe("TecidosService", () => {
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: mockProduto.id }]);
             mockPrismaService.tecido.delete.mockResolvedValue(mockTecido);
 
-            const result = await service.remove(1, fabricoId);
+            const result = await service.remove(1, mockUser);
 
             expect(result).toEqual(mockTecido);
             expect(mockPrismaService.tecido.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: fabricoId },
+                where: { id: 1, fabrico_id: mockUser.fabrico_id },
             });
             expect(mockPrismaService.produto.updateMany).toHaveBeenCalledWith({
                 where: {
@@ -263,7 +286,7 @@ describe("TecidosService", () => {
         it("deve lançar NotFoundException se o tecido não for encontrado para remoção", async () => {
             mockPrismaService.tecido.findFirst.mockResolvedValue(null);
 
-            await expect(service.remove(99, fabricoId)).rejects.toThrow(
+            await expect(service.remove(99, mockUser)).rejects.toThrow(
                 new NotFoundException("Tecido não encontrado"),
             );
             expect(mockPrismaService.tecido.delete).not.toHaveBeenCalled();

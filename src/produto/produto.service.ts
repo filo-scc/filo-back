@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
 import { PrismaService } from "src/prisma/prisma.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoService {
@@ -26,6 +27,13 @@ export class ProdutoService {
             .trim()
             .toLocaleLowerCase("pt-BR")
             .replace(/\s+/g, " ");
+    }
+
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
     }
 
     async bloquearProdutosParaRecalculo(
@@ -134,7 +142,8 @@ export class ProdutoService {
         }
     }
 
-    async create(data: CreateProdutoDto, userFabricoId: number) {
+    async create(data: CreateProdutoDto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
 
         if (data.grade_versao_id) {
@@ -174,7 +183,8 @@ export class ProdutoService {
         }
     }
 
-    async findAll(userFabricoId: number) {
+    async findAll(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
@@ -183,10 +193,11 @@ export class ProdutoService {
         });
     }
 
-    async findAllFabrico(fabricoId: number) {
+    async findAllFabrico(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         return this.prisma.produto.findMany({
             where: {
-                fabrico_id: fabricoId,
+                fabrico_id: userFabricoId,
             },
             include: {
                 tecido: true,
@@ -195,7 +206,8 @@ export class ProdutoService {
         });
     }
 
-    async getById(id: number, userFabricoId?: number) {
+    async getById(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id,
@@ -211,17 +223,18 @@ export class ProdutoService {
         return produto;
     }
 
-    async delete(id: number, userFabricoId: number) {
-        const produto = await this.getById(id, userFabricoId);
+    async delete(id: number, user: AuthenticatedUser) {
+        const produto = await this.getById(id, user);
 
         await this.prisma.produto.delete({ where: { id: produto.id } });
         return `O produto com o id ${id} foi deletado com sucesso`;
     }
 
-    async update(id: number, dados: UpdateProduto, userFabricoId: number) {
+    async update(id: number, dados: UpdateProduto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(dados.fabrico_id, userFabricoId);
 
-        const produto = await this.getById(id, userFabricoId);
+        const produto = await this.getById(id, user);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -280,10 +293,11 @@ export class ProdutoService {
         }
     }
 
-    async getUnassociatedProductsForClient(clienteId: number, fabricoId: number) {
+    async getUnassociatedProductsForClient(clienteId: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         return this.prisma.produto.findMany({
             where: {
-                fabrico_id: fabricoId,
+                fabrico_id: userFabricoId,
                 cliente_produto: {
                     none: {
                         cliente_id: clienteId,

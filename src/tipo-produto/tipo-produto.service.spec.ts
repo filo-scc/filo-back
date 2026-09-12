@@ -1,13 +1,24 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { TipoProdutoService } from "./tipo-produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
 
 describe("TipoProdutoService", () => {
     let service: TipoProdutoService;
     let prisma: any;
-    const fabricoId = 10;
+
+    const mockUser: AuthenticatedUser = {
+        id: 1,
+        cargo: "PROPRIETARIO",
+        fabrico_id: 10,
+    } as AuthenticatedUser;
+
+    const mockUserSemFabrico: AuthenticatedUser = {
+        id: 2,
+        cargo: "PROPRIETARIO",
+    } as AuthenticatedUser;
 
     beforeEach(() => {
         prisma = {
@@ -19,20 +30,32 @@ describe("TipoProdutoService", () => {
         service = new TipoProdutoService(prisma);
     });
 
+    it("deve estar definido", () => {
+        expect(service).toBeDefined();
+    });
+
+    describe("Validação de usuário", () => {
+        it("deve lançar BadRequestException se o usuário não possuir fabrico_id", async () => {
+            await expect(service.findAllByFabrico(mockUserSemFabrico)).rejects.toThrow(
+                new BadRequestException("Usuário não possui um fabrico associado"),
+            );
+        });
+    });
+
     describe("create", () => {
         it("cria um tipo de produto para o fabrico do usuário autenticado", async () => {
-            const tipo = { id: 1, nome: "camisa", fabrico_id: fabricoId };
+            const tipo = { id: 1, nome: "camisa", fabrico_id: mockUser.fabrico_id };
             prisma.tipoProduto.create.mockResolvedValue(tipo);
 
-            await expect(service.create({ nome: "camisa" }, fabricoId)).resolves.toEqual(tipo);
+            await expect(service.create({ nome: "camisa" }, mockUser)).resolves.toEqual(tipo);
             expect(prisma.tipoProduto.create).toHaveBeenCalledWith({
-                data: { nome: "camisa", fabrico_id: fabricoId },
+                data: { nome: "camisa", fabrico_id: mockUser.fabrico_id },
             });
         });
 
         it("bloqueia se for enviado um fabrico_id diferente no payload", async () => {
             await expect(
-                service.create({ nome: "camisa", fabrico_id: 99 }, fabricoId),
+                service.create({ nome: "camisa", fabrico_id: 99 }, mockUser),
             ).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do tipo de produto"),
             );
@@ -46,7 +69,7 @@ describe("TipoProdutoService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "camisa" }, fabricoId)).rejects.toThrow(
+            await expect(service.create({ nome: "camisa" }, mockUser)).rejects.toThrow(
                 new ConflictException(
                     "Já existe um tipo de produto com este nome para este fabrico",
                 ),
@@ -61,7 +84,7 @@ describe("TipoProdutoService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "camisa" }, fabricoId)).rejects.toThrow(
+            await expect(service.create({ nome: "camisa" }, mockUser)).rejects.toThrow(
                 new NotFoundException("Relacionamento inválido"),
             );
         });
@@ -69,12 +92,12 @@ describe("TipoProdutoService", () => {
 
     describe("findAllByFabrico", () => {
         it("lista os tipos de produto ordenados por nome para o fabrico especificado", async () => {
-            const tipos = [{ id: 1, nome: "camisa", fabrico_id: fabricoId }];
+            const tipos = [{ id: 1, nome: "camisa", fabrico_id: mockUser.fabrico_id }];
             prisma.tipoProduto.findMany.mockResolvedValue(tipos);
 
-            await expect(service.findAllByFabrico(fabricoId)).resolves.toEqual(tipos);
+            await expect(service.findAllByFabrico(mockUser)).resolves.toEqual(tipos);
             expect(prisma.tipoProduto.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: fabricoId },
+                where: { fabrico_id: mockUser.fabrico_id },
                 orderBy: { nome: "asc" },
             });
         });

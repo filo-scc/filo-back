@@ -1,9 +1,4 @@
-import {
-    BadRequestException,
-    ConflictException,
-    ForbiddenException,
-    NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { CorService } from "./cor.service";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
@@ -21,12 +16,6 @@ describe("CorService", () => {
     const mockUser: AuthenticatedUser = {
         id: 1,
         cargo: "PROPRIETARIO",
-        fabrico_id: 10,
-    } as AuthenticatedUser;
-
-    const mockUserSemPermissao: AuthenticatedUser = {
-        id: 2,
-        cargo: "VENDEDOR" as any,
         fabrico_id: 10,
     } as AuthenticatedUser;
 
@@ -75,14 +64,6 @@ describe("CorService", () => {
             await expect(
                 service.create({ nome: "Azul", fabrico_id: 99 } as any, mockUser),
             ).rejects.toThrow(new BadRequestException("Não é permitido alterar o fabrico da cor"));
-        });
-
-        it("rejeita criação caso o cargo do usuário não seja permitido", async () => {
-            await expect(
-                service.create({ nome: "Azul" } as any, mockUserSemPermissao),
-            ).rejects.toThrow(
-                new ForbiddenException("Cargo do usuário não permite acessar esse recurso"),
-            );
         });
 
         it("rejeita cor duplicada no fabrico", async () => {

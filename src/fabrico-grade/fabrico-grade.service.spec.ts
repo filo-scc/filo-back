@@ -32,12 +32,6 @@ describe("FabricoGradeService", () => {
         fabrico_id: undefined,
     } as any;
 
-    const mockUserCargoInvalido: AuthenticatedUser = {
-        id: 4,
-        cargo: "VENDEDOR" as any,
-        fabrico_id: 1,
-    } as AuthenticatedUser;
-
     const mockPrismaService = {
         grade: {
             findUnique: jest.fn(),
@@ -110,12 +104,6 @@ describe("FabricoGradeService", () => {
         it("deve lançar BadRequestException se o usuário não possuir fabrico_id", async () => {
             await expect(service.create(createDto, mockUserSemFabrico)).rejects.toThrow(
                 new BadRequestException("Usuário não possui um fabrico associado"),
-            );
-        });
-
-        it("deve lançar ForbiddenException se o cargo não for permitido", async () => {
-            await expect(service.create(createDto, mockUserCargoInvalido)).rejects.toThrow(
-                new ForbiddenException("Cargo do usuário não permite acessar esse recurso"),
             );
         });
 
@@ -249,14 +237,6 @@ describe("FabricoGradeService", () => {
             expect(resultado.message).toEqual("Vínculo atualizado com sucesso");
             expect(resultado.data.ativo).toBe(false);
             expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalled();
-        });
-
-        it("deve lançar ForbiddenException se o usuário for GERENTE ou PROPRIETARIO", async () => {
-            await expect(service.update(10, { ativo: false }, mockGerenteUser)).rejects.toThrow(
-                new ForbiddenException(
-                    "Usuário não tem permissão para criar vínculo de grade com fabrico",
-                ),
-            );
         });
 
         it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {

@@ -16,13 +16,10 @@ export class FabricoGradeService {
     constructor(private readonly prisma: PrismaService) {}
 
     private getFabricoId(user: AuthenticatedUser): number {
-        if (user.cargo === "ADMIN" || user.cargo === "PROPRIETARIO" || user.cargo === "GERENTE") {
-            if (!user.fabrico_id) {
-                throw new BadRequestException("Usuário não possui um fabrico associado");
-            }
-            return user.fabrico_id;
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
         }
-        throw new ForbiddenException("Cargo do usuário não permite acessar esse recurso");
+        return user.fabrico_id;
     }
 
     private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
@@ -196,11 +193,6 @@ export class FabricoGradeService {
     }
 
     async update(id: number, data: UpdateFabricoGradeDto, user: AuthenticatedUser) {
-        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
-            throw new ForbiddenException(
-                "Usuário não tem permissão para criar vínculo de grade com fabrico",
-            );
-        }
         this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
 
         const linkAtual = await this.findOne(id, user);

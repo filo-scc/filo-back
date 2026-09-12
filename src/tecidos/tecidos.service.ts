@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateTecidosDto } from "./dto/create-tecidos.dto";
 import { UpdateTecidosDto } from "./dto/update-tecidos.dto";
 import { ProdutoService } from "../produto/produto.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class TecidosService {
@@ -22,8 +23,15 @@ export class TecidosService {
             throw new BadRequestException("Não é permitido alterar o fabrico do tecido");
         }
     }
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
+    }
 
-    async create(dataTecidos: CreateTecidosDto, fabricoId: number) {
+    async create(dataTecidos: CreateTecidosDto, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(dataTecidos.fabrico_id, fabricoId);
 
         const { fabrico_id: _fabricoIdIgnorado, ...dadosTecido } = dataTecidos;
@@ -48,14 +56,16 @@ export class TecidosService {
         }
     }
 
-    async findAll(fabricoId: number) {
+    async findAll(user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         return this.prisma.tecido.findMany({
             where: { fabrico_id: fabricoId },
             orderBy: { nome: "asc" },
         });
     }
 
-    async findOne(id: number, fabricoId: number) {
+    async findOne(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         const tecido = await this.prisma.tecido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -67,17 +77,19 @@ export class TecidosService {
         return tecido;
     }
 
-    async findAllByFabrico(idFabrico: number) {
+    async findAllByFabrico(user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         return this.prisma.tecido.findMany({
-            where: { fabrico_id: idFabrico },
+            where: { fabrico_id: fabricoId },
             orderBy: { nome: "asc" },
         });
     }
 
-    async update(id: number, data: UpdateTecidosDto, fabricoId: number) {
+    async update(id: number, data: UpdateTecidosDto, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         this.assertFabricoImutavel(data.fabrico_id, fabricoId);
 
-        const {  ...dadosUpdate } = data;
+        const { ...dadosUpdate } = data;
 
         try {
             return await this.prisma.$transaction(async (tx) => {
@@ -124,7 +136,8 @@ export class TecidosService {
         }
     }
 
-    async remove(id: number, fabricoId: number) {
+    async remove(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
         return this.prisma.$transaction(async (tx) => {
             const tecidoExistente = await tx.tecido.findFirst({
                 where: { id, fabrico_id: fabricoId },

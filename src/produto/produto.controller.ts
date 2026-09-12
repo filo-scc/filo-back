@@ -24,24 +24,16 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class ProdutoController {
     constructor(private readonly service: ProdutoService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
     @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(@Body() data: CreateProdutoDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.service.create(data, this.getFabricoId(user));
+        return this.service.create(data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.service.findAll(this.getFabricoId(user));
+        return this.service.findAll(user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -50,19 +42,17 @@ export class ProdutoController {
         @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        const currentFabricoId = this.getFabricoId(user);
-
-        if (fabrico_id !== currentFabricoId) {
+        if (fabrico_id !== user.fabrico_id) {
             throw new NotFoundException("Fabrico não encontrado");
         }
 
-        return this.service.findAllFabrico(currentFabricoId);
+        return this.service.findAllFabrico(user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.service.getById(id, this.getFabricoId(user));
+        return this.service.getById(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -72,13 +62,13 @@ export class ProdutoController {
         @Body() dadosAtualizados: UpdateProduto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.service.update(id, dadosAtualizados, this.getFabricoId(user));
+        return this.service.update(id, dadosAtualizados, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.service.delete(id, this.getFabricoId(user));
+        return this.service.delete(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -87,8 +77,7 @@ export class ProdutoController {
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        const currentFabricoId = this.getFabricoId(user);
 
-        return this.service.getUnassociatedProductsForClient(cliente_id, currentFabricoId);
+        return this.service.getUnassociatedProductsForClient(cliente_id, user);
     }
 }

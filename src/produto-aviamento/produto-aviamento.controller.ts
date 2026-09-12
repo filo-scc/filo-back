@@ -24,14 +24,6 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class ProdutoAviamentoController {
     constructor(private readonly produtoAviamentoService: ProdutoAviamentoService) {}
 
-    private getFabricoId(user: AuthenticatedUser): number {
-        if (!user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
-        return user.fabrico_id;
-    }
-
     @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(
@@ -40,20 +32,20 @@ export class ProdutoAviamentoController {
     ) {
         return this.produtoAviamentoService.create(
             createProdutoAviamentoDto,
-            this.getFabricoId(user),
+            user,
         );
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.produtoAviamentoService.findAll(this.getFabricoId(user));
+        return this.produtoAviamentoService.findAll(user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.produtoAviamentoService.findOne(id, this.getFabricoId(user));
+        return this.produtoAviamentoService.findOne(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -62,7 +54,7 @@ export class ProdutoAviamentoController {
         @Param("id", ParseIntPipe) id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.produtoAviamentoService.findAllByProduto(id, this.getFabricoId(user));
+        return this.produtoAviamentoService.findAllByProduto(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -71,7 +63,7 @@ export class ProdutoAviamentoController {
         @Param("id", ParseIntPipe) id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.produtoAviamentoService.findAllByAviamento(id, this.getFabricoId(user));
+        return this.produtoAviamentoService.findAllByAviamento(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -84,13 +76,13 @@ export class ProdutoAviamentoController {
         return this.produtoAviamentoService.update(
             id,
             updateProdutoAviamentoDto,
-            this.getFabricoId(user),
+            user,
         );
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.produtoAviamentoService.remove(id, this.getFabricoId(user));
+        return this.produtoAviamentoService.remove(id, user);
     }
 }

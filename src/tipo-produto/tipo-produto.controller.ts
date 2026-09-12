@@ -8,6 +8,7 @@ import { CurrentUser } from "src/common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("PROPRIETARIO", "GERENTE")
 @Controller("tipo-produto")
 export class TipoProdutoController {
     constructor(private readonly tipoProdutoService: TipoProdutoService) {}
@@ -20,18 +21,16 @@ export class TipoProdutoController {
         return user.fabrico_id;
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(
         @Body() createTipoProdutoDto: CreateTipoProdutoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.tipoProdutoService.create(createTipoProdutoDto, this.getFabricoId(user));
+        return this.tipoProdutoService.create(createTipoProdutoDto, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.tipoProdutoService.findAllByFabrico(this.getFabricoId(user));
+        return this.tipoProdutoService.findAllByFabrico(user);
     }
 }

@@ -4,6 +4,7 @@ import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { ProdutoService } from "src/produto/produto.service";
 import { ParceiroService } from "./parceiro.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ParceiroProdutoService {
@@ -17,9 +18,10 @@ export class ParceiroProdutoService {
         parceiro_id: number,
         produto_id: number,
         data: CreateParceiroProdutoDto,
+        user: AuthenticatedUser,
     ) {
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id),
+            this.produtoService.getById(produto_id,user),
             this.parceiroService.getById(parceiro_id),
         ]);
 
@@ -92,9 +94,10 @@ export class ParceiroProdutoService {
         parceiro_id: number,
         produto_id: number,
         data: UpdateParceiroProdutoDto,
+        user: AuthenticatedUser,
     ) {
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id),
+            this.produtoService.getById(produto_id, user),
             this.parceiroService.getById(parceiro_id),
         ]);
 
