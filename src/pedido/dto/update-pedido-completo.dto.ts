@@ -24,7 +24,7 @@ export class UpdatePedidoCompletoDto {
 
     @IsOptional()
     @IsDateString()
-    data_prevista?: string;
+    data_prevista?: string | null;
 
     @IsOptional()
     @IsString()

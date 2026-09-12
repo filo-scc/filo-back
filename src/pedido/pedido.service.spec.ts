@@ -487,6 +487,85 @@ describe("PedidoService", () => {
             });
         });
 
+        it("deve manter cliente_id e data_prevista quando omitidos e ainda sincronizar ClienteProduto", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                ...pedidoExistente,
+                data_prevista: new Date("2026-09-20"),
+                observacoes: "Obs atual",
+            });
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
+
+            await service.updateCompleto(
+                100,
+                {
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                            preco_padrao: 20,
+                            nome_para_cliente: "Ref mantida",
+                        },
+                    ],
+                },
+                1,
+            );
+
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    create: expect.objectContaining({
+                        cliente_id: 7,
+                        produto_id: 5,
+                        nome_para_cliente: "Ref mantida",
+                        preco_padrao: 20,
+                    }),
+                }),
+            );
+
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: {
+                    quantidade: 30,
+                    custo_total: 300,
+                    valor_total: 600,
+                },
+            });
+        });
+
+        it("deve limpar cliente_id e data_prevista apenas quando enviados como null", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: null });
+
+            await service.updateCompleto(
+                100,
+                {
+                    cliente_id: null,
+                    data_prevista: null,
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                        },
+                    ],
+                },
+                1,
+            );
+
+            expect(mockPrismaService.clienteProduto.upsert).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    cliente_id: null,
+                    data_prevista: null,
+                    valor_total: null,
+                }),
+            });
+        });
+
         it("deve rejeitar ficha que não pertence ao pedido", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
 

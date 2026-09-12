@@ -238,9 +238,13 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
-        if (data.cliente_id) {
+        // Omitido = mantém o cliente atual; null explícito = remove o vínculo.
+        const clienteIdEfetivo =
+            data.cliente_id !== undefined ? data.cliente_id : pedido.cliente_id;
+
+        if (clienteIdEfetivo) {
             const cliente = await this.prisma.cliente.findFirst({
-                where: { id: data.cliente_id, fabrico_id: fabricoId },
+                where: { id: clienteIdEfetivo, fabrico_id: fabricoId },
             });
 
             if (!cliente) {
@@ -313,10 +317,10 @@ export class PedidoService {
                     for (const fichaDto of fichasExistentesDto) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
-                        if (data.cliente_id) {
+                        if (clienteIdEfetivo) {
                             await this.vincularClienteProduto(
                                 tx,
-                                data.cliente_id,
+                                clienteIdEfetivo,
                                 fichaDb.produto_id,
                                 fichaDto,
                             );
@@ -396,7 +400,7 @@ export class PedidoService {
                                 gradeVersaoId: gradePorProduto.get(produtoId)!,
                                 etapaAtualId: etapasPorFicha.get(fichaDto) ?? null,
                                 numero: proximoNumeroFicha,
-                                clienteId: data.cliente_id,
+                                clienteId: clienteIdEfetivo,
                             });
 
                             proximoNumeroFicha += 1;
@@ -421,7 +425,7 @@ export class PedidoService {
                     ];
                     const totais = await this.calcularTotais(
                         tx,
-                        data,
+                        { cliente_id: clienteIdEfetivo },
                         fichasParaTotais,
                         produtoIdsTotais,
                     );
@@ -429,9 +433,19 @@ export class PedidoService {
                     await tx.pedido.update({
                         where: { id: pedido.id },
                         data: {
-                            cliente_id: data.cliente_id ?? null,
-                            data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
-                            observacoes: data.observacoes,
+                            ...(data.cliente_id !== undefined
+                                ? { cliente_id: data.cliente_id }
+                                : {}),
+                            ...(data.data_prevista !== undefined
+                                ? {
+                                      data_prevista: data.data_prevista
+                                          ? new Date(data.data_prevista)
+                                          : null,
+                                  }
+                                : {}),
+                            ...(data.observacoes !== undefined
+                                ? { observacoes: data.observacoes }
+                                : {}),
                             ...(data.finalizado !== undefined
                                 ? { finalizado: data.finalizado }
                                 : {}),
