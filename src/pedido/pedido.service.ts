@@ -386,13 +386,14 @@ export class PedidoService {
                                     where: {
                                         id: Number(fichaDto.etapa_atual_id),
                                         fabrico_id: fabricoId,
+                                        ativa: true,
                                     },
                                     select: { id: true },
                                 });
 
                                 if (!etapa) {
                                     throw new BadRequestException(
-                                        "Uma ou mais etapas não pertencem ao fabrico do pedido",
+                                        "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
                                     );
                                 }
                             }
@@ -650,16 +651,9 @@ export class PedidoService {
                 throw new BadRequestException("Produto não possui grade definida");
             }
 
+            await this.assertGradeVersaoLiberadaParaFabrico(tx, gradeDesejada, fabricoId);
+
             if (gradeDesejada !== gradeAtual) {
-                const gradeValida = await tx.gradeVersao.findFirst({
-                    where: { id: gradeDesejada, ativo: true },
-                    select: { id: true },
-                });
-
-                if (!gradeValida) {
-                    throw new BadRequestException("Versão de grade inválida ou inativa");
-                }
-
                 const atualizados = await tx.produto.updateMany({
                     where: { id: produtoId, fabrico_id: fabricoId },
                     data: { grade_versao_id: gradeDesejada },
@@ -674,6 +668,36 @@ export class PedidoService {
         }
 
         return gradePorProduto as Map<number, number>;
+    }
+
+    private async assertGradeVersaoLiberadaParaFabrico(
+        tx: Prisma.TransactionClient,
+        gradeVersaoId: number,
+        fabricoId: number,
+    ) {
+        const gradeVersao = await tx.gradeVersao.findFirst({
+            where: { id: gradeVersaoId, ativo: true },
+            select: { id: true, grade_id: true },
+        });
+
+        if (!gradeVersao) {
+            throw new BadRequestException("Versão de grade inválida ou inativa");
+        }
+
+        const liberacao = await tx.fabricoGrade.findFirst({
+            where: {
+                fabrico_id: fabricoId,
+                grade_id: gradeVersao.grade_id,
+                ativo: true,
+            },
+            select: { id: true },
+        });
+
+        if (!liberacao) {
+            throw new BadRequestException(
+                "A grade informada não está liberada para este fabrico",
+            );
+        }
     }
 
     private async resolverEtapasDasFichas(
@@ -697,13 +721,13 @@ export class PedidoService {
 
         if (etapasInformadas.length) {
             const etapasValidas = await tx.etapa.findMany({
-                where: { id: { in: etapasInformadas }, fabrico_id: fabricoId },
+                where: { id: { in: etapasInformadas }, fabrico_id: fabricoId, ativa: true },
                 select: { id: true },
             });
 
             if (etapasValidas.length !== etapasInformadas.length) {
                 throw new BadRequestException(
-                    "Uma ou mais etapas não pertencem ao fabrico do pedido",
+                    "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
                 );
             }
         }

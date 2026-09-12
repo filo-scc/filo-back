@@ -56,6 +56,10 @@ describe("PedidoService", () => {
             findMany: jest.fn(),
         },
 
+        fabricoGrade: {
+            findFirst: jest.fn(),
+        },
+
         etapa: {
             findFirst: jest.fn(),
             findMany: jest.fn(),
@@ -126,13 +130,16 @@ describe("PedidoService", () => {
 
         service = module.get<PedidoService>(PedidoService);
 
-        jest.clearAllMocks();
+        jest.resetAllMocks();
 
         mockPrismaService.$transaction.mockImplementation(
             async (callback: (tx: unknown) => unknown) => callback(mockPrismaService),
         );
         mockPrismaService.fichaTecnica.count.mockResolvedValue(1);
         mockPrismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
+        mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
+        mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
+        mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
     });
 
     it("should be defined", () => {
@@ -216,6 +223,8 @@ describe("PedidoService", () => {
                 .mockResolvedValueOnce([{ id: 5 }])
                 .mockResolvedValueOnce([{ id: 5, custo_total: 10 }]);
             mockPrismaService.produto.findFirst.mockResolvedValue({ id: 5 });
+            mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
             mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
@@ -325,6 +334,8 @@ describe("PedidoService", () => {
                 .mockResolvedValueOnce([{ id: 5, grade_versao_id: 3 }])
                 .mockResolvedValueOnce([{ id: 5 }])
                 .mockResolvedValueOnce([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
                 .mockResolvedValueOnce({ id: 8 });
@@ -379,6 +390,32 @@ describe("PedidoService", () => {
             mockPrismaService.cor.findMany.mockResolvedValue([]);
 
             await expect(service.createCompleto(dtoBase, usuario)).rejects.toThrow(BadRequestException);
+        });
+
+        it("deve rejeitar grade não liberada para o fabrico", async () => {
+            prepararCenarioFeliz();
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(null);
+
+            await expect(service.createCompleto(dtoBase, usuario)).rejects.toThrow(
+                "A grade informada não está liberada para este fabrico",
+            );
+        });
+
+        it("deve rejeitar etapa inativa informada no createCompleto", async () => {
+            prepararCenarioFeliz();
+            mockPrismaService.etapa.findMany.mockResolvedValue([]);
+
+            await expect(
+                service.createCompleto(
+                    {
+                        ...dtoBase,
+                        fichas: [{ ...dtoBase.fichas[0], etapa_atual_id: 99 }],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
+            );
         });
 
         it("deve exigir ao menos uma ficha técnica", async () => {
@@ -513,7 +550,7 @@ describe("PedidoService", () => {
             );
 
             expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
-                where: { id: 40, fabrico_id: 1 },
+                where: { id: 40, fabrico_id: 1, ativa: true },
                 select: { id: true },
             });
             expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
@@ -530,7 +567,9 @@ describe("PedidoService", () => {
         it("deve rejeitar etapa_atual_id de outro fabrico em ficha existente", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.etapa.findFirst.mockReset();
             mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
 
             await expect(
                 service.updateCompleto(
@@ -547,24 +586,9 @@ describe("PedidoService", () => {
                     },
                     usuario,
                 ),
-            ).rejects.toThrow(BadRequestException);
-
-            await expect(
-                service.updateCompleto(
-                    100,
-                    {
-                        fichas: [
-                            {
-                                id: 200,
-                                produto_id: 5,
-                                quantidade: 30,
-                                etapa_atual_id: 99,
-                            },
-                        ],
-                    },
-                    usuario,
-                ),
-            ).rejects.toThrow("Uma ou mais etapas não pertencem ao fabrico do pedido");
+            ).rejects.toThrow(
+                "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
+            );
         });
 
         it("deve rejeitar grade_versao_id em ficha existente sem itens ou cores_ids", async () => {
@@ -615,6 +639,8 @@ describe("PedidoService", () => {
                 .mockResolvedValueOnce([{ id: 6 }])
                 .mockResolvedValueOnce([{ id: 6, custo_total: 8 }]);
             mockPrismaService.produto.findFirst.mockResolvedValue({ id: 6 });
+            mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
             mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
