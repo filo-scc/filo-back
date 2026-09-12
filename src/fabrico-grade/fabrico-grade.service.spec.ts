@@ -17,7 +17,7 @@ describe("FabricoGradeService", () => {
     const mockAdminUser: AuthenticatedUser = {
         id: 1,
         cargo: "ADMIN",
-        fabrico_id: 1,
+        fabrico_id: null,
     } as AuthenticatedUser;
 
     const mockGerenteUser: AuthenticatedUser = {
@@ -101,18 +101,24 @@ describe("FabricoGradeService", () => {
             );
         });
 
-        it("deve lançar BadRequestException se o usuário não possuir fabrico_id", async () => {
-            await expect(service.create(createDto, mockUserSemFabrico)).rejects.toThrow(
-                new BadRequestException("Usuário não possui um fabrico associado"),
+        it("deve lançar BadRequestException se o usuário ADMIN não informar fabrico alvo", async () => {
+            const dtoSemFabrico: CreateFabricoGradeDto = { grade_id: 2, ativo: true };
+
+            await expect(service.create(dtoSemFabrico, mockAdminUser)).rejects.toThrow(
+                new BadRequestException("Fabrico alvo obrigatório para usuários ADMIN"),
             );
         });
 
-        it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
-            const invalidDto: CreateFabricoGradeDto = { fabrico_id: 99, grade_id: 2, ativo: true };
+        it("deve aceitar o fabrico alvo informado pelo ADMIN", async () => {
+            const adminDto: CreateFabricoGradeDto = { fabrico_id: 1, grade_id: 2, ativo: true };
+            mockPrismaService.grade.findUnique.mockResolvedValue(mockGrade);
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(null);
+            mockPrismaService.fabricoGrade.create.mockResolvedValue(mockFabricoGrade);
 
-            await expect(service.create(invalidDto, mockAdminUser)).rejects.toThrow(
-                new BadRequestException("Não é permitido alterar o fabrico da grade"),
-            );
+            await expect(service.create(adminDto, mockAdminUser)).resolves.toEqual({
+                message: "Grade liberada para o fabrico com sucesso",
+                data: mockFabricoGrade,
+            });
         });
 
         it("deve lançar NotFoundException se a grade não existir", async () => {
@@ -174,35 +180,34 @@ describe("FabricoGradeService", () => {
     });
 
     describe("findAll", () => {
-        it("deve retornar todos os relacionamentos filtrando por fabrico_id do usuário", async () => {
+        it("deve retornar todos os relacionamentos para ADMIN sem filtrar por fabrico do usuário", async () => {
             mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
 
             const resultado = await service.findAll(mockAdminUser);
 
             expect(resultado).toEqual([mockFabricoGrade]);
             expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
-                expect.objectContaining({ where: { fabrico_id: mockAdminUser.fabrico_id } }),
-            );
-        });
-    });
-
-    describe("findAllByFabricoID", () => {
-        it("deve retornar todas as grades ativas do fabrico do usuário", async () => {
-            mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
-
-            const resultado = await service.findAllByFabricoID(mockAdminUser);
-
-            expect(resultado).toEqual([mockFabricoGrade]);
-            expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { fabrico_id: mockAdminUser.fabrico_id, ativo: true },
+                    include: expect.any(Object),
+                    orderBy: { id: "asc" },
                 }),
             );
         });
     });
 
+    describe("findAllByFabricoID", () => {
+        it("deve rejeitar operação de listagem por fabrico para ADMIN quando não houver target explícito", async () => {
+            await expect(service.findAllByFabricoID(mockAdminUser)).rejects.toThrow(
+                new BadRequestException(
+                    "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
+                ),
+            );
+            expect(mockPrismaService.fabricoGrade.findMany).not.toHaveBeenCalled();
+        });
+    });
+
     describe("findOne", () => {
-        it("deve retornar um relacionamento específico pelo ID", async () => {
+        it("deve retornar um relacionamento específico pelo ID para ADMIN sem filtrar por fabrico do usuário", async () => {
             mockPrismaService.fabricoGrade.findFirst.mockResolvedValue(mockFabricoGrade);
 
             const resultado = await service.findOne(10, mockAdminUser);
@@ -210,7 +215,7 @@ describe("FabricoGradeService", () => {
             expect(resultado).toEqual(mockFabricoGrade);
             expect(mockPrismaService.fabricoGrade.findFirst).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { id: 10, fabrico_id: mockAdminUser.fabrico_id },
+                    where: { id: 10 },
                 }),
             );
         });
@@ -239,7 +244,9 @@ describe("FabricoGradeService", () => {
             expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalled();
         });
 
-        it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
+        it("deve lançar BadRequestException se o ADMIN tentar trocar o fabrico do vínculo existente", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
+
             await expect(service.update(10, { fabrico_id: 99 }, mockAdminUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico da grade"),
             );

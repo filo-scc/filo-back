@@ -22,6 +22,21 @@ export class FabricoGradeService {
         return user.fabrico_id;
     }
 
+    private getFabricoIdParaOperacao(user: AuthenticatedUser, fabricoInformado?: number): number {
+        if (user.cargo === "ADMIN") {
+            if (
+                fabricoInformado === undefined ||
+                fabricoInformado === null ||
+                Number.isNaN(Number(fabricoInformado))
+            ) {
+                throw new BadRequestException("Fabrico alvo obrigatório para usuários ADMIN");
+            }
+            return Number(fabricoInformado);
+        }
+
+        return this.getFabricoId(user);
+    }
+
     private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
         if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
             throw new BadRequestException("Não é permitido alterar o fabrico da grade");
@@ -35,7 +50,8 @@ export class FabricoGradeService {
             );
         }
 
-        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
+        const fabricoId = this.getFabricoIdParaOperacao(user, data.fabrico_id);
+        this.assertFabricoImutavel(data.fabrico_id, fabricoId);
 
         const grade = await this.prisma.grade.findUnique({
             where: { id: Number(data.grade_id) },
@@ -47,7 +63,7 @@ export class FabricoGradeService {
 
         const existente = await this.prisma.fabricoGrade.findFirst({
             where: {
-                fabrico_id: this.getFabricoId(user),
+                fabrico_id: fabricoId,
                 grade_id: Number(data.grade_id),
             },
         });
@@ -62,7 +78,7 @@ export class FabricoGradeService {
             const link = await this.prisma.fabricoGrade.create({
                 data: {
                     ...dadosCreate,
-                    fabrico_id: this.getFabricoId(user),
+                    fabrico_id: fabricoId,
                     grade_id: Number(data.grade_id),
                     ativo: data.ativo ?? true,
                 },
@@ -93,11 +109,36 @@ export class FabricoGradeService {
     }
 
     async findAll(user: AuthenticatedUser) {
+        if (user.cargo === "ADMIN") {
+            return this.prisma.fabricoGrade.findMany({
+                include: {
+                    fabrico: true,
+                    grade: {
+                        include: {
+                            items: {
+                                include: { tamanho: true },
+                                orderBy: { posicao: "asc" },
+                            },
+                            versoes: {
+                                where: { ativo: true },
+                                orderBy: { versao: "desc" },
+                                take: 1,
+                                include: {
+                                    itens: {
+                                        include: { tamanho: true },
+                                        orderBy: { posicao: "asc" },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: { id: "asc" },
+            });
+        }
+
         return this.prisma.fabricoGrade.findMany({
-            where:
-                this.getFabricoId(user) !== undefined
-                    ? { fabrico_id: this.getFabricoId(user) }
-                    : {},
+            where: { fabrico_id: this.getFabricoId(user) },
             include: {
                 fabrico: true,
                 grade: {
@@ -125,6 +166,12 @@ export class FabricoGradeService {
     }
 
     async findAllByFabricoID(user: AuthenticatedUser) {
+        if (user.cargo === "ADMIN") {
+            throw new BadRequestException(
+                "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
+            );
+        }
+
         return this.prisma.fabricoGrade.findMany({
             where: {
                 fabrico_id: this.getFabricoId(user),
@@ -159,9 +206,7 @@ export class FabricoGradeService {
         const link = await this.prisma.fabricoGrade.findFirst({
             where: {
                 id,
-                ...(this.getFabricoId(user) !== undefined
-                    ? { fabrico_id: this.getFabricoId(user) }
-                    : {}),
+                ...(user.cargo !== "ADMIN" ? { fabrico_id: this.getFabricoId(user) } : {}),
             },
             include: {
                 fabrico: true,
@@ -193,9 +238,15 @@ export class FabricoGradeService {
     }
 
     async update(id: number, data: UpdateFabricoGradeDto, user: AuthenticatedUser) {
-        this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
-
         const linkAtual = await this.findOne(id, user);
+
+        if (user.cargo === "ADMIN") {
+            if (data.fabrico_id !== undefined && Number(data.fabrico_id) !== linkAtual.fabrico_id) {
+                throw new BadRequestException("Não é permitido alterar o fabrico da grade");
+            }
+        } else {
+            this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
+        }
 
         const { ...dadosUpdate } = data;
 
