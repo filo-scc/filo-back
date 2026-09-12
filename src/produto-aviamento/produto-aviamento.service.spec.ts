@@ -245,6 +245,41 @@ describe("ProdutoAviamentoService", () => {
             await expect(service.update(999, dto)).rejects.toThrow(NotFoundException);
             expect(prisma.produtoAviamento.update).not.toHaveBeenCalled();
         });
+
+        it("nunca envia produto_id/aviamento_id ao Prisma mesmo se presentes no payload", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue(mockProdutoAviamento);
+
+            const payloadMalicioso = {
+                quantidade: 5,
+                produto_id: 999,
+                aviamento_id: 888,
+            } as any;
+
+            await service.update(1, payloadMalicioso);
+
+            const dadosEnviados = prisma.produtoAviamento.update.mock.calls[0][0].data;
+            expect(dadosEnviados).not.toHaveProperty("produto_id");
+            expect(dadosEnviados).not.toHaveProperty("aviamento_id");
+        });
+
+        it("não inclui produto_id/aviamento_id mesmo quando só custo é enviado junto com IDs maliciosos", async () => {
+            prisma.produtoAviamento.findUnique.mockResolvedValue(mockProdutoAviamento);
+            prisma.produtoAviamento.update.mockResolvedValue(mockProdutoAviamento);
+
+            const payloadMalicioso = {
+                custo: 30,
+                produto_id: 999,
+                aviamento_id: 888,
+            } as any;
+
+            await service.update(1, payloadMalicioso);
+
+            const dadosEnviados = prisma.produtoAviamento.update.mock.calls[0][0].data;
+            expect(dadosEnviados).toEqual({ custo: 30 });
+            expect(dadosEnviados).not.toHaveProperty("produto_id");
+            expect(dadosEnviados).not.toHaveProperty("aviamento_id");
+        });
     });
 
     describe("Remove o relacionamento entre produto e aviamento", () => {
