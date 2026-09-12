@@ -111,6 +111,16 @@ describe("FichaTecnicaService", () => {
             prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
             prismaService.gradeVersaoItem.findMany.mockResolvedValue([{ id: 1 }]);
             prismaService.fichaTecnica.create.mockResolvedValue(fichaData);
+            prismaService.fichaTecnica.findFirst.mockResolvedValue({ numero: 4 });
+            prismaService.pedido.findUnique.mockResolvedValue({ cliente_id: null });
+            prismaService.fichaTecnica.findMany.mockResolvedValue([
+                { quantidade: 10, produto: { id: 10, custo_total: 5 } },
+            ]);
+            prismaService.fichaTecnica.count
+                .mockResolvedValueOnce(1)
+                .mockResolvedValueOnce(1);
+            prismaService.pedido.update.mockResolvedValue({});
+            prismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
 
             const result = await service.create(createDto, 20);
 
@@ -123,6 +133,16 @@ describe("FichaTecnicaService", () => {
                 data: expect.objectContaining({
                     concluida: false,
                 }),
+            });
+            expect(prismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    quantidade: 10,
+                }),
+            });
+            expect(prismaService.pedido.updateMany).toHaveBeenCalledWith({
+                where: { id: 100, finalizado: true },
+                data: { finalizado: false },
             });
         });
 
@@ -460,6 +480,39 @@ describe("FichaTecnicaService", () => {
 
             expect(result).toBe("Ficha técnica excluída com sucesso");
             expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.pedido.update).not.toHaveBeenCalled();
+        });
+
+        it("deve sincronizar totais e finalização ao remover ficha vinculada a pedido", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+            } as any);
+            prismaService.pedido.findFirst.mockResolvedValue({ finalizado: false });
+            prismaService.fichaTecnica.delete.mockResolvedValue(fichaData);
+            prismaService.pedido.findUnique.mockResolvedValue({ cliente_id: null });
+            prismaService.fichaTecnica.findMany.mockResolvedValue([
+                { quantidade: 20, produto: { id: 10, custo_total: 8 } },
+            ]);
+            prismaService.fichaTecnica.count
+                .mockResolvedValueOnce(1)
+                .mockResolvedValueOnce(0);
+            prismaService.pedido.update.mockResolvedValue({});
+            prismaService.pedido.updateMany.mockResolvedValue({ count: 1 });
+
+            await service.remove(1);
+
+            expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    quantidade: 20,
+                }),
+            });
+            expect(prismaService.pedido.updateMany).toHaveBeenCalledWith({
+                where: { id: 100, finalizado: false },
+                data: { finalizado: true },
+            });
         });
 
         it("deve lançar NotFoundException se a ficha não existir", async () => {

@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
+import { sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
@@ -136,7 +137,6 @@ export class FichaTecnicaService {
             await lockFabricoNumeracao(tx, fabrico_id);
             const numero = await proximoNumeroFicha(tx, fabrico_id);
 
-            // 1. cria ficha
             const ficha = await tx.fichaTecnica.create({
                 data: {
                     ...data,
@@ -148,8 +148,8 @@ export class FichaTecnicaService {
                 },
             });
 
-            // ⚠️ IMPORTANTE:
-            // não cria cores automaticamente (usuário define depois)
+            await this.sincronizarPedido(tx, Number(data.pedido_id));
+            await sincronizarFinalizacaoPedido(tx, Number(data.pedido_id));
 
             return ficha;
         });
@@ -437,6 +437,7 @@ export class FichaTecnicaService {
 
                 if (data.quantidade !== undefined && ficha.pedido_id) {
                     await this.sincronizarPedido(tx, ficha.pedido_id);
+                    await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
                 }
 
                 return fichaAtualizada;
@@ -545,8 +546,15 @@ export class FichaTecnicaService {
             await this.assertPedidoEditavel(ficha.pedido_id);
         }
 
-        await this.prisma.fichaTecnica.delete({
-            where: { id },
+        await this.prisma.$transaction(async (tx) => {
+            await tx.fichaTecnica.delete({
+                where: { id },
+            });
+
+            if (ficha.pedido_id) {
+                await this.sincronizarPedido(tx, ficha.pedido_id);
+                await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
+            }
         });
 
         return "Ficha técnica excluída com sucesso";
