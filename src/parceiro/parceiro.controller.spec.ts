@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 import { ParceiroController } from "./parceiro.controller";
 import { ParceiroService } from "./parceiro.service";
 
@@ -14,7 +15,15 @@ describe("ParceiroController", () => {
         getParceirosByFabricoECategoria: jest.Mock;
     };
 
-    const req = { user: { fabrico_id: 7 } };
+    const user: AuthenticatedUser = {
+        id: 1,
+        email: "gerente@filo.test",
+        nome: "Gerente",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 7,
+        fabrico: { id: 7, ativo: true },
+    };
 
     beforeEach(async () => {
         parceiroService = {
@@ -44,46 +53,53 @@ describe("ParceiroController", () => {
         expect(controller).toBeDefined();
     });
 
-    it("cria parceiro com fabrico autenticado, ignorando body", () => {
-        const dto: any = { nome: "Parceiro", fabrico_id: 99 };
+    it("repassa o usuario autenticado ao criar parceiro", () => {
+        const dto = { nome: "Parceiro" };
         parceiroService.create.mockReturnValue({ message: "ok" });
 
-        expect(controller.create(req, dto)).toEqual({ message: "ok" });
-        expect(parceiroService.create).toHaveBeenCalledWith(dto, 7);
+        expect(controller.create(dto, user)).toEqual({ message: "ok" });
+        expect(parceiroService.create).toHaveBeenCalledWith(dto, user);
     });
 
-    it("lista parceiros usando o fabrico autenticado", () => {
+    it("lista parceiros usando o usuario autenticado", () => {
         parceiroService.getAll.mockReturnValue([]);
 
-        expect(controller.findAll(req)).toEqual([]);
-        expect(parceiroService.getAll).toHaveBeenCalledWith(7);
+        expect(controller.findAll(user)).toEqual([]);
+        expect(parceiroService.getAll).toHaveBeenCalledWith(user);
     });
 
-    it("consulta por categoria usando implicitamente o fabrico autenticado", async () => {
+    it("consulta por categoria usando o usuario autenticado", async () => {
         parceiroService.getParceirosByFabricoECategoria.mockResolvedValue([]);
 
-        await expect(controller.getByCategoria(req, "Costura")).resolves.toEqual([]);
-        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(7, "Costura");
+        await expect(controller.getByCategoria(user, "Costura")).resolves.toEqual([]);
+        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(
+            "Costura",
+            user,
+        );
     });
 
-    it("consulta rota legada por categoria ignorando fabrico da URL", async () => {
+    it("consulta rota legada validando o fabrico da URL no service", async () => {
         parceiroService.getParceirosByFabricoECategoria.mockResolvedValue([]);
 
-        await expect(controller.getByFabricoECategoria(req, "Costura")).resolves.toEqual([]);
-        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(7, "Costura");
+        await expect(controller.getByFabricoECategoria(7, "Costura", user)).resolves.toEqual([]);
+        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(
+            "Costura",
+            user,
+            7,
+        );
     });
 
-    it("busca, atualiza e remove pelo tenant autenticado", () => {
+    it("busca, atualiza e remove repassando o usuario autenticado", () => {
         parceiroService.getById.mockReturnValue({ id: 1 });
         parceiroService.update.mockReturnValue({ message: "updated" });
         parceiroService.delete.mockReturnValue({ message: "deleted" });
 
-        expect(controller.findOne(req, "1")).toEqual({ id: 1 });
-        expect(controller.update(req, "1", { nome: "Novo" })).toEqual({ message: "updated" });
-        expect(controller.remove(req, "1")).toEqual({ message: "deleted" });
+        expect(controller.findOne(user, 1)).toEqual({ id: 1 });
+        expect(controller.update(user, 1, { nome: "Novo" })).toEqual({ message: "updated" });
+        expect(controller.remove(user, 1)).toEqual({ message: "deleted" });
 
-        expect(parceiroService.getById).toHaveBeenCalledWith(1, 7);
-        expect(parceiroService.update).toHaveBeenCalledWith(1, { nome: "Novo" }, 7);
-        expect(parceiroService.delete).toHaveBeenCalledWith(1, 7);
+        expect(parceiroService.getById).toHaveBeenCalledWith(1, user);
+        expect(parceiroService.update).toHaveBeenCalledWith(1, { nome: "Novo" }, user);
+        expect(parceiroService.delete).toHaveBeenCalledWith(1, user);
     });
 });

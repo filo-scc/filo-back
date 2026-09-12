@@ -1,6 +1,12 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 import { EnderecoService } from "../endereco/endereco.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
@@ -11,6 +17,26 @@ describe("ParceiroService", () => {
     let prisma: PrismaService;
     let enderecoService: EnderecoService;
     let consoleErrorSpy: ReturnType<typeof jest.spyOn>;
+
+    const userFabrico1: AuthenticatedUser = {
+        id: 1,
+        email: "gerente@filo.test",
+        nome: "Gerente",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 1,
+        fabrico: { id: 1, ativo: true },
+    };
+
+    const admin: AuthenticatedUser = {
+        id: 99,
+        email: "admin@filo.test",
+        nome: "Admin",
+        foto_de_perfil: null,
+        cargo: "ADMIN",
+        fabrico_id: null,
+        fabrico: null,
+    };
 
     const mockPrismaService = {
         parceiro: {
@@ -78,7 +104,7 @@ describe("ParceiroService", () => {
         it("deve retornar apenas parceiros do fabrico autenticado", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
 
-            const result = await service.getAll(1);
+            const result = await service.getAll(userFabrico1);
 
             expect(result).toEqual([mockParceiro]);
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith({
@@ -90,23 +116,35 @@ describe("ParceiroService", () => {
             });
         });
 
+        it("deve recusar ADMIN para nao abrir consulta global implicita", async () => {
+            await expect(service.getAll(admin)).rejects.toThrow(ForbiddenException);
+            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
+        });
+
         it("deve lancar NotFoundException caso tenha falha na consulta", async () => {
             mockPrismaService.parceiro.findMany.mockRejectedValue(new Error("falha"));
 
-            await expect(service.getAll(1)).rejects.toThrow(NotFoundException);
+            await expect(service.getAll(userFabrico1)).rejects.toThrow(NotFoundException);
         });
     });
 
     describe("getAllparceiroByFabrico()", () => {
-        it("deve retornar parceiros de um fabrico", async () => {
+        it("deve retornar parceiros apenas do fabrico autenticado", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
 
-            const result = await service.getAllparceiroByFabrico(1);
+            const result = await service.getAllparceiroByFabrico(1, userFabrico1);
 
             expect(result).toEqual([mockParceiro]);
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({ where: { fabrico_id: 1 } }),
             );
+        });
+
+        it("deve rejeitar fabrica da URL diferente da autenticada", async () => {
+            await expect(service.getAllparceiroByFabrico(2, userFabrico1)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
         });
     });
 
@@ -114,7 +152,7 @@ describe("ParceiroService", () => {
         it("deve retornar parceiro do fabrico autenticado", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(mockParceiro);
 
-            const result = await service.getById(1, 1);
+            const result = await service.getById(1, userFabrico1);
 
             expect(result).toEqual(mockParceiro);
             expect(prisma.parceiro.findFirst).toHaveBeenCalledWith(
@@ -125,14 +163,13 @@ describe("ParceiroService", () => {
         it("deve retornar 404 para parceiro de outro fabrico", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
 
-            await expect(service.getById(99, 1)).rejects.toThrow(NotFoundException);
+            await expect(service.getById(99, userFabrico1)).rejects.toThrow(NotFoundException);
         });
     });
 
     describe("create()", () => {
-        const createDto: any = {
+        const createDto = {
             nome: "Novo parceiro",
-            fabrico_id: 99,
             telefone: "81900000000",
             endereco: { rua: "Rua H", cep: "50000000" },
         };
@@ -142,7 +179,7 @@ describe("ParceiroService", () => {
             mockEnderecoService.create.mockResolvedValue({ id: 20 });
             mockPrismaService.parceiro.create.mockResolvedValue({ id: 2, ...createDto });
 
-            const result = await service.create(createDto, 1);
+            const result = await service.create(createDto, userFabrico1);
 
             expect(result).toEqual({ message: "Parceiro criado com sucesso" });
             expect(enderecoService.create).toHaveBeenCalledWith(createDto.endereco);
@@ -156,17 +193,26 @@ describe("ParceiroService", () => {
             });
         });
 
+        it("deve rejeitar fabrico_id no payload", async () => {
+            await expect(
+                service.create({ ...createDto, fabrico_id: 99 } as any, userFabrico1),
+            ).rejects.toThrow(BadRequestException);
+            expect(prisma.parceiro.create).not.toHaveBeenCalled();
+        });
+
         it("deve impedir nome duplicado no mesmo fabrico", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(mockParceiro);
 
-            await expect(service.create(createDto, 1)).rejects.toThrow(ConflictException);
+            await expect(service.create(createDto, userFabrico1)).rejects.toThrow(
+                ConflictException,
+            );
             expect(enderecoService.create).not.toHaveBeenCalled();
             expect(prisma.parceiro.create).not.toHaveBeenCalled();
         });
     });
 
     describe("update()", () => {
-        const updateDto: any = {
+        const updateDto = {
             nome: "Parceiro Atualizado",
             endereco: { rua: "I" },
         };
@@ -181,7 +227,7 @@ describe("ParceiroService", () => {
                 nome: "Parceiro Atualizado",
             });
 
-            const result = await service.update(1, updateDto, 1);
+            const result = await service.update(1, updateDto, userFabrico1);
 
             expect(result).toEqual({ message: "Parceiro atualizado com sucesso" });
             expect(enderecoService.update).toHaveBeenCalledWith(10, updateDto.endereco);
@@ -191,8 +237,8 @@ describe("ParceiroService", () => {
             });
         });
 
-        it("deve impedir troca de fabrico", async () => {
-            await expect(service.update(1, { fabrico_id: 2 } as any, 1)).rejects.toThrow(
+        it("deve impedir fabrico_id no update", async () => {
+            await expect(service.update(1, { fabrico_id: 2 } as any, userFabrico1)).rejects.toThrow(
                 BadRequestException,
             );
             expect(prisma.parceiro.update).not.toHaveBeenCalled();
@@ -201,9 +247,9 @@ describe("ParceiroService", () => {
         it("deve rejeitar update em parceiro de outro fabrico", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
 
-            await expect(service.update(1, { telefone: "11111111111" }, 1)).rejects.toThrow(
-                NotFoundException,
-            );
+            await expect(
+                service.update(1, { telefone: "11111111111" }, userFabrico1),
+            ).rejects.toThrow(NotFoundException);
             expect(prisma.parceiro.update).not.toHaveBeenCalled();
         });
 
@@ -212,7 +258,9 @@ describe("ParceiroService", () => {
                 .mockResolvedValueOnce(mockParceiro)
                 .mockResolvedValueOnce({ id: 2, nome: "Parceiro Atualizado" });
 
-            await expect(service.update(1, updateDto, 1)).rejects.toThrow(ConflictException);
+            await expect(service.update(1, updateDto, userFabrico1)).rejects.toThrow(
+                ConflictException,
+            );
             expect(prisma.parceiro.update).not.toHaveBeenCalled();
         });
 
@@ -221,7 +269,9 @@ describe("ParceiroService", () => {
                 .mockResolvedValueOnce({ ...mockParceiro, endereco: null })
                 .mockResolvedValueOnce(null);
 
-            await expect(service.update(1, updateDto, 1)).rejects.toThrow(NotFoundException);
+            await expect(service.update(1, updateDto, userFabrico1)).rejects.toThrow(
+                NotFoundException,
+            );
         });
     });
 
@@ -230,7 +280,7 @@ describe("ParceiroService", () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(mockParceiro);
             mockPrismaService.parceiro.delete.mockResolvedValue(mockParceiro);
 
-            const result = await service.delete(1, 1);
+            const result = await service.delete(1, userFabrico1);
 
             expect(result).toEqual({ message: "Parceiro foi removido com sucesso" });
             expect(prisma.parceiro.delete).toHaveBeenCalledWith({ where: { id: 1 } });
@@ -239,7 +289,7 @@ describe("ParceiroService", () => {
         it("deve retornar 404 ao excluir parceiro de outro fabrico", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
 
-            await expect(service.delete(99, 1)).rejects.toThrow(NotFoundException);
+            await expect(service.delete(99, userFabrico1)).rejects.toThrow(NotFoundException);
             expect(prisma.parceiro.delete).not.toHaveBeenCalled();
         });
     });
@@ -248,12 +298,22 @@ describe("ParceiroService", () => {
         it("deve consultar categoria dentro do tenant autenticado", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
 
-            const result = await service.getParceirosByFabricoECategoria(1, "Costura");
+            const result = await service.getParceirosByFabricoECategoria(
+                "Costura",
+                userFabrico1,
+            );
 
             expect(result).toEqual([mockParceiro]);
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 1, categoria: "Costura" },
             });
+        });
+
+        it("deve rejeitar categoria com fabrico diferente do autenticado", async () => {
+            await expect(
+                service.getParceirosByFabricoECategoria("Costura", userFabrico1, 2),
+            ).rejects.toThrow(BadRequestException);
+            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
         });
     });
 });
