@@ -285,6 +285,17 @@ export class PedidoService {
             return { ...fichaDto, produto_id: fichaDb.produto_id };
         });
 
+        for (const fichaDto of fichasExistentesNormalizadas) {
+            const temEdicaoDeMatriz =
+                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+
+            if (fichaDto.grade_versao_id != null && !temEdicaoDeMatriz) {
+                throw new BadRequestException(
+                    "Para alterar a grade da ficha, envie também itens ou cores_ids",
+                );
+            }
+        }
+
         const idsParaManter = new Set(idsExistentesPayload);
         const idsParaRemover = fichasDoPedido
             .filter((ficha) => !idsParaManter.has(ficha.id))
@@ -343,6 +354,40 @@ export class PedidoService {
                         const temEdicaoDeMatriz =
                             Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
                         const novaQuantidade = Number(fichaDto.quantidade) || 0;
+                        const updateData: {
+                            quantidade?: number;
+                            grade_versao_id?: number;
+                            observacoes?: string;
+                            etapa_atual_id?: number | null;
+                        } = {};
+
+                        if (novaQuantidade !== fichaDb.quantidade) {
+                            updateData.quantidade = novaQuantidade;
+                        }
+
+                        if (fichaDto.observacoes !== undefined) {
+                            updateData.observacoes = fichaDto.observacoes;
+                        }
+
+                        if (fichaDto.etapa_atual_id !== undefined) {
+                            if (fichaDto.etapa_atual_id !== null) {
+                                const etapa = await tx.etapa.findFirst({
+                                    where: {
+                                        id: Number(fichaDto.etapa_atual_id),
+                                        fabrico_id: fabricoId,
+                                    },
+                                    select: { id: true },
+                                });
+
+                                if (!etapa) {
+                                    throw new BadRequestException(
+                                        "Uma ou mais etapas não pertencem ao fabrico do pedido",
+                                    );
+                                }
+                            }
+
+                            updateData.etapa_atual_id = fichaDto.etapa_atual_id;
+                        }
 
                         if (temEdicaoDeMatriz) {
                             let gradeVersaoId = fichaDb.grade_versao_id;
@@ -373,22 +418,20 @@ export class PedidoService {
                                 fichaDto,
                             );
 
+                            updateData.quantidade = novaQuantidade;
+                            updateData.grade_versao_id = gradeVersaoId;
+                            fichaDb.grade_versao_id = gradeVersaoId;
+                        }
+
+                        if (Object.keys(updateData).length) {
                             await tx.fichaTecnica.update({
                                 where: { id: fichaDb.id },
-                                data: {
-                                    quantidade: novaQuantidade,
-                                    grade_versao_id: gradeVersaoId,
-                                },
+                                data: updateData,
                             });
 
-                            fichaDb.quantidade = novaQuantidade;
-                            fichaDb.grade_versao_id = gradeVersaoId;
-                        } else if (novaQuantidade !== fichaDb.quantidade) {
-                            await tx.fichaTecnica.update({
-                                where: { id: fichaDb.id },
-                                data: { quantidade: novaQuantidade },
-                            });
-                            fichaDb.quantidade = novaQuantidade;
+                            if (updateData.quantidade !== undefined) {
+                                fichaDb.quantidade = updateData.quantidade;
+                            }
                         }
 
                         if (Array.isArray(fichaDto.parceiros)) {
