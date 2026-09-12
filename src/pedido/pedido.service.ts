@@ -271,6 +271,20 @@ export class PedidoService {
             }
         }
 
+        for (const fichaDto of fichasExistentesDto) {
+            const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
+
+            if (Number(fichaDto.produto_id) !== fichaDb.produto_id) {
+                throw new BadRequestException("Não é permitido alterar o produto da ficha");
+            }
+        }
+
+        // Garante que helpers downstream nunca usem produto_id divergente do banco.
+        const fichasExistentesNormalizadas = fichasExistentesDto.map((fichaDto) => {
+            const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
+            return { ...fichaDto, produto_id: fichaDb.produto_id };
+        });
+
         const idsParaManter = new Set(idsExistentesPayload);
         const idsParaRemover = fichasDoPedido
             .filter((ficha) => !idsParaManter.has(ficha.id))
@@ -293,7 +307,7 @@ export class PedidoService {
         try {
             return await this.prisma.$transaction(
                 async (tx) => {
-                    for (const fichaDto of fichasExistentesDto) {
+                    for (const fichaDto of fichasExistentesNormalizadas) {
                         await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
                     }
 
@@ -314,7 +328,7 @@ export class PedidoService {
                         });
                     }
 
-                    for (const fichaDto of fichasExistentesDto) {
+                    for (const fichaDto of fichasExistentesNormalizadas) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                         if (clienteIdEfetivo) {
@@ -408,7 +422,7 @@ export class PedidoService {
                     }
 
                     const fichasParaTotais: CreatePedidoFichaDto[] = [
-                        ...fichasExistentesDto.map((fichaDto) => {
+                        ...fichasExistentesNormalizadas.map((fichaDto) => {
                             const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                             return {

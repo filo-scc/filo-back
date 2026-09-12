@@ -580,6 +580,46 @@ describe("PedidoService", () => {
             expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
         });
 
+        it("deve rejeitar tentativa de alterar o produto de uma ficha existente", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 999,
+                                quantidade: 30,
+                                parceiros: [{ parceiro_id: 1, preco: 10 }],
+                            },
+                        ],
+                    },
+                    1,
+                ),
+            ).rejects.toThrow(BadRequestException);
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 999,
+                                quantidade: 30,
+                            },
+                        ],
+                    },
+                    1,
+                ),
+            ).rejects.toThrow("Não é permitido alterar o produto da ficha");
+
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+        });
+
         it("deve rejeitar pedido inexistente no fabrico", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
