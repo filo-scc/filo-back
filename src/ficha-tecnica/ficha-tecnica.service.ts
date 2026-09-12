@@ -17,6 +17,20 @@ export class FichaTecnicaService {
         private readonly etapaService: EtapaService,
     ) {}
 
+    private async assertPedidoDoFabrico(pedidoId: number, fabricoId: number) {
+        const pedido = await this.prisma.pedido.findFirst({
+            where: {
+                id: Number(pedidoId),
+                fabrico_id: Number(fabricoId),
+            },
+            select: { id: true },
+        });
+
+        if (!pedido) {
+            throw new NotFoundException("Pedido não encontrado para este fabrico");
+        }
+    }
+
     private validateProductionReport(
         data: Partial<
             Pick<
@@ -74,6 +88,7 @@ export class FichaTecnicaService {
         await Promise.all([
             this.produtoService.getById(produto_id),
             this.fabricoService.getById(fabrico_id),
+            this.assertPedidoDoFabrico(Number(data.pedido_id), fabrico_id),
         ]);
 
         const produto = await this.prisma.produto.findFirst({
@@ -339,6 +354,10 @@ export class FichaTecnicaService {
 
         if (!produto) {
             throw new BadRequestException("O produto da ficha não pertence ao fabrico informado");
+        }
+
+        if (data.pedido_id !== undefined && data.pedido_id !== null) {
+            await this.assertPedidoDoFabrico(Number(data.pedido_id), Number(fabricoId));
         }
 
         if (data.etapa_atual_id) {
