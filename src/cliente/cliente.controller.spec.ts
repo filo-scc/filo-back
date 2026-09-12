@@ -46,45 +46,45 @@ describe("ClienteController", () => {
         expect(controller).toBeDefined();
     });
 
-    it("create usa fabrico_id do usuario autenticado", async () => {
+    it("create passa o usuario autenticado para o service", async () => {
         const data = { nome: "Cliente", status: true } as any;
         create.mockResolvedValue({ message: "ok" });
 
         await controller.create(data, user);
 
-        expect(create).toHaveBeenCalledWith(data, user.fabrico_id);
+        expect(create).toHaveBeenCalledWith(data, user);
     });
 
-    it("findAll lista apenas clientes do fabrico do usuario", async () => {
+    it("findAll passa o usuario autenticado para o service", async () => {
         findAllByFabricoID.mockResolvedValue([]);
 
         await controller.findAll(user);
 
-        expect(findAllByFabricoID).toHaveBeenCalledWith(user.fabrico_id);
+        expect(findAllByFabricoID).toHaveBeenCalledWith(user);
     });
 
-    it("findOne escopa pelo fabrico do usuario", async () => {
+    it("findOne passa o usuario autenticado para o service", async () => {
         findOne.mockResolvedValue({ id: 1 });
 
         await controller.findOne(1, user);
 
-        expect(findOne).toHaveBeenCalledWith(1, user.fabrico_id);
+        expect(findOne).toHaveBeenCalledWith(1, user);
     });
 
-    it("update escopa pelo fabrico do usuario", async () => {
+    it("update passa o usuario autenticado para o service", async () => {
         const data = { nome: "Novo" } as any;
         update.mockResolvedValue({ message: "ok" });
 
         await controller.update(1, data, user);
 
-        expect(update).toHaveBeenCalledWith(1, data, user.fabrico_id);
+        expect(update).toHaveBeenCalledWith(1, data, user);
     });
 
-    it("remove escopa pelo fabrico do usuario", async () => {
+    it("remove passa o usuario autenticado para o service", async () => {
         remove.mockResolvedValue({ id: 1 });
 
         await controller.remove(1, user);
 
-        expect(remove).toHaveBeenCalledWith(1, user.fabrico_id);
+        expect(remove).toHaveBeenCalledWith(1, user);
     });
 });

@@ -9,6 +9,7 @@ import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
 import { EnderecoService } from "../endereco/endereco.service";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ClienteService {
@@ -17,8 +18,9 @@ export class ClienteService {
         private enderecoService: EnderecoService,
     ) {}
 
-    async create(data: CreateClienteDto, fabricoId: number) {
+    async create(data: CreateClienteDto, user: BusinessAuthenticatedUser) {
         const { endereco, ...dadosCliente } = data;
+        const fabricoId = user.fabrico_id;
 
         const clienteExistente = await this.prisma.cliente.findFirst({
             where: { nome: dadosCliente.nome, fabrico_id: fabricoId },
@@ -69,10 +71,10 @@ export class ClienteService {
         }
     }
 
-    async findAllByFabricoID(fabricoId: number) {
+    async findAllByFabricoID(user: BusinessAuthenticatedUser) {
         try {
             return await this.prisma.cliente.findMany({
-                where: { fabrico_id: fabricoId },
+                where: { fabrico_id: user.fabrico_id },
                 include: { endereco: true },
             });
         } catch (error) {
@@ -86,10 +88,10 @@ export class ClienteService {
         }
     }
 
-    async findOne(id: number, fabricoId: number) {
+    async findOne(id: number, user: BusinessAuthenticatedUser) {
         try {
             const cliente = await this.prisma.cliente.findFirst({
-                where: { id, fabrico_id: fabricoId },
+                where: { id, fabrico_id: user.fabrico_id },
                 include: { endereco: true },
             });
 
@@ -109,11 +111,12 @@ export class ClienteService {
         }
     }
 
-    async update(id: number, data: UpdateClienteDto, fabricoId: number) {
+    async update(id: number, data: UpdateClienteDto, user: BusinessAuthenticatedUser) {
         const { endereco, ...dadosCliente } = data;
+        const fabricoId = user.fabrico_id;
 
         try {
-            const clienteAtual = await this.findOne(id, fabricoId);
+            const clienteAtual = await this.findOne(id, user);
 
             if (dadosCliente.nome) {
                 const clienteExistente = await this.prisma.cliente.findFirst({
@@ -153,9 +156,9 @@ export class ClienteService {
         }
     }
 
-    async remove(id: number, fabricoId: number) {
+    async remove(id: number, user: BusinessAuthenticatedUser) {
         try {
-            await this.findOne(id, fabricoId);
+            await this.findOne(id, user);
 
             return await this.prisma.cliente.delete({
                 where: { id },

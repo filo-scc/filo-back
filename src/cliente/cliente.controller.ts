@@ -26,17 +26,17 @@ export class ClienteController {
 
     @Post()
     create(@Body() data: CreateClienteDto, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.clienteService.create(data, user.fabrico_id);
+        return this.clienteService.create(data, user);
     }
 
     @Get()
     findAll(@CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.clienteService.findAllByFabricoID(user.fabrico_id);
+        return this.clienteService.findAllByFabricoID(user);
     }
 
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.clienteService.findOne(id, user.fabrico_id);
+        return this.clienteService.findOne(id, user);
     }
 
     @Put(":id")
@@ -45,11 +45,11 @@ export class ClienteController {
         @Body() data: UpdateClienteDto,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteService.update(id, data, user.fabrico_id);
+        return this.clienteService.update(id, data, user);
     }
 
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: BusinessAuthenticatedUser) {
-        return this.clienteService.remove(id, user.fabrico_id);
+        return this.clienteService.remove(id, user);
     }
 }

@@ -6,10 +6,21 @@ import { ConflictException } from "@nestjs/common/exceptions/conflict.exception"
 import { Prisma } from "@prisma/client";
 import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
 import { NotFoundException } from "@nestjs/common/exceptions/not-found.exception";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError, PrismaClientValidationError } = Prisma;
 
 const FABRICO_ID = 1;
+
+const user: BusinessAuthenticatedUser = {
+    id: 1,
+    email: "gerente@teste.com",
+    nome: "Gerente",
+    foto_de_perfil: null,
+    cargo: "GERENTE",
+    fabrico_id: FABRICO_ID,
+    fabrico: { id: FABRICO_ID, ativo: true },
+};
 
 const mockPrismaService = {
     cliente: {
@@ -86,7 +97,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.update.mockResolvedValue({ ...clienteSalvo, endereco_id: 99 });
 
-            const resultado = await service.create(clienteData, FABRICO_ID);
+            const resultado = await service.create(clienteData, user);
 
             expect(resultado).toEqual({ message: "Cliente criado com sucesso" });
 
@@ -119,7 +130,7 @@ describe("ClienteService", () => {
 
             const resultado = await service.create(
                 { ...dadosEntrada, endereco: undefined } as any,
-                FABRICO_ID,
+                user,
             );
 
             expect(resultado).toEqual({ message: "Cliente criado com sucesso" });
@@ -142,7 +153,7 @@ describe("ClienteService", () => {
         it("Criar um cliente com Nome existente deve lançar ConflictException", async () => {
             prisma.cliente.findFirst.mockResolvedValue({ id: 2, ...clienteData });
 
-            await expect(service.create(clienteData, FABRICO_ID)).rejects.toThrow(
+            await expect(service.create(clienteData, user)).rejects.toThrow(
                 new ConflictException("Já existe um cliente com esse nome neste fabrico"),
             );
 
@@ -162,7 +173,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.create.mockRejectedValue(prismaError);
 
-            await expect(service.create(clienteData, FABRICO_ID)).rejects.toThrow(
+            await expect(service.create(clienteData, user)).rejects.toThrow(
                 new ConflictException("CNPJ já cadastrado"),
             );
 
@@ -185,7 +196,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.create.mockRejectedValue(erroValidacao);
 
-            await expect(service.create(clienteData, FABRICO_ID)).rejects.toThrow(
+            await expect(service.create(clienteData, user)).rejects.toThrow(
                 new BadRequestException("Dados inválidos"),
             );
         });
@@ -203,7 +214,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.delete.mockResolvedValue(clienteSalvo);
 
-            const resultado = await service.remove(1, FABRICO_ID);
+            const resultado = await service.remove(1, user);
 
             expect(resultado).toEqual(clienteSalvo);
 
@@ -220,7 +231,7 @@ describe("ClienteService", () => {
         it("Deve lançar NotFoundException ao tentar deletar um cliente inexistente", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
-            await expect(service.remove(999, FABRICO_ID)).rejects.toThrow(
+            await expect(service.remove(999, user)).rejects.toThrow(
                 new NotFoundException("Cliente não encontrado"),
             );
 
@@ -236,7 +247,7 @@ describe("ClienteService", () => {
             });
             prisma.cliente.delete.mockRejectedValue(erroPrisma);
 
-            await expect(service.remove(1, FABRICO_ID)).rejects.toThrow(ConflictException);
+            await expect(service.remove(1, user)).rejects.toThrow(ConflictException);
         });
     });
 
@@ -250,7 +261,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.findFirst.mockResolvedValue(clienteSalvo);
 
-            const resultado = await service.findOne(1, FABRICO_ID);
+            const resultado = await service.findOne(1, user);
 
             expect(resultado).toEqual(clienteSalvo);
 
@@ -263,7 +274,7 @@ describe("ClienteService", () => {
         it("Tentar encontrar um cliente inexistente deve lançar NotFoundException", async () => {
             prisma.cliente.findFirst.mockResolvedValue(null);
 
-            await expect(service.findOne(999, FABRICO_ID)).rejects.toThrow(
+            await expect(service.findOne(999, user)).rejects.toThrow(
                 new NotFoundException("Cliente não encontrado"),
             );
             expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
@@ -278,7 +289,7 @@ describe("ClienteService", () => {
             });
             prisma.cliente.findFirst.mockRejectedValue(erroValidacao);
 
-            await expect(service.findOne("id_invalido" as any, FABRICO_ID)).rejects.toThrow(
+            await expect(service.findOne("id_invalido" as any, user)).rejects.toThrow(
                 new BadRequestException("Parâmetros de consulta inválidos"),
             );
         });
@@ -294,7 +305,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.findMany.mockResolvedValue([clienteSalvo]);
 
-            const resultado = await service.findAllByFabricoID(FABRICO_ID);
+            const resultado = await service.findAllByFabricoID(user);
 
             expect(resultado).toEqual([clienteSalvo]);
 
@@ -307,7 +318,13 @@ describe("ClienteService", () => {
         it("Deve retornar um array vazio se o fabrico não tiver clientes cadastrados", async () => {
             prisma.cliente.findMany.mockResolvedValue([]);
 
-            const resultado = await service.findAllByFabricoID(2);
+            const outroUser: BusinessAuthenticatedUser = {
+                ...user,
+                fabrico_id: 2,
+                fabrico: { id: 2, ativo: true },
+            };
+
+            const resultado = await service.findAllByFabricoID(outroUser);
 
             expect(resultado).toEqual([]);
             expect(prisma.cliente.findMany).toHaveBeenCalledWith({
@@ -326,7 +343,12 @@ describe("ClienteService", () => {
 
             prisma.cliente.findMany.mockRejectedValue(erroValidacao);
 
-            await expect(service.findAllByFabricoID("invalido" as any)).rejects.toThrow(
+            const userInvalido = {
+                ...user,
+                fabrico_id: "invalido" as any,
+            };
+
+            await expect(service.findAllByFabricoID(userInvalido)).rejects.toThrow(
                 new BadRequestException("Parâmetros de consulta inválidos"),
             );
         });
@@ -351,7 +373,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.update.mockResolvedValue({ ...clienteSalvo, ...updateData });
 
-            const resultado = await service.update(1, updateData, FABRICO_ID);
+            const resultado = await service.update(1, updateData, user);
 
             expect(resultado).toEqual({ message: "Cliente atualizado com sucesso" });
 
@@ -381,7 +403,7 @@ describe("ClienteService", () => {
                 .mockResolvedValueOnce({ id: 1, fabrico_id: FABRICO_ID, endereco: null })
                 .mockResolvedValueOnce({ id: 99, nome: "Nome Duplicado" });
 
-            await expect(service.update(1, updateData as any, FABRICO_ID)).rejects.toThrow(
+            await expect(service.update(1, updateData as any, user)).rejects.toThrow(
                 new ConflictException("Nome ja existente"),
             );
 
@@ -391,7 +413,7 @@ describe("ClienteService", () => {
         it("Deve lançar NotFoundException ao tentar atualizar um cliente que não existe", async () => {
             prisma.cliente.findFirst.mockResolvedValueOnce(null);
 
-            await expect(service.update(999, { nome: "Teste" } as any, FABRICO_ID)).rejects.toThrow(
+            await expect(service.update(999, { nome: "Teste" } as any, user)).rejects.toThrow(
                 new NotFoundException("Cliente não encontrado"),
             );
         });
@@ -405,7 +427,7 @@ describe("ClienteService", () => {
 
             prisma.cliente.update.mockRejectedValue(erroValidacao);
             await expect(
-                service.update(1, { telefone: "1199999999" } as any, FABRICO_ID),
+                service.update(1, { telefone: "1199999999" } as any, user),
             ).rejects.toThrow(BadRequestException);
         });
     });
