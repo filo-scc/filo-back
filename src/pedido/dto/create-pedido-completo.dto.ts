@@ -89,10 +89,6 @@ export class CreatePedidoFichaDto {
 
 export class CreatePedidoCompletoDto {
     @IsOptional()
-    @IsBoolean()
-    finalizado?: boolean;
-
-    @IsOptional()
     @IsDateString()
     data_prevista?: string;
 

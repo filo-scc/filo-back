@@ -74,7 +74,7 @@ export class PedidoService {
 
                 return tx.pedido.create({
                     data: {
-                        finalizado: data.finalizado ?? false,
+                        finalizado: false,
                         data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                         observacoes: data.observacoes,
                         cliente_id: data.cliente_id,
@@ -197,7 +197,7 @@ export class PedidoService {
 
                     const pedido = await tx.pedido.create({
                         data: {
-                            finalizado: data.finalizado ?? false,
+                            finalizado: false,
                             data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                             observacoes: data.observacoes,
                             cliente_id: data.cliente_id ?? null,
@@ -328,6 +328,8 @@ export class PedidoService {
                     if (!pedido) {
                         throw new NotFoundException("Pedido não encontrado!");
                     }
+
+                    this.assertPedidoEditavel(pedido);
 
                     let produtosNovos: { id: number; grade_versao_id: number | null }[] = [];
 
@@ -594,20 +596,14 @@ export class PedidoService {
                             ...(data.observacoes !== undefined
                                 ? { observacoes: data.observacoes }
                                 : {}),
-                            ...(data.finalizado !== undefined
-                                ? { finalizado: data.finalizado }
-                                : {}),
                             quantidade: totais.quantidade,
                             valor_total: totais.valor_total,
                             custo_total: totais.custo_total,
                         },
                     });
 
-                    // Sem override explícito, finalizado acompanha as fichas
-                    // (ex.: nova FT pendente reabre o pedido).
-                    if (data.finalizado === undefined) {
-                        await sincronizarFinalizacaoPedido(tx, pedido.id);
-                    }
+                    // finalizado acompanha as fichas (ex.: nova FT pendente reabre o pedido).
+                    await sincronizarFinalizacaoPedido(tx, pedido.id);
 
                     return tx.pedido.findUnique({
                         where: { id: pedido.id },
@@ -632,6 +628,12 @@ export class PedidoService {
             }
 
             throw new InternalServerErrorException("Erro ao editar o pedido!");
+        }
+    }
+
+    private assertPedidoEditavel(pedido: { finalizado: boolean }) {
+        if (pedido.finalizado) {
+            throw new ConflictException("Pedido finalizado não pode ser alterado ou excluído");
         }
     }
 
@@ -1199,6 +1201,8 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
+        this.assertPedidoEditavel(pedido);
+
         await this.prisma.pedido.delete({ where: { id: pedido.id } });
         return `O pedido com o id ${id} foi deletado com sucesso`;
     }
@@ -1214,6 +1218,8 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
+        this.assertPedidoEditavel(pedido);
+
         if (data.cliente_id !== undefined && data.cliente_id !== null) {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -1227,7 +1233,6 @@ export class PedidoService {
         return await this.prisma.pedido.update({
             where: { id: pedido.id },
             data: {
-                finalizado: data.finalizado,
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,

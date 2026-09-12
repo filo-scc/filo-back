@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -168,7 +168,6 @@ describe("PedidoService", () => {
 
             const result = await service.create(
                 {
-                    finalizado: false,
                     cor: "#FFFFFF",
                     quantidade: 10,
                     custo_total: 125.5,
@@ -180,6 +179,7 @@ describe("PedidoService", () => {
 
             expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
+                    finalizado: false,
                     quantidade: 10,
                     custo_total: toMoney(125.5),
                     fabrico_id: 1,
@@ -193,7 +193,6 @@ describe("PedidoService", () => {
             await expect(
                 service.create(
                     {
-                        finalizado: false,
                         cor: "#FFFFFF",
                         quantidade: 1,
                         cliente_id: 99,
@@ -206,7 +205,6 @@ describe("PedidoService", () => {
 
     describe("createCompleto", () => {
         const dtoBase = {
-            finalizado: false,
             cliente_id: 7,
             fichas: [
                 {
@@ -261,6 +259,7 @@ describe("PedidoService", () => {
                     fabrico_id: 1,
                     cliente_id: 7,
                     numero: 7,
+                    finalizado: false,
                     quantidade: 30,
                     // 30 peças x custo 10 do produto
                     custo_total: toMoney(300),
@@ -576,6 +575,7 @@ describe("PedidoService", () => {
             id: 100,
             fabrico_id: 1,
             cliente_id: 7,
+            finalizado: false,
             fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
         };
 
@@ -1065,6 +1065,31 @@ describe("PedidoService", () => {
             ).rejects.toThrow(NotFoundException);
         });
 
+        it("deve rejeitar edição de pedido finalizado", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                ...pedidoExistente,
+                finalizado: true,
+            });
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            {
+                                id: 200,
+                                produto_id: 5,
+                                quantidade: 30,
+                            },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(ConflictException);
+
+            expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
+        });
+
         it("deve exigir ao menos uma ficha técnica", async () => {
             await expect(service.updateCompleto(100, { fichas: [] }, usuario)).rejects.toThrow(
                 BadRequestException,
@@ -1154,12 +1179,13 @@ describe("PedidoService", () => {
         it("deve atualizar um pedido", async () => {
             const pedidoAtualizado = {
                 id: 1,
-                finalizado: true,
+                observacoes: "atualizado",
             };
 
             mockPrismaService.pedido.findFirst.mockResolvedValue({
                 id: 1,
                 fabrico_id: 1,
+                finalizado: false,
             });
 
             mockPrismaService.pedido.update.mockResolvedValue(pedidoAtualizado);
@@ -1167,7 +1193,6 @@ describe("PedidoService", () => {
             const result = await service.update(
                 1,
                 {
-                    finalizado: true,
                     custo_total: 140.75,
                 },
                 usuario,
@@ -1178,10 +1203,35 @@ describe("PedidoService", () => {
             expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
                 where: { id: 1 },
                 data: expect.objectContaining({
-                    finalizado: true,
                     custo_total: toMoney(140.75),
                 }),
             });
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: expect.not.objectContaining({
+                    finalizado: expect.anything(),
+                }),
+            });
+        });
+
+        it("deve rejeitar atualização de pedido finalizado", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                id: 1,
+                fabrico_id: 1,
+                finalizado: true,
+            });
+
+            await expect(
+                service.update(
+                    1,
+                    {
+                        observacoes: "tentativa",
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(ConflictException);
+
+            expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
         });
 
         it("deve lançar erro se pedido não existir no fabrico", async () => {
@@ -1191,7 +1241,7 @@ describe("PedidoService", () => {
                 service.update(
                     1,
                     {
-                        finalizado: true,
+                        observacoes: "x",
                     },
                     usuario,
                 ),
@@ -1202,6 +1252,7 @@ describe("PedidoService", () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue({
                 id: 1,
                 fabrico_id: 1,
+                finalizado: false,
             });
 
             mockPrismaService.cliente.findFirst.mockResolvedValue(null);
@@ -1223,6 +1274,7 @@ describe("PedidoService", () => {
             const pedido = {
                 id: 1,
                 fabrico_id: 1,
+                finalizado: false,
             };
 
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
@@ -1238,6 +1290,17 @@ describe("PedidoService", () => {
                     id: 1,
                 },
             });
+        });
+
+        it("deve rejeitar exclusão de pedido finalizado", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                id: 1,
+                fabrico_id: 1,
+                finalizado: true,
+            });
+
+            await expect(service.delete(1, usuario)).rejects.toThrow(ConflictException);
+            expect(mockPrismaService.pedido.delete).not.toHaveBeenCalled();
         });
 
         it("deve lançar erro se pedido não existir no fabrico", async () => {

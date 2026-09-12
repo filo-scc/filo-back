@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
-import { sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
@@ -93,6 +97,8 @@ export class FichaTecnicaService {
             this.assertPedidoDoFabrico(Number(data.pedido_id), fabrico_id),
         ]);
 
+        await this.assertPedidoEditavel(Number(data.pedido_id));
+
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id: produto_id,
@@ -134,6 +140,7 @@ export class FichaTecnicaService {
             const ficha = await tx.fichaTecnica.create({
                 data: {
                     ...data,
+                    concluida: false,
                     numero,
                     grade_versao_id,
                     produto_id,
@@ -313,6 +320,10 @@ export class FichaTecnicaService {
             throw new NotFoundException("Ficha não encontrada");
         }
 
+        if (ficha.pedido_id) {
+            await this.assertPedidoEditavel(ficha.pedido_id);
+        }
+
         if (data.produto_id && data.produto_id !== ficha.produto_id) {
             throw new BadRequestException("Não é permitido alterar o produto da ficha");
         }
@@ -346,6 +357,7 @@ export class FichaTecnicaService {
 
         if (data.pedido_id !== undefined && data.pedido_id !== null) {
             await this.assertPedidoDoFabrico(Number(data.pedido_id), Number(fabricoId));
+            await this.assertPedidoEditavel(Number(data.pedido_id));
         }
 
         if (data.etapa_atual_id) {
@@ -390,10 +402,15 @@ export class FichaTecnicaService {
                     });
                 }
 
+                const { concluida: _concluidaIgnorada, ...dadosEditaveis } =
+                    data as UpdateFichaTecnicaDto & {
+                        concluida?: boolean;
+                    };
+
                 const fichaAtualizada = await tx.fichaTecnica.update({
                     where: { id },
                     data: {
-                        ...data,
+                        ...dadosEditaveis,
                         fabrico_id: fabricoId,
                         grade_versao_id: novaGradeVersaoId ?? ficha.grade_versao_id,
                         etapa_atual_id: data.etapa_atual_id
@@ -422,10 +439,6 @@ export class FichaTecnicaService {
                     await this.sincronizarPedido(tx, ficha.pedido_id);
                 }
 
-                if (data.concluida !== undefined && data.concluida !== ficha.concluida) {
-                    await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
-                }
-
                 return fichaAtualizada;
             });
         } catch (error) {
@@ -439,6 +452,21 @@ export class FichaTecnicaService {
                 throw new BadRequestException("Dados inválidos");
             }
             throw error;
+        }
+    }
+
+    private async assertPedidoEditavel(pedidoId: number) {
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id: pedidoId },
+            select: { finalizado: true },
+        });
+
+        if (!pedido) {
+            throw new NotFoundException("Pedido não encontrado para este fabrico");
+        }
+
+        if (pedido.finalizado) {
+            throw new ConflictException("Pedido finalizado não pode ser alterado ou excluído");
         }
     }
 
@@ -511,7 +539,11 @@ export class FichaTecnicaService {
     }
 
     async remove(id: number) {
-        await this.findOne(id);
+        const ficha = await this.findOne(id);
+
+        if (ficha.pedido_id) {
+            await this.assertPedidoEditavel(ficha.pedido_id);
+        }
 
         await this.prisma.fichaTecnica.delete({
             where: { id },
