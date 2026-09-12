@@ -5,6 +5,7 @@ import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+import { toMoney } from "src/common/utils/money";
 
 describe("PedidoService", () => {
     let service: PedidoService;
@@ -177,7 +178,7 @@ describe("PedidoService", () => {
             expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
                     quantidade: 10,
-                    custo_total: 125.5,
+                    custo_total: toMoney(125.5),
                     fabrico_id: 1,
                 }),
             });
@@ -258,9 +259,9 @@ describe("PedidoService", () => {
                     numero: 7,
                     quantidade: 30,
                     // 30 peças x custo 10 do produto
-                    custo_total: 300,
+                    custo_total: toMoney(300),
                     // 30 peças x preço 20 do cliente
-                    valor_total: 600,
+                    valor_total: toMoney(600),
                 }),
             });
 
@@ -301,8 +302,8 @@ describe("PedidoService", () => {
 
             expect(mockPrismaService.parceiroProduto.upsert).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    create: { produto_id: 5, parceiro_id: 9, preco: 4 },
-                    update: { preco: 4 },
+                    create: { produto_id: 5, parceiro_id: 9, preco: toMoney(4) },
+                    update: { preco: toMoney(4) },
                 }),
             );
 
@@ -318,7 +319,7 @@ describe("PedidoService", () => {
                     parceiro_id: 9,
                     operacao: "Costura",
                     quantidade: 30,
-                    valor: 120,
+                    valor: toMoney(120),
                 }),
             });
 
@@ -328,7 +329,7 @@ describe("PedidoService", () => {
                         cliente_id: 7,
                         produto_id: 5,
                         nome_para_cliente: "Camisa do cliente",
-                        preco_padrao: 20,
+                        preco_padrao: toMoney(20),
                     }),
                 }),
             );
@@ -371,12 +372,57 @@ describe("PedidoService", () => {
                 data: expect.objectContaining({
                     numero: 1,
                     cliente_id: null,
-                    custo_total: 300,
+                    custo_total: toMoney(300),
                     valor_total: null,
                 }),
             });
 
             expect(mockPrismaService.clienteProduto.upsert).not.toHaveBeenCalled();
+        });
+
+        it("deve persistir preços e totais com ROUND_HALF_UP na mesma escala", async () => {
+            prepararCenarioFeliz();
+
+            await service.createCompleto(
+                {
+                    ...dtoBase,
+                    fichas: [
+                        {
+                            ...dtoBase.fichas[0],
+                            quantidade: 3,
+                            preco_padrao: 1.005,
+                            itens: [{ cor_id: 1, grade_versao_item_id: 11, quantidade: 3 }],
+                            parceiros: [{ parceiro_id: 9, operacao: "Costura", preco: 1.005 }],
+                        },
+                    ],
+                },
+                usuario,
+            );
+
+            expect(mockPrismaService.parceiroProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    create: { produto_id: 5, parceiro_id: 9, preco: toMoney("1.01") },
+                    update: { preco: toMoney("1.01") },
+                }),
+            );
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    create: expect.objectContaining({
+                        preco_padrao: toMoney("1.01"),
+                    }),
+                }),
+            );
+            expect(mockPrismaService.fichaParceiro.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    valor: toMoney("3.03"),
+                }),
+            });
+            expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    quantidade: 3,
+                    valor_total: toMoney("3.03"),
+                }),
+            });
         });
 
         it("deve rejeitar produto de outro fabrico antes de abrir a transação", async () => {
@@ -528,7 +574,7 @@ describe("PedidoService", () => {
                         cliente_id: 8,
                         produto_id: 5,
                         nome_para_cliente: "Nova ref",
-                        preco_padrao: 25,
+                        preco_padrao: toMoney(25),
                     }),
                 }),
             );
@@ -538,8 +584,8 @@ describe("PedidoService", () => {
                 data: expect.objectContaining({
                     cliente_id: 8,
                     quantidade: 30,
-                    custo_total: 300,
-                    valor_total: 750,
+                    custo_total: toMoney(300),
+                    valor_total: toMoney(750),
                 }),
             });
         });
@@ -580,8 +626,8 @@ describe("PedidoService", () => {
                 where: { id: 100 },
                 data: expect.objectContaining({
                     quantidade: 30,
-                    custo_total: 300,
-                    valor_total: 0,
+                    custo_total: toMoney(300),
+                    valor_total: toMoney(0),
                 }),
             });
         });
@@ -772,8 +818,8 @@ describe("PedidoService", () => {
                 where: { id: 100 },
                 data: expect.objectContaining({
                     quantidade: 10,
-                    custo_total: 80,
-                    valor_total: 150,
+                    custo_total: toMoney(80),
+                    valor_total: toMoney(150),
                 }),
             });
         });
@@ -810,7 +856,7 @@ describe("PedidoService", () => {
                         cliente_id: 7,
                         produto_id: 5,
                         nome_para_cliente: "Ref mantida",
-                        preco_padrao: 20,
+                        preco_padrao: toMoney(20),
                     }),
                 }),
             );
@@ -819,8 +865,8 @@ describe("PedidoService", () => {
                 where: { id: 100 },
                 data: {
                     quantidade: 30,
-                    custo_total: 300,
-                    valor_total: 600,
+                    custo_total: toMoney(300),
+                    valor_total: toMoney(600),
                 },
             });
         });
@@ -1089,7 +1135,7 @@ describe("PedidoService", () => {
                 where: { id: 1 },
                 data: expect.objectContaining({
                     finalizado: true,
-                    custo_total: 140.75,
+                    custo_total: toMoney(140.75),
                 }),
             });
         });

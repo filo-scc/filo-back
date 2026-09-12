@@ -7,6 +7,7 @@ import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
 import { FabricoService } from "../fabrico/fabrico.service";
 import { Prisma } from "@prisma/client";
+import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -479,12 +480,11 @@ export class FichaTecnicaService {
 
         const quantidadeTotal = fichasDoPedido.reduce((soma, f) => soma + (f.quantidade ?? 0), 0);
 
-        const custoTotal = fichasDoPedido.reduce((soma, f) => {
-            const custo = Number(f.produto?.custo_total ?? 0);
-            return soma + (f.quantidade ?? 0) * custo;
-        }, 0);
+        const custoTotal = sumMoney(
+            fichasDoPedido.map((f) => lineTotal(f.quantidade ?? 0, f.produto?.custo_total)),
+        );
 
-        let valorTotal: number | null = null;
+        let valorTotal: Prisma.Decimal | null = null;
 
         if (pedido.cliente_id) {
             const produtoIds = [
@@ -502,21 +502,23 @@ export class FichaTecnicaService {
             });
 
             const mapaPrecos = new Map(
-                precosCliente.map((p) => [p.produto_id, Number(p.preco_padrao) || 0]),
+                precosCliente.map((p) => [p.produto_id, moneyOrZero(p.preco_padrao)]),
             );
 
-            valorTotal = fichasDoPedido.reduce((soma, f) => {
-                const preco = mapaPrecos.get(f.produto?.id ?? -1) ?? 0;
-                return soma + (f.quantidade ?? 0) * preco;
-            }, 0);
+            valorTotal = sumMoney(
+                fichasDoPedido.map((f) => {
+                    const preco = mapaPrecos.get(f.produto?.id ?? -1);
+                    return lineTotal(f.quantidade ?? 0, preco);
+                }),
+            );
         }
 
         await tx.pedido.update({
             where: { id: pedidoId },
             data: {
                 quantidade: quantidadeTotal,
-                custo_total: Number(custoTotal.toFixed(2)),
-                valor_total: valorTotal !== null ? Number(valorTotal.toFixed(2)) : null,
+                custo_total: toMoney(custoTotal),
+                valor_total: valorTotal !== null ? toMoney(valorTotal) : null,
             },
         });
     }

@@ -15,6 +15,7 @@ import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+import { lineTotal, moneyOrZero, sumMoney, toMoneyOrNull } from "src/common/utils/money";
 
 const PALETA_13_CORES = [
     "#7FA9B8",
@@ -77,8 +78,10 @@ export class PedidoService {
                     numero: numero,
                     cor: corPedido,
                     quantidade: data.quantidade,
-                    valor_total: data.valor_total,
-                    custo_total: data.custo_total,
+                    valor_total:
+                        data.valor_total !== undefined ? toMoneyOrNull(data.valor_total) : undefined,
+                    custo_total:
+                        data.custo_total !== undefined ? toMoneyOrNull(data.custo_total) : undefined,
                 },
             });
         } catch (error) {
@@ -975,7 +978,7 @@ export class PedidoService {
         await this.produtoService.bloquearProdutosParaRecalculo([produtoId], tx);
 
         for (const parceiro of parceiros) {
-            const preco = parceiro.preco ?? null;
+            const preco = toMoneyOrNull(parceiro.preco);
             const parceiroId = Number(parceiro.parceiro_id);
 
             await tx.parceiroProduto.upsert({
@@ -1006,7 +1009,7 @@ export class PedidoService {
         const parceiroUnico = parceiros.length === 1;
 
         for (const parceiro of parceiros) {
-            const preco = parceiro.preco ?? null;
+            const preco = toMoneyOrNull(parceiro.preco);
 
             await tx.fichaParceiro.create({
                 data: {
@@ -1016,7 +1019,7 @@ export class PedidoService {
                     quantidade: parceiroUnico ? quantidadeFicha : undefined,
                     valor:
                         parceiroUnico && preco !== null
-                            ? Number((quantidadeFicha * preco).toFixed(2))
+                            ? lineTotal(quantidadeFicha, preco)
                             : undefined,
                 },
             });
@@ -1030,7 +1033,7 @@ export class PedidoService {
         fichaDto: CreatePedidoFichaDto,
     ) {
         const nomeParaCliente = fichaDto.nome_para_cliente ?? "";
-        const precoPadrao = fichaDto.preco_padrao ?? null;
+        const precoPadrao = toMoneyOrNull(fichaDto.preco_padrao);
 
         await tx.clienteProduto.upsert({
             where: { produto_id_cliente_id: { produto_id: produtoId, cliente_id: clienteId } },
@@ -1059,7 +1062,7 @@ export class PedidoService {
         });
 
         const custoPorProduto = new Map(
-            produtos.map((produto) => [produto.id, Number(produto.custo_total ?? 0)]),
+            produtos.map((produto) => [produto.id, moneyOrZero(produto.custo_total)]),
         );
 
         const quantidade = fichasDto.reduce(
@@ -1067,22 +1070,25 @@ export class PedidoService {
             0,
         );
 
-        const custoTotal = fichasDto.reduce((total, ficha) => {
-            const custoUnitario = custoPorProduto.get(Number(ficha.produto_id)) ?? 0;
-            return total + (Number(ficha.quantidade) || 0) * custoUnitario;
-        }, 0);
+        const custoTotal = sumMoney(
+            fichasDto.map((ficha) => {
+                const custoUnitario = custoPorProduto.get(Number(ficha.produto_id));
+                return lineTotal(Number(ficha.quantidade) || 0, custoUnitario);
+            }),
+        );
 
         const valorTotal = data.cliente_id
-            ? fichasDto.reduce((total, ficha) => {
-                  const preco = Number(ficha.preco_padrao ?? 0);
-                  return total + (Number(ficha.quantidade) || 0) * preco;
-              }, 0)
+            ? sumMoney(
+                  fichasDto.map((ficha) =>
+                      lineTotal(Number(ficha.quantidade) || 0, ficha.preco_padrao),
+                  ),
+              )
             : null;
 
         return {
             quantidade,
-            custo_total: Number(custoTotal.toFixed(2)),
-            valor_total: valorTotal === null ? null : Number(valorTotal.toFixed(2)),
+            custo_total: custoTotal,
+            valor_total: valorTotal,
         };
     }
 
@@ -1157,8 +1163,10 @@ export class PedidoService {
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,
-                valor_total: data.valor_total,
-                custo_total: data.custo_total,
+                valor_total:
+                    data.valor_total !== undefined ? toMoneyOrNull(data.valor_total) : undefined,
+                custo_total:
+                    data.custo_total !== undefined ? toMoneyOrNull(data.custo_total) : undefined,
             },
         });
     }
