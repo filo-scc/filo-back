@@ -1,0 +1,164 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://filo.local/schemas/skill-manifest.schema.json",
+    "title": "FILO skill manifest",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "identity",
+        "governance",
+        "scope",
+        "invocation",
+        "input",
+        "output",
+        "workflow",
+        "permissions",
+        "resources",
+        "composition",
+        "evaluation",
+        "examples"
+    ],
+    "properties": {
+        "schema_version": { "const": "1.0" },
+        "identity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "display_name", "summary"],
+            "properties": {
+                "name": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 64 },
+                "display_name": { "type": "string", "minLength": 3 },
+                "summary": { "type": "string", "minLength": 20 }
+            }
+        },
+        "governance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["owner", "reviewers", "lifecycle_status", "last_review", "next_review"],
+            "properties": {
+                "owner": { "type": "string", "minLength": 2 },
+                "reviewers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "lifecycle_status": { "enum": ["proposta", "piloto", "ativa-informativa", "candidata-gate", "gate", "suspensa", "depreciada"] },
+                "last_review": { "type": "string", "format": "date" },
+                "next_review": { "type": "string", "format": "date" }
+            }
+        },
+        "scope": {
+            "type": "object",
+            "required": ["repositories", "objective", "non_objectives"],
+            "properties": {
+                "repositories": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "objective": { "type": "string", "minLength": 20 },
+                "non_objectives": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            }
+        },
+        "invocation": {
+            "type": "object",
+            "required": ["mode", "triggers", "anti_triggers"],
+            "properties": {
+                "mode": { "enum": ["explicit", "implicit", "both"] },
+                "triggers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "anti_triggers": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            }
+        },
+        "input": {
+            "type": "object",
+            "required": ["mode", "parameters", "artifacts", "preconditions"],
+            "properties": {
+                "mode": { "enum": ["strict", "contextual", "scripted"] },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "type", "required", "description"],
+                        "properties": {
+                            "name": { "type": "string" },
+                            "type": { "type": "string" },
+                            "required": { "type": "boolean" },
+                            "description": { "type": "string" },
+                            "default": {}
+                        }
+                    }
+                },
+                "artifacts": { "type": "array", "items": { "type": "string" } },
+                "preconditions": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            }
+        },
+        "output": {
+            "type": "object",
+            "required": ["format", "required_sections", "no_findings", "insufficient_evidence"],
+            "properties": {
+                "format": { "type": "string" },
+                "artifact": { "type": ["string", "null"] },
+                "required_sections": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "no_findings": { "type": "string" },
+                "insufficient_evidence": { "type": "string" }
+            }
+        },
+        "workflow": {
+            "type": "object",
+            "required": ["required_steps", "improvisation"],
+            "properties": {
+                "required_steps": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "improvisation": { "type": "string", "minLength": 10 }
+            }
+        },
+        "permissions": {
+            "type": "object",
+            "required": ["tools", "bash", "network", "external_write"],
+            "properties": {
+                "tools": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "access", "enforcement"],
+                        "properties": {
+                            "name": { "type": "string" },
+                            "access": { "enum": ["allow", "ask", "deny"] },
+                            "enforcement": { "enum": ["documented", "enforced", "human-gated", "unsupported"] }
+                        }
+                    }
+                },
+                "bash": { "type": "array", "items": { "type": "string" } },
+                "network": { "enum": ["allow", "ask", "deny"] },
+                "external_write": { "enum": ["allow", "ask", "deny"] }
+            }
+        },
+        "resources": {
+            "type": "object",
+            "required": ["references", "scripts", "assets"],
+            "properties": {
+                "references": { "type": "array", "items": { "type": "string" } },
+                "scripts": { "type": "array", "items": { "type": "string" } },
+                "assets": { "type": "array", "items": { "type": "string" } }
+            }
+        },
+        "composition": {
+            "type": "object",
+            "required": ["complements", "does_not_replace"],
+            "properties": {
+                "complements": { "type": "array", "items": { "type": "string" } },
+                "does_not_replace": { "type": "array", "items": { "type": "string" } }
+            }
+        },
+        "evaluation": {
+            "type": "object",
+            "required": ["behavioral", "triggers", "legacy_source"],
+            "properties": {
+                "behavioral": { "type": "string" },
+                "triggers": { "type": "string" },
+                "legacy_source": { "type": ["string", "null"] }
+            }
+        },
+        "examples": {
+            "type": "object",
+            "required": ["positive", "negative", "output"],
+            "properties": {
+                "positive": { "type": "string", "minLength": 8 },
+                "negative": { "type": "string", "minLength": 8 },
+                "output": { "type": "string", "minLength": 8 }
+            }
+        }
+    }
+}
