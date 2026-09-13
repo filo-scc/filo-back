@@ -8,14 +8,17 @@ import {
     Delete,
     Put,
     UseGuards,
-    Req,
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
+import { CreatePedidoCompletoDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
@@ -24,41 +27,56 @@ export class PedidoController {
     constructor(private readonly pedidoService: PedidoService) {}
 
     @Post()
-    async create(@Body() createPedidoDto: CreatePedidoDto, @Req() req: Request) {
-        return this.pedidoService.create(createPedidoDto, (req as any).user.fabrico_id);
+    async create(@Body() createPedidoDto: CreatePedidoDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.pedidoService.create(createPedidoDto, user.fabrico_id!);
+    }
+
+    @Post("completo")
+    async createCompleto(
+        @Body() createPedidoCompletoDto: CreatePedidoCompletoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.pedidoService.createCompleto(createPedidoCompletoDto, user.fabrico_id!);
     }
 
     @Get()
-    findAll() {
-        return this.pedidoService.findAll();
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.pedidoService.findAll(user.fabrico_id!);
+    }
+
+    @Get("/cliente/:cliente_id")
+    findAllCliente(
+        @Param("cliente_id", ParseIntPipe) cliente_id: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.pedidoService.findAllCliente(cliente_id, user.fabrico_id!);
+    }
+
+    @Put("completo/:id")
+    updateCompleto(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdatePedidoCompletoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.pedidoService.updateCompleto(id, data, user.fabrico_id!);
     }
 
     @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.pedidoService.getById(id);
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.pedidoService.getById(id, user.fabrico_id!);
     }
 
     @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number) {
-        return this.pedidoService.delete(id);
+    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.pedidoService.delete(id, user.fabrico_id!);
     }
 
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdatePedidoDto,
-        @Req() req: Request,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.update(id, data, (req as any).user.fabrico_id);
-    }
-
-    @Get("/fabrico/:fabrico_id")
-    findAllFabrico(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.pedidoService.findAllFabrico(fabrico_id);
-    }
-
-    @Get("/cliente/:cliente_id")
-    findAllCliente(@Param("cliente_id", ParseIntPipe) cliente_id: number) {
-        return this.pedidoService.findAllCliente(cliente_id);
+        return this.pedidoService.update(id, data, user.fabrico_id!);
     }
 }
