@@ -37,15 +37,8 @@ export class ProdutoController {
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
-    @Get("/fabrico/:fabrico_id")
-    findAllFabrico(
-        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
-        @CurrentUser() user: AuthenticatedUser,
-    ) {
-        if (fabrico_id !== user.fabrico_id) {
-            throw new NotFoundException("Fabrico não encontrado");
-        }
-
+    @Get("/fabrico")
+    findAllFabrico(@CurrentUser() user: AuthenticatedUser) {
         return this.service.findAllFabrico(user);
     }
 
@@ -77,7 +70,6 @@ export class ProdutoController {
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-
         return this.service.getUnassociatedProductsForClient(cliente_id, user);
     }
 }
