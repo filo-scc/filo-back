@@ -60,8 +60,8 @@ export class ProdutoController {
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.service.delete(id, user);
+    softDelete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.softDelete(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")

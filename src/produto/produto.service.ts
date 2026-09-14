@@ -188,6 +188,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
             },
             orderBy: { nome: "asc" },
         });
@@ -198,6 +199,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
             },
             include: {
                 tecido: true,
@@ -206,12 +208,13 @@ export class ProdutoService {
         });
     }
 
-    async getById(id: number, user: AuthenticatedUser) {
+    async getById(id: number, user: AuthenticatedUser, incluirInativos = true) {
         const userFabricoId = this.getFabricoId(user);
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id,
                 fabrico_id: userFabricoId,
+                ...(incluirInativos ? {} : { ativo: true }),
             },
             include: { tecido: true },
         });
@@ -223,11 +226,14 @@ export class ProdutoService {
         return produto;
     }
 
-    async delete(id: number, user: AuthenticatedUser) {
+    async softDelete(id: number, user: AuthenticatedUser) {
         const produto = await this.getById(id, user);
 
-        await this.prisma.produto.delete({ where: { id: produto.id } });
-        return `O produto com o id ${id} foi deletado com sucesso`;
+        await this.prisma.produto.update({
+            where: { id: produto.id },
+            data: { ativo: false, delete_at: new Date() },
+        });
+        return `O produto com o id ${id} foi desativado com sucesso`;
     }
 
     async update(id: number, dados: UpdateProduto, user: AuthenticatedUser) {
@@ -298,6 +304,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
                 cliente_produto: {
                     none: {
                         cliente_id: clienteId,

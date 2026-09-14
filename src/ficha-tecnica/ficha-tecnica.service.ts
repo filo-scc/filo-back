@@ -87,6 +87,7 @@ export class FichaTecnicaService {
             where: {
                 id: produto_id,
                 fabrico_id,
+                ativo: true,
             },
             select: {
                 grade_versao_id: true,
