@@ -1,0 +1,7 @@
+interface:
+    display_name: "Authorization Review"
+    short_description: "Revisa papéis, recursos e revogação de acesso"
+    default_prompt: "Use $authorization-review para montar a matriz de autorização e contestar este fluxo."
+
+policy:
+    allow_implicit_invocation: true

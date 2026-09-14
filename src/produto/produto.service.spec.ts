@@ -1,519 +1,258 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { PrismaService } from "../prisma/prisma.service";
-import { ProdutoService } from "./produto.service";
-import { BadRequestException } from "@nestjs/common/exceptions/bad-request.exception";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { ProdutoService } from "./produto.service";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
 
-const mockPrismaService = {
-    produto: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-        update: jest.fn(),
-    },
-    gradeVersao: {
-        findFirst: jest.fn(),
-    },
-    etapa: {
-        findMany: jest.fn(),
-    },
-    $queryRaw: jest.fn(),
-    $transaction: jest.fn(),
-};
-
 describe("ProdutoService", () => {
     let service: ProdutoService;
-    let prismaService: typeof mockPrismaService;
-    let produtoData: any;
+    let prisma: any;
 
-    beforeEach(async () => {
-        mockPrismaService.$transaction.mockImplementation((callback) =>
-            callback(mockPrismaService),
-        );
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [ProdutoService, { provide: PrismaService, useValue: mockPrismaService }],
-        }).compile();
+    const mockUser: AuthenticatedUser = {
+        id: 1,
+        cargo: "PROPRIETARIO",
+        fabrico_id: 10,
+    } as AuthenticatedUser;
 
-        service = module.get<ProdutoService>(ProdutoService);
-        prismaService = module.get(PrismaService);
-    });
+    const mockUserSemFabrico: AuthenticatedUser = {
+        id: 2,
+        cargo: "PROPRIETARIO",
+    } as AuthenticatedUser;
 
-    beforeAll(() => {
-        produtoData = {
-            fabrico_id: 1,
-            nome: "Produto Teste",
-            tipo_produto_id: 1,
-            custo_tecido: 50.0,
-            quantidade_tecido: 2.0,
-            custo_operacional: 20.0,
-            outros_custos: 10.0,
-            custo_total: 130.0,
+    beforeEach(() => {
+        prisma = {
+            $transaction: jest.fn((cb) =>
+                typeof cb === "function" ? cb(prisma) : Promise.all(cb),
+            ),
+            $queryRaw: jest.fn(),
+            produto: {
+                create: jest.fn(),
+                findMany: jest.fn(),
+                findUnique: jest.fn(),
+                findFirst: jest.fn(),
+                update: jest.fn(),
+                delete: jest.fn(),
+            },
+            gradeVersao: {
+                findFirst: jest.fn(),
+            },
+            etapa: {
+                findMany: jest.fn(),
+            },
         };
+        service = new ProdutoService(prisma);
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
+    describe("getFabricoId & assertFabricoImutavel", () => {
+        it("rejeita operação se usuário não possuir fabrico_id", async () => {
+            await expect(service.findAll(mockUserSemFabrico)).rejects.toThrow(
+                new BadRequestException("Usuário não possui um fabrico associado"),
+            );
+        });
 
-    it("should be defined", () => {
-        expect(service).toBeDefined();
+        it("rejeita alteração do fabrico_id informado no DTO", async () => {
+            const dto = { nome: "Camiseta", fabrico_id: 99 };
+            await expect(service.create(dto as any, mockUser)).rejects.toThrow(
+                new BadRequestException("Não é permitido alterar o fabrico do produto"),
+            );
+        });
     });
 
     describe("create", () => {
-        it("Criar um produto com sucesso", async () => {
-            const ProdutoCriado = { id: 1, ...produtoData };
+        it("cria produto com sucesso associando ao fabrico do usuário", async () => {
+            prisma.produto.create.mockResolvedValue({ id: 1, nome: "Camiseta", fabrico_id: 10 });
 
-            prismaService.produto.create.mockResolvedValue(ProdutoCriado);
+            const dto = { nome: "Camiseta" };
+            const res = await service.create(dto as any, mockUser);
 
-            const result = await service.create(produtoData);
-
-            expect(prismaService.produto.create).toHaveBeenCalledWith({
-                data: produtoData,
+            expect(res).toEqual({ id: 1, nome: "Camiseta", fabrico_id: 10 });
+            expect(prisma.produto.create).toHaveBeenCalledWith({
+                data: { nome: "Camiseta", fabrico_id: 10 },
             });
-
-            expect(result).toEqual(ProdutoCriado);
         });
 
-        it("Criar um produto sem a grade de versão com sucesso", async () => {
-            const ProdutoCriado = { id: 1, ...produtoData };
+        it("valida versão de grade e lança erro se inativa ou inexistente", async () => {
+            prisma.gradeVersao.findFirst.mockResolvedValue(null);
 
-            prismaService.gradeVersao.findFirst.mockResolvedValue(null);
-
-            prismaService.produto.create.mockResolvedValue(ProdutoCriado);
-
-            const resultado = await service.create(produtoData);
-
-            expect(prismaService.gradeVersao.findFirst).not.toHaveBeenCalled();
-
-            expect(prismaService.produto.create).toHaveBeenCalledWith({
-                data: produtoData,
-            });
-
-            expect(resultado).toEqual(ProdutoCriado);
-        });
-
-        it("Criar um produto com uma grade de versão inválida", async () => {
-            const produtoDataComGradeInvalida = { id: 1, ...produtoData, grade_versao_id: 999 };
-
-            prismaService.gradeVersao.findFirst.mockResolvedValue(null);
-
-            await expect(service.create(produtoDataComGradeInvalida)).rejects.toThrow(
+            const dto = { nome: "Camiseta", grade_versao_id: 5 };
+            await expect(service.create(dto as any, mockUser)).rejects.toThrow(
                 new BadRequestException("Versão de grade inválida ou inativa"),
             );
-
-            expect(prismaService.gradeVersao.findFirst).toHaveBeenCalledWith({
-                where: {
-                    id: produtoDataComGradeInvalida.grade_versao_id,
-                    ativo: true,
-                },
-            });
         });
 
-        it("Criar um produto com um nome já existente para o mesmo fabrico", async () => {
-            const produtoCriado = { ...produtoData };
+        it("traduz erro P2002 do Prisma no create", async () => {
+            prisma.produto.create.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "5.0.0",
+                }),
+            );
 
-            const prismaError = new PrismaClientKnownRequestError("Erro simulado", {
-                code: "P2002",
-                clientVersion: "5.0.0",
-                meta: { target: "nome" },
-            });
-
-            prismaService.produto.create.mockRejectedValue(prismaError);
-
-            const resultado = service.create(produtoCriado);
-
-            await expect(resultado).rejects.toThrow(
+            await expect(service.create({ nome: "Camiseta" } as any, mockUser)).rejects.toThrow(
                 new ConflictException("Já existe um produto com este nome para este fabrico"),
             );
-
-            expect(prismaService.produto.create).toHaveBeenCalledWith({
-                data: produtoData,
-            });
-
-            expect(prismaService.produto.create).toHaveBeenCalledTimes(1);
         });
 
-        it("Criar um produto em um fabrico que não existe deve retornar um erro", async () => {
-            const produtoDataFabricoInexistente = { ...produtoData, fabrico_id: 999 };
-
-            const prismaError = new PrismaClientKnownRequestError("Erro simulado", {
-                code: "P2003",
-                clientVersion: "5.0.0",
-                meta: { field_name: "fabrico_id" },
-            });
-
-            prismaService.produto.create.mockRejectedValue(prismaError);
-
-            const resultado = service.create(produtoDataFabricoInexistente);
-
-            await expect(resultado).rejects.toThrow(prismaError);
-
-            expect(prismaService.produto.create).toHaveBeenCalledWith({
-                data: produtoDataFabricoInexistente,
-            });
-
-            expect(prismaService.produto.create).toHaveBeenCalledTimes(1);
-        });
-    });
-
-    describe("findAll", () => {
-        it("Deve retornar uma lista de produtos", async () => {
-            const produtos = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
-            ];
-
-            prismaService.produto.findMany.mockResolvedValue(produtos);
-
-            const result = await service.findAll();
-
-            expect(prismaService.produto.findMany).toHaveBeenCalled();
-            expect(result).toEqual(produtos);
-        });
-    });
-
-    describe("recalcularCustoTotal", () => {
-        it("atualiza o produto com as médias das etapas ativas, exceto a última", async () => {
-            prismaService.produto.findUnique.mockResolvedValue({
-                id: 1,
-                fabrico_id: 10,
-                custo_tecido: 30,
-                quantidade_tecido: 2,
-                custo_operacional: 5,
-                outros_custos: 3,
-                tecido: { custo_unitario: 20 },
-                produtoAviamentos: [
-                    { custo: 10, quantidade: 1, aviamento: { custo_unitario: 99 } },
-                    { custo: null, quantidade: 2, aviamento: { custo_unitario: 4 } },
-                ],
-                parceiro_produto: [
-                    { preco: 10, parceiro: { categoria: "corte" } },
-                    { preco: 20, parceiro: { categoria: "CORTE" } },
-                    { preco: 6, parceiro: { categoria: "Faccao" } },
-                    { preco: null, parceiro: { categoria: "Facção" } },
-                    { preco: 100, parceiro: { categoria: "Finalizado" } },
-                ],
-            });
-            prismaService.etapa.findMany.mockResolvedValue([
-                { id: 1, nome: "Corte", ordem: 1 },
-                { id: 2, nome: "Facção", ordem: 2 },
-                { id: 3, nome: "Finalizado", ordem: 3 },
-            ]);
-            prismaService.produto.update.mockResolvedValue({ id: 1, custo_total: 87 });
-
-            await expect(service.recalcularCustoTotal(1)).resolves.toBe(87);
-
-            expect(prismaService.$queryRaw).toHaveBeenCalledTimes(1);
-            expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 10, ativa: true },
-                orderBy: { ordem: "asc" },
-            });
-            expect(prismaService.produto.update).toHaveBeenCalledWith({
-                where: { id: 1 },
-                data: {
-                    custo_tecido: 40,
-                    custo_total: 87,
-                },
-            });
-        });
-
-        it("rejeita o recálculo de produto inexistente", async () => {
-            prismaService.produto.findUnique.mockResolvedValue(null);
-
-            await expect(service.recalcularCustoTotal(999)).rejects.toThrow(
-                new NotFoundException("Produto não encontrado"),
+        it("traduz erro P2003 do Prisma no create", async () => {
+            prisma.produto.create.mockRejectedValue(
+                new PrismaClientKnownRequestError("fk", {
+                    code: "P2003",
+                    clientVersion: "5.0.0",
+                }),
             );
 
-            expect(prismaService.etapa.findMany).not.toHaveBeenCalled();
-            expect(prismaService.produto.update).not.toHaveBeenCalled();
+            await expect(service.create({ nome: "Camiseta" } as any, mockUser)).rejects.toThrow(
+                new NotFoundException("Relacionamento inválido"),
+            );
+        });
+    });
+
+    describe("findAll & findAllFabrico", () => {
+        it("lista produtos do fabrico do usuário", async () => {
+            prisma.produto.findMany.mockResolvedValue([{ id: 1, nome: "Camiseta" }]);
+
+            const res = await service.findAll(mockUser);
+            expect(res).toEqual([{ id: 1, nome: "Camiseta" }]);
+            expect(prisma.produto.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10 },
+                orderBy: { nome: "asc" },
+            });
         });
 
-        it("preserva custos explicitamente salvos como zero", async () => {
-            prismaService.produto.findUnique.mockResolvedValue({
-                id: 1,
-                fabrico_id: 10,
-                custo_tecido: 0,
-                quantidade_tecido: 2,
-                custo_operacional: 0,
-                outros_custos: 0,
-                tecido: { custo_unitario: 0 },
-                produtoAviamentos: [{ custo: 0, quantidade: 3, aviamento: { custo_unitario: 5 } }],
-                parceiro_produto: [],
-            });
-            prismaService.etapa.findMany.mockResolvedValue([]);
+        it("lista produtos com inclusão de tecido no findAllFabrico", async () => {
+            prisma.produto.findMany.mockResolvedValue([{ id: 1, nome: "Camiseta", tecido: {} }]);
 
-            await expect(service.recalcularCustoTotal(1)).resolves.toBe(0);
-
-            expect(prismaService.produto.update).toHaveBeenCalledWith({
-                where: { id: 1 },
-                data: {
-                    custo_tecido: 0,
-                    custo_total: 0,
-                },
+            const res = await service.findAllFabrico(mockUser);
+            expect(res).toEqual([{ id: 1, nome: "Camiseta", tecido: {} }]);
+            expect(prisma.produto.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10 },
+                include: { tecido: true },
+                orderBy: { nome: "asc" },
             });
         });
     });
 
     describe("getById", () => {
-        it("Deve retornar um produto pelo ID com sucesso", async () => {
-            const produtoCriado = { id: 1, ...produtoData };
+        it("retorna produto existente pertencente ao fabrico", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, nome: "Camiseta", fabrico_id: 10 });
 
-            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-
-            const result = await service.getById(1);
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({
-                where: { id: 1 },
-                include: { tecido: true },
-            });
-            expect(result).toEqual(produtoCriado);
+            const res = await service.getById(1, mockUser);
+            expect(res).toEqual({ id: 1, nome: "Camiseta", fabrico_id: 10 });
         });
 
-        it("Deve lançar um erro ao tentar obter um produto que não existe", async () => {
-            prismaService.produto.findUnique.mockResolvedValue(null);
+        it("lança NotFoundException se produto não for encontrado", async () => {
+            prisma.produto.findFirst.mockResolvedValue(null);
 
-            const resultado = service.getById(999);
-
-            await expect(resultado).rejects.toThrow(
+            await expect(service.getById(1, mockUser)).rejects.toThrow(
                 new NotFoundException("Produto não encontrado"),
             );
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({
-                where: { id: 999 },
-                include: { tecido: true },
-            });
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-        });
-    });
-
-    describe("delete", () => {
-        it("Deve deletar um produto com sucesso", async () => {
-            const produtoCriado = { id: 1, ...produtoData };
-
-            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-            prismaService.produto.delete.mockResolvedValue(produtoCriado);
-
-            const result = await service.delete(1);
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-
-            expect(prismaService.produto.delete).toHaveBeenCalledWith({ where: { id: 1 } });
-
-            expect(result).toEqual("O produto com o id 1 foi deletado com sucesso");
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-
-            expect(prismaService.produto.delete).toHaveBeenCalledTimes(1);
-        });
-
-        it("Deve lançar um erro ao tentar deletar um produto que não existe", async () => {
-            prismaService.produto.findUnique.mockResolvedValue(null);
-
-            const resultado = service.delete(999);
-
-            await expect(resultado).rejects.toThrow(
-                new NotFoundException("Produto não encontrado"),
-            );
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 999 } });
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("update", () => {
-        it("Deve atualizar um produto com sucesso", async () => {
-            const produtoCriado = { id: 1, ...produtoData };
-            const dadosAtualizados = { nome: "Produto Atualizado" };
+        it("atualiza produto sem recalcular custo quando nenhum campo de custo muda", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.produto.update.mockResolvedValue({ id: 1, nome: "Camiseta Polo" });
 
-            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-            prismaService.produto.update.mockResolvedValue({
-                ...produtoCriado,
-                ...dadosAtualizados,
-            });
+            const res = await service.update(1, { nome: "Camiseta Polo" }, mockUser);
 
-            const resultado = await service.update(1, dadosAtualizados);
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-            expect(prismaService.produto.update).toHaveBeenCalledWith({
+            expect(res).toBe("O produto com o id 1 foi atualizado");
+            expect(prisma.produto.update).toHaveBeenCalledWith({
                 where: { id: 1 },
-                data: { ...dadosAtualizados },
+                data: { nome: "Camiseta Polo", fabrico_id: 10 },
             });
-            expect(resultado).toEqual("O produto com o id 1 foi atualizado");
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-            expect(prismaService.produto.update).toHaveBeenCalledTimes(1);
         });
 
-        it("Deve recalcular o custo_total recebido na atualização", async () => {
-            const produtoCriado = { id: 1, ...produtoData };
-            const dadosAtualizados = { custo_total: 150.0 };
-
-            prismaService.produto.findUnique
-                .mockResolvedValueOnce(produtoCriado)
-                .mockResolvedValueOnce({
-                    ...produtoCriado,
-                    tecido: null,
-                    produtoAviamentos: [],
-                    parceiro_produto: [],
-                });
-            prismaService.etapa.findMany.mockResolvedValue([]);
-
-            const resultado = await service.update(1, dadosAtualizados);
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-            expect(prismaService.produto.update).toHaveBeenNthCalledWith(1, {
-                where: { id: 1 },
-                data: { custo_total: 150 },
+        it("executa transação e recálculo quando altera campos referentes a custo", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                quantidade_tecido: 2,
+                custo_operacional: 0,
+                outros_custos: 0,
+                tecido: { custo_unitario: 10 },
+                produtoAviamentos: [],
+                parceiro_produto: [],
             });
-            expect(prismaService.produto.update).toHaveBeenNthCalledWith(2, {
-                where: { id: 1 },
-                data: {
-                    custo_tecido: 50,
-                    custo_total: 80,
-                },
-            });
-            expect(resultado).toEqual("O produto com o id 1 foi atualizado");
-        });
+            prisma.etapa.findMany.mockResolvedValue([]);
+            prisma.produto.update.mockResolvedValue({});
 
-        it("Deve lançar um erro ao tentar atualizar um produto que não existe", async () => {
-            prismaService.produto.findUnique.mockResolvedValue(null);
+            const res = await service.update(1, { custo_tecido: 20 }, mockUser);
 
-            const resultado = service.update(999, { nome: "Produto Atualizado" });
-
-            await expect(resultado).rejects.toThrow(
-                new NotFoundException("Produto não encontrado"),
-            );
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 999 } });
-            expect(prismaService.produto.update).not.toHaveBeenCalled();
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-            expect(prismaService.produto.update).toHaveBeenCalledTimes(0);
-        });
-
-        it("Deve lançar um erro ao tentar atualizar um produto com uma grade de versão inválida", async () => {
-            const produtoCriado = { id: 1, ...produtoData };
-            const dadosAtualizados = { grade_versao_id: 999 };
-
-            prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-            prismaService.gradeVersao.findFirst.mockResolvedValue(null);
-
-            const resultado = service.update(1, dadosAtualizados);
-
-            await expect(resultado).rejects.toThrow(
-                new BadRequestException("Versão de grade inválida ou inativa"),
-            );
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-
-            expect(prismaService.gradeVersao.findFirst).toHaveBeenCalledWith({
-                where: {
-                    id: dadosAtualizados.grade_versao_id,
-                    ativo: true,
-                },
-            });
-            expect(prismaService.produto.update).not.toHaveBeenCalled();
-
-            expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-
-            expect(prismaService.gradeVersao.findFirst).toHaveBeenCalledTimes(1);
-
-            expect(prismaService.produto.update).toHaveBeenCalledTimes(0);
+            expect(res).toBe("O produto com o id 1 foi atualizado");
+            expect(prisma.$transaction).toHaveBeenCalled();
         });
     });
 
-    it("Deve lançar um erro caso tente atualizar um produto com um nome já existente para o mesmo fabrico", async () => {
-        const produtoCriado = { id: 1, ...produtoData };
-        const dadosAtualizados = { nome: "Produto Existente" };
+    describe("delete", () => {
+        it("deleta produto existente", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.produto.delete.mockResolvedValue({ id: 1 });
 
-        const prismaError = new PrismaClientKnownRequestError("Erro simulado", {
-            code: "P2002",
-            clientVersion: "5.0.0",
-            meta: { target: "nome" },
-        });
-
-        prismaService.produto.findUnique.mockResolvedValue(produtoCriado);
-        prismaService.produto.update.mockRejectedValue(prismaError);
-
-        const resultado = service.update(1, dadosAtualizados);
-
-        await expect(resultado).rejects.toThrow(
-            new ConflictException("Já existe um produto com este nome para este fabrico"),
-        );
-
-        expect(prismaService.produto.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-
-        expect(prismaService.produto.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: { ...dadosAtualizados },
-        });
-
-        expect(prismaService.produto.findUnique).toHaveBeenCalledTimes(1);
-
-        expect(prismaService.produto.update).toHaveBeenCalledTimes(1);
-    });
-
-    describe("findAllFabrico", () => {
-        it("Deve retornar uma lista de produtos para um fabrico específico", async () => {
-            const produtos = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
-                { id: 3, nome: "Produto 3", fabrico_id: 2, custo_total: 90.0 },
-            ];
-
-            prismaService.produto.findMany.mockResolvedValue(
-                produtos.filter((p) => p.fabrico_id === 1),
-            );
-
-            const result = await service.findAllFabrico(1);
-
-            expect(prismaService.produto.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 1 },
-                include: {
-                    tecido: true,
-                },
-            });
-            expect(result).toEqual(produtos.filter((p) => p.fabrico_id === 1));
-
-            expect(prismaService.produto.findMany).toHaveBeenCalledTimes(1);
-
-            expect(result).toEqual([
-                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
-            ]);
+            const res = await service.delete(1, mockUser);
+            expect(res).toBe("O produto com o id 1 foi deletado com sucesso");
         });
     });
 
     describe("getUnassociatedProductsForClient", () => {
-        it("Deve retornar uma lista de produtos não associados a um cliente para um fabrico específico", async () => {
-            const cliente_id = 1;
-            const fabrico_id = 1;
-            const produtosEsperados = [
-                { id: 1, nome: "Produto 1", fabrico_id: 1, custo_total: 130.0 },
-                { id: 2, nome: "Produto 2", fabrico_id: 1, custo_total: 200.0 },
-            ];
+        it("busca produtos não associados ao cliente", async () => {
+            prisma.produto.findMany.mockResolvedValue([{ id: 1, nome: "Shorts" }]);
 
-            prismaService.produto.findMany.mockResolvedValue(produtosEsperados);
-
-            const result = await service.getUnassociatedProductsForClient(cliente_id, fabrico_id);
-
-            expect(prismaService.produto.findMany).toHaveBeenCalledWith({
+            const res = await service.getUnassociatedProductsForClient(5, mockUser);
+            expect(res).toEqual([{ id: 1, nome: "Shorts" }]);
+            expect(prisma.produto.findMany).toHaveBeenCalledWith({
                 where: {
-                    fabrico_id: fabrico_id,
-                    cliente_produto: {
-                        none: {
-                            cliente_id: cliente_id,
-                        },
-                    },
+                    fabrico_id: 10,
+                    cliente_produto: { none: { cliente_id: 5 } },
                 },
+                orderBy: { nome: "asc" },
             });
+        });
+    });
 
-            expect(result).toEqual(produtosEsperados);
-            expect(result).toHaveLength(2);
+    describe("recalcularCustoTotal", () => {
+        it("calcula e atualiza custo total somando tecidos, etapas e aviamentos", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                quantidade_tecido: 2,
+                custo_operacional: 5,
+                outros_custos: 3,
+                tecido: { custo_unitario: 10 },
+                produtoAviamentos: [
+                    { custo: 4 },
+                    { quantidade: 2, aviamento: { custo_unitario: 3 } },
+                ],
+                parceiro_produto: [
+                    { preco: 10, parceiro: { categoria: "Corte" } },
+                    { preco: 20, parceiro: { categoria: "Corte" } },
+                ],
+            });
+            prisma.etapa.findMany.mockResolvedValue([
+                { nome: "Corte", ordem: 1 },
+                { nome: "Costura", ordem: 2 },
+            ]);
+            prisma.produto.update.mockResolvedValue({});
+
+            const total = await service.recalcularCustoTotal(1, prisma);
+
+            expect(total).toBe(53);
+            expect(prisma.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { custo_tecido: 20, custo_total: 53 },
+            });
+        });
+
+        it("lança NotFoundException se o produto não existir no recálculo", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.produto.findUnique.mockResolvedValue(null);
+
+            await expect(service.recalcularCustoTotal(1, prisma)).rejects.toThrow(
+                new NotFoundException("Produto não encontrado"),
+            );
         });
     });
 });

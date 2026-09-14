@@ -9,6 +9,7 @@ const mockPrismaService = {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
     },
@@ -18,6 +19,18 @@ describe("FabricoService", () => {
     let service: FabricoService;
     let prismaService: typeof mockPrismaService;
     let fabricoData: any;
+
+    const admin = {
+        cargo: "ADMIN",
+        fabrico_id: null,
+        fabrico: null,
+    } as any;
+
+    const proprietario = {
+        cargo: "PROPRIETARIO",
+        fabrico_id: 1,
+        fabrico: { id: 1, ativo: true },
+    } as any;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -110,21 +123,44 @@ describe("FabricoService", () => {
 
     describe("getById", () => {
         it("deve retornar um fabrico quando o ID existir", async () => {
-            prismaService.fabrico.findUnique.mockResolvedValue(fabricoData);
+            prismaService.fabrico.findFirst.mockResolvedValue(fabricoData);
 
-            const resultado = await service.getById(1);
+            const resultado = await service.getByIdForUser(1, admin);
 
             expect(resultado).toEqual(fabricoData);
-            expect(prismaService.fabrico.findUnique).toHaveBeenCalledWith({
+            expect(prismaService.fabrico.findFirst).toHaveBeenCalledWith({
                 where: { id: 1 },
             });
         });
 
-        it("deve lançar NotFoundException quando o ID não existir", async () => {
-            prismaService.fabrico.findUnique.mockResolvedValue(null);
+        it("deve limitar proprietário ao próprio fábrico", async () => {
+            prismaService.fabrico.findFirst.mockResolvedValue(fabricoData);
 
-            await expect(service.getById(99)).rejects.toThrow(NotFoundException);
-            await expect(service.getById(99)).rejects.toThrow("Fabrico não encontrado");
+            await service.getByIdForUser(1, proprietario);
+
+            expect(prismaService.fabrico.findFirst).toHaveBeenCalledWith({
+                where: { AND: [{ id: 1 }, { id: 1 }] },
+            });
+        });
+
+        it("deve retornar 404 ao consultar fábrico de outro tenant", async () => {
+            prismaService.fabrico.findFirst.mockResolvedValue(null);
+
+            await expect(service.getByIdForUser(2, proprietario)).rejects.toThrow(
+                NotFoundException,
+            );
+            expect(prismaService.fabrico.findFirst).toHaveBeenCalledWith({
+                where: { AND: [{ id: 2 }, { id: 1 }] },
+            });
+        });
+
+        it("deve lançar NotFoundException quando o ID não existir", async () => {
+            prismaService.fabrico.findFirst.mockResolvedValue(null);
+
+            await expect(service.getByIdForUser(99, admin)).rejects.toThrow(NotFoundException);
+            await expect(service.getByIdForUser(99, admin)).rejects.toThrow(
+                "Fabrico não encontrado",
+            );
         });
     });
 

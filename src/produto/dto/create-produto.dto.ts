@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateProdutoDto {
     @IsString()
@@ -39,8 +39,8 @@ export class CreateProdutoDto {
     tipo_produto_id: number;
 
     @IsNumber()
-    @IsNotEmpty()
-    fabrico_id: number;
+    @IsOptional()
+    fabrico_id?: number;
 
     @IsNumber()
     @IsOptional()
@@ -49,4 +49,8 @@ export class CreateProdutoDto {
     @IsNumber()
     @IsOptional()
     tecido_id?: number;
+
+    @IsBoolean()
+    @IsOptional()
+    ativo?: boolean;
 }
