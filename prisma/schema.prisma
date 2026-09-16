@@ -239,11 +239,13 @@ model Produto {
   custo_operacional Decimal? @db.Decimal(10, 2)
   outros_custos Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
+  ativo Boolean @default(true)
 
   cliente_produto ClienteProduto[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  delete_at DateTime? 
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])

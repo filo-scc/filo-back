@@ -16,6 +16,8 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { ParceiroProdutoService } from "./parceiroProduto.service";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
 
 @Controller("parceiros-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,8 +30,9 @@ export class ParceiroProdutoController {
         @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
         @Body() data: CreateParceiroProdutoDto,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.ParceiroProdutoService.createParceiroProduto(idParceiro, idProduto, data);
+        return this.ParceiroProdutoService.createParceiroProduto(idParceiro, idProduto, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -57,8 +60,9 @@ export class ParceiroProdutoController {
         @Param("Parceiro_id", ParseIntPipe) idParceiro: number,
         @Param("produto_id", ParseIntPipe) idProduto: number,
         @Body() data: UpdateParceiroProdutoDto,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.ParceiroProdutoService.updateParceiroProduto(idParceiro, idProduto, data);
+        return this.ParceiroProdutoService.updateParceiroProduto(idParceiro, idProduto, data, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")

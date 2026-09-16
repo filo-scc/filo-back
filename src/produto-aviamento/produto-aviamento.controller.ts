@@ -8,55 +8,74 @@ import {
     Delete,
     ParseIntPipe,
     UseGuards,
+    NotFoundException,
 } from "@nestjs/common";
 import { ProdutoAviamentoService } from "./produto-aviamento.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";
 import { UpdateProdutoAviamentoDto } from "./dto/update-produto-aviamento.dto";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
-import { RolesGuard } from "src/common/guards/roles.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("PROPRIETARIO", "GERENTE")
 @Controller("produto-aviamento")
 export class ProdutoAviamentoController {
     constructor(private readonly produtoAviamentoService: ProdutoAviamentoService) {}
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
-    create(@Body() createProdutoAviamentoDto: CreateProdutoAviamentoDto) {
-        return this.produtoAviamentoService.create(createProdutoAviamentoDto);
+    create(
+        @Body() createProdutoAviamentoDto: CreateProdutoAviamentoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.produtoAviamentoService.create(createProdutoAviamentoDto, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
-    findAll() {
-        return this.produtoAviamentoService.findAll();
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.produtoAviamentoService.findAll(user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.produtoAviamentoService.findOne(id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.produtoAviamentoService.findOne(id, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get("/produto/:id")
-    findAllByProduto(@Param("id", ParseIntPipe) id: number) {
-        return this.produtoAviamentoService.findAllByProduto(id);
+    findAllByProduto(
+        @Param("id", ParseIntPipe) id: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.produtoAviamentoService.findAllByProduto(id, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get("/aviamento/:id")
-    findAllByAviamento(@Param("id", ParseIntPipe) id: number) {
-        return this.produtoAviamentoService.findAllByAviamento(id);
+    findAllByAviamento(
+        @Param("id", ParseIntPipe) id: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.produtoAviamentoService.findAllByAviamento(id, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Patch(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() updateProdutoAviamentoDto: UpdateProdutoAviamentoDto,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.produtoAviamentoService.update(id, updateProdutoAviamentoDto);
+        return this.produtoAviamentoService.update(id, updateProdutoAviamentoDto, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.produtoAviamentoService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.produtoAviamentoService.remove(id, user);
     }
 }

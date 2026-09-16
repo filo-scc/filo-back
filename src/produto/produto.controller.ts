@@ -8,55 +8,68 @@ import {
     Delete,
     Put,
     UseGuards,
+    NotFoundException,
 } from "@nestjs/common";
 import { ProdutoService } from "./produto.service";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
-import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
-import { RolesGuard } from "src/common/guards/roles.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
-@Controller("produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("PROPRIETARIO", "GERENTE")
+@Controller("produtos")
 export class ProdutoController {
-    constructor(private service: ProdutoService) {}
+    constructor(private readonly service: ProdutoService) {}
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
-    create(@Body() data: CreateProdutoDto) {
-        return this.service.create(data);
+    create(@Body() data: CreateProdutoDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.create(data, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
-    findAll() {
-        return this.service.findAll();
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.service.findAll(user);
     }
 
-    @Get("/fabrico/:fabrico_id")
-    findAllFabrico(@Param("fabrico_id", ParseIntPipe) fabrico_id: number) {
-        return this.service.findAllFabrico(fabrico_id);
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Get("/fabrico")
+    findAllFabrico(@CurrentUser() user: AuthenticatedUser) {
+        return this.service.findAllFabrico(user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.service.getById(id);
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.getById(id, user);
     }
 
-    @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number) {
-        return this.service.delete(id);
-    }
-
+    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":id")
-    async update(@Param("id", ParseIntPipe) id: number, @Body() dadosAtualizados: UpdateProduto) {
-        return await this.service.update(id, dadosAtualizados);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() dadosAtualizados: UpdateProduto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.service.update(id, dadosAtualizados, user);
     }
 
-    @Get("/cliente/:cliente_id/produtos-nao-associados/:fabrico_id")
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Delete(":id")
+    softDelete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.softDelete(id, user);
+    }
+
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Get("/cliente/:cliente_id/produtos-nao-associados/")
     getUnassociatedProductsForClient(
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
-        @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.service.getUnassociatedProductsForClient(cliente_id, fabrico_id);
+        return this.service.getUnassociatedProductsForClient(cliente_id, user);
     }
 }
