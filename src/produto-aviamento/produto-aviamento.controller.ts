@@ -30,10 +30,7 @@ export class ProdutoAviamentoController {
         @Body() createProdutoAviamentoDto: CreateProdutoAviamentoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.produtoAviamentoService.create(
-            createProdutoAviamentoDto,
-            user,
-        );
+        return this.produtoAviamentoService.create(createProdutoAviamentoDto, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -73,11 +70,7 @@ export class ProdutoAviamentoController {
         @Body() updateProdutoAviamentoDto: UpdateProdutoAviamentoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.produtoAviamentoService.update(
-            id,
-            updateProdutoAviamentoDto,
-            user,
-        );
+        return this.produtoAviamentoService.update(id, updateProdutoAviamentoDto, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")

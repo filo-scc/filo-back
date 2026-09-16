@@ -132,7 +132,7 @@ export class AviamentoService {
         this.assertFabricoImutavel(dados.fabrico_id, user.fabrico_id);
         const aviamento = await this.getById(id, user);
 
-        const {...dadosUpdate } = dados;
+        const { ...dadosUpdate } = dados;
 
         try {
             return await this.prisma.$transaction(async (tx) => {

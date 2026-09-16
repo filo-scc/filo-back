@@ -27,7 +27,7 @@ export class TecidosController {
 
     @Post()
     create(@Body() data: CreateTecidosDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.tecidosService.create(data,user);
+        return this.tecidosService.create(data, user);
     }
 
     @Get()

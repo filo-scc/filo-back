@@ -49,7 +49,7 @@ export class FichaTecnicaController {
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdateFichaTecnicaDto,
-        @CurrentUser() user: AuthenticatedUser
+        @CurrentUser() user: AuthenticatedUser,
     ) {
         return this.fichaTecnicaService.update(+id, data, user);
     }
