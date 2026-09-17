@@ -13,10 +13,43 @@ import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
 export class ClienteProdutoService {
     constructor(private prisma: PrismaService) {}
 
+    private async assertClienteDoFabrico(
+        tx: Prisma.TransactionClient | PrismaService,
+        cliente_id: number,
+        fabricoId: number,
+    ) {
+        const cliente = await tx.cliente.findFirst({
+            where: { id: cliente_id, fabrico_id: fabricoId },
+        });
+
+        if (!cliente) {
+            throw new NotFoundException("Cliente não encontrado");
+        }
+
+        return cliente;
+    }
+
+    private async assertProdutoDoFabrico(
+        tx: Prisma.TransactionClient | PrismaService,
+        produto_id: number,
+        fabricoId: number,
+    ) {
+        const produto = await tx.produto.findFirst({
+            where: { id: produto_id, fabrico_id: fabricoId },
+        });
+
+        if (!produto) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
+        return produto;
+    }
+
     async updateClienteProduto(
         cliente_id: number,
         produto_id: number,
         data: UpdateClienteProdutoDto,
+        fabricoId: number,
     ) {
         try {
             if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
@@ -24,11 +57,8 @@ export class ClienteProdutoService {
             }
 
             return await this.prisma.$transaction(async (tx) => {
-                const cliente = await tx.cliente.findUnique({ where: { id: cliente_id } });
-                if (!cliente) throw new NotFoundException("Cliente não encontrado");
-
-                const produto = await tx.produto.findUnique({ where: { id: produto_id } });
-                if (!produto) throw new NotFoundException("Produto não encontrado");
+                await this.assertClienteDoFabrico(tx, cliente_id, fabricoId);
+                await this.assertProdutoDoFabrico(tx, produto_id, fabricoId);
 
                 return tx.clienteProduto.update({
                     where: { produto_id_cliente_id: { cliente_id, produto_id } },
@@ -52,65 +82,46 @@ export class ClienteProdutoService {
         cliente_id: number,
         produto_id: number,
         data: CreateClienteProdutoDto,
+        fabricoId: number,
     ) {
-        try {
-            if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
-                throw new BadRequestException("O preço não pode ser negativo.");
+        if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
+            throw new BadRequestException("O preço não pode ser negativo.");
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            await this.assertProdutoDoFabrico(tx, produto_id, fabricoId);
+            await this.assertClienteDoFabrico(tx, cliente_id, fabricoId);
+
+            const jaExiste = await tx.clienteProduto.findFirst({
+                where: {
+                    cliente_id,
+                    produto_id,
+                },
+            });
+
+            if (jaExiste) {
+                throw new BadRequestException("Esse produto já está vinculado a esse cliente");
             }
 
-            return await this.prisma.$transaction(async (tx) => {
-                const produto = await tx.produto.findUnique({
-                    where: { id: produto_id },
-                });
-
-                if (!produto) {
-                    throw new NotFoundException("Esse produto não existe");
-                }
-
-                const cliente = await tx.cliente.findUnique({
-                    where: { id: cliente_id },
-                });
-
-                if (!cliente) {
-                    throw new NotFoundException("Esse cliente não existe");
-                }
-
-                if (cliente.fabrico_id !== produto.fabrico_id) {
-                    throw new BadRequestException(
-                        "Cliente e produto não pertencem ao mesmo fabrico",
-                    );
-                }
-
-                const jaExiste = await tx.clienteProduto.findFirst({
-                    where: {
-                        cliente_id,
-                        produto_id: produto_id,
-                    },
-                });
-
-                if (jaExiste) {
-                    throw new BadRequestException("Esse produto já está vinculado a esse cliente");
-                }
-
-                return tx.clienteProduto.create({
-                    data: {
-                        cliente_id,
-                        produto_id,
-                        ...data,
-                    },
-                });
+            return tx.clienteProduto.create({
+                data: {
+                    cliente_id,
+                    produto_id,
+                    ...data,
+                },
             });
-        } catch (error) {
-            console.error(error);
-            throw error;
-        }
+        });
     }
 
-    async getAllProdutoByCliente(cliente_id: number) {
+    async getAllProdutoByCliente(cliente_id: number, fabricoId: number) {
         try {
+            await this.assertClienteDoFabrico(this.prisma, cliente_id, fabricoId);
+
             return await this.prisma.clienteProduto.findMany({
                 where: {
-                    cliente_id: cliente_id,
+                    cliente_id,
+                    cliente: { fabrico_id: fabricoId },
+                    produto: { fabrico_id: fabricoId },
                 },
                 select: {
                     nome_para_cliente: true,
@@ -138,11 +149,15 @@ export class ClienteProdutoService {
         }
     }
 
-    async getAllClienteByProduto(product_id: number) {
+    async getAllClienteByProduto(produto_id: number, fabricoId: number) {
         try {
+            await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId);
+
             return await this.prisma.clienteProduto.findMany({
                 where: {
-                    produto_id: product_id,
+                    produto_id,
+                    cliente: { fabrico_id: fabricoId },
+                    produto: { fabrico_id: fabricoId },
                 },
                 select: {
                     nome_para_cliente: true,
@@ -166,13 +181,16 @@ export class ClienteProdutoService {
         }
     }
 
-    async removeClienteProduto(cliente_id: number, product_id: number) {
+    async removeClienteProduto(cliente_id: number, produto_id: number, fabricoId: number) {
         try {
+            await this.assertClienteDoFabrico(this.prisma, cliente_id, fabricoId);
+            await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId);
+
             return await this.prisma.clienteProduto.delete({
                 where: {
                     produto_id_cliente_id: {
-                        produto_id: product_id,
-                        cliente_id: cliente_id,
+                        produto_id,
+                        cliente_id,
                     },
                 },
             });
