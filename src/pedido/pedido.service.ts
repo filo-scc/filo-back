@@ -126,6 +126,7 @@ export class PedidoService {
                         tx,
                         fichasDto,
                         produtos,
+                        fabricoId,
                     );
 
                     // Os preços de parceiro alteram o custo_total do produto, então
@@ -238,6 +239,10 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
+        if (pedido.finalizado) {
+            throw new BadRequestException("Pedidos finalizados não podem ser alterados");
+        }
+
         if (data.cliente_id) {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -290,7 +295,24 @@ export class PedidoService {
             return await this.prisma.$transaction(
                 async (tx) => {
                     for (const fichaDto of fichasExistentesDto) {
-                        await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
+                        const fichaDb = pedido.fichas_tecnicas.find((f) => f.id === fichaDto.id);
+
+                        if (!fichaDb) throw new NotFoundException("Ficha não encontrada no pedido");
+
+                        if (
+                            fichaDto.produto_id !== undefined &&
+                            Number(fichaDto.produto_id) !== fichaDb.produto_id
+                        ) {
+                            throw new BadRequestException(
+                                "Não é permitido alterar o produto de uma ficha técnica existente",
+                            );
+                        }
+
+                        await this.sincronizarPrecosDeParceiros(
+                            tx,
+                            { ...fichaDto, produto_id: fichaDb.produto_id },
+                            fabricoId,
+                        );
                     }
 
                     const etapasPorFicha = fichasNovas.length
@@ -298,7 +320,12 @@ export class PedidoService {
                         : new Map<CreatePedidoFichaDto, number | null>();
 
                     const gradePorProduto = fichasNovas.length
-                        ? await this.alinharGradesDosProdutos(tx, fichasNovas, produtosNovos)
+                        ? await this.alinharGradesDosProdutos(
+                              tx,
+                              fichasNovas,
+                              produtosNovos,
+                              fabricoId,
+                          )
                         : new Map<number, number>();
 
                     if (idsParaRemover.length) {
@@ -338,6 +365,7 @@ export class PedidoService {
                                             grade_versao_id: fichaDb.grade_versao_id,
                                         },
                                     ],
+                                    fabricoId,
                                 );
                                 gradeVersaoId = gradeMap.get(fichaDb.produto_id)!;
                             }
@@ -346,13 +374,22 @@ export class PedidoService {
                                 where: { ficha_tecnica_id: fichaDb.id },
                             });
 
-                            await this.criarItensDaFicha(
+                            const quantidadeDerivada = await this.criarItensDaFicha(
                                 tx,
                                 fichaDb.id,
                                 gradeVersaoId,
                                 fabricoId,
                                 fichaDto,
                             );
+
+                            if (
+                                fichaDto.quantidade !== undefined &&
+                                Number(fichaDto.quantidade) !== quantidadeDerivada
+                            ) {
+                                throw new BadRequestException(
+                                    `A quantidade informada (${fichaDto.quantidade}) não corresponde à soma dos itens da matriz (${quantidadeDerivada})`,
+                                );
+                            }
 
                             await tx.fichaTecnica.update({
                                 where: { id: fichaDb.id },
@@ -362,7 +399,7 @@ export class PedidoService {
                                 },
                             });
 
-                            fichaDb.quantidade = Number(fichaDto.quantidade) || 0;
+                            fichaDb.quantidade = quantidadeDerivada;
                             fichaDb.grade_versao_id = gradeVersaoId;
                         }
 
@@ -432,9 +469,6 @@ export class PedidoService {
                             cliente_id: data.cliente_id ?? null,
                             data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                             observacoes: data.observacoes,
-                            ...(data.finalizado !== undefined
-                                ? { finalizado: data.finalizado }
-                                : {}),
                             quantidade: totais.quantidade,
                             valor_total: totais.valor_total,
                             custo_total: totais.custo_total,
@@ -497,20 +531,34 @@ export class PedidoService {
                 fabrico_id: params.fabricoId,
                 grade_versao_id: params.gradeVersaoId,
                 etapa_atual_id: params.etapaAtualId,
-                quantidade: Number(params.fichaDto.quantidade) || 0,
+                quantidade: 0,
                 concluida: false,
                 observacoes: params.fichaDto.observacoes,
                 numero: params.numero,
             },
         });
 
-        await this.criarItensDaFicha(
+        const quantidadeDerivada = await this.criarItensDaFicha(
             tx,
             ficha.id,
             params.gradeVersaoId,
             params.fabricoId,
             params.fichaDto,
         );
+
+        if (
+            params.fichaDto.quantidade !== undefined &&
+            Number(params.fichaDto.quantidade) !== quantidadeDerivada
+        ) {
+            throw new BadRequestException(
+                `A quantidade informada (${params.fichaDto.quantidade}) não corresponde à soma dos itens da matriz (${quantidadeDerivada})`,
+            );
+        }
+
+        await tx.fichaTecnica.update({
+            where: { id: ficha.id },
+            data: { quantidade: quantidadeDerivada },
+        });
 
         if (params.etapaAtualId) {
             await this.registrarEtapaInicial(tx, ficha.id, params.etapaAtualId, params.fabricoId);
@@ -522,7 +570,7 @@ export class PedidoService {
             await this.vincularClienteProduto(tx, params.clienteId, produtoId, params.fichaDto);
         }
 
-        return ficha;
+        return { ...ficha, quantidade: quantidadeDerivada };
     }
 
     /**
@@ -533,6 +581,7 @@ export class PedidoService {
         tx: Prisma.TransactionClient,
         fichasDto: CreatePedidoFichaDto[],
         produtos: { id: number; grade_versao_id: number | null }[],
+        fabricoId: number,
     ): Promise<Map<number, number>> {
         const gradePorProduto = new Map<number, number | null>(
             produtos.map((produto) => [produto.id, produto.grade_versao_id]),
@@ -549,21 +598,30 @@ export class PedidoService {
                 throw new BadRequestException("Produto não possui grade definida");
             }
 
-            if (gradeDesejada !== gradeAtual) {
-                const gradeValida = await tx.gradeVersao.findFirst({
-                    where: { id: gradeDesejada, ativo: true },
-                    select: { id: true },
-                });
+            const gradeValida = await tx.gradeVersao.findFirst({
+                where: {
+                    id: gradeDesejada,
+                    ativo: true,
+                    grade: {
+                        ativo: true,
+                        fabrico_grades: {
+                            some: { fabrico_id: fabricoId, ativo: true },
+                        },
+                    },
+                },
+                select: { id: true },
+            });
 
-                if (!gradeValida) {
-                    throw new BadRequestException("Versão de grade inválida ou inativa");
-                }
-
-                await tx.produto.update({
-                    where: { id: produtoId },
-                    data: { grade_versao_id: gradeDesejada },
-                });
+            if (!gradeValida) {
+                throw new BadRequestException(
+                    "Versão de grade inválida, inativa ou não liberada para este fabrico",
+                );
             }
+
+            await tx.produto.update({
+                where: { id: produtoId },
+                data: { grade_versao_id: gradeDesejada },
+            });
 
             gradePorProduto.set(produtoId, gradeDesejada);
         }
@@ -619,8 +677,20 @@ export class PedidoService {
         gradeVersaoId: number,
         fabricoId: number,
         fichaDto: CreatePedidoFichaDto,
-    ) {
+    ): Promise<number> {
         const itensDto = fichaDto.itens ?? [];
+        const quantidadeDeclarada = Number(fichaDto.quantidade) || 0;
+        if (itensDto.length === 0) {
+            throw new BadRequestException("A matriz de itens não pode ser vazia.");
+        }
+
+        const somaMatriz = itensDto.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
+        if (somaMatriz !== quantidadeDeclarada) {
+            throw new BadRequestException(
+                `A soma dos itens (${somaMatriz}) difere da quantidade total informada (${quantidadeDeclarada}).`,
+            );
+        }
+
         const coresIds = [
             ...new Set([
                 ...(fichaDto.cores_ids ?? []).map(Number),
@@ -629,7 +699,12 @@ export class PedidoService {
         ];
 
         if (!coresIds.length) {
-            return;
+            if (quantidadeDeclarada > 0) {
+                throw new BadRequestException(
+                    "A ficha técnica informa quantidade maior que zero, mas não possui matriz de cores/tamanhos",
+                );
+            }
+            return 0;
         }
 
         const coresValidas = await tx.cor.findMany({
@@ -686,6 +761,7 @@ export class PedidoService {
                 })),
             ),
         });
+        return [...quantidadePorChave.values()].reduce((total, q) => total + q, 0);
     }
 
     private async registrarEtapaInicial(
@@ -799,7 +875,7 @@ export class PedidoService {
         fichaDto: CreatePedidoFichaDto,
     ) {
         const nomeParaCliente = fichaDto.nome_para_cliente ?? "";
-        const precoPadrao = fichaDto.preco_padrao ?? null;
+        const precoPadrao = fichaDto.preco_padrao ?? undefined;
 
         await tx.clienteProduto.upsert({
             where: { produto_id_cliente_id: { produto_id: produtoId, cliente_id: clienteId } },
@@ -886,6 +962,10 @@ export class PedidoService {
 
         if (!pedido) {
             throw new NotFoundException("Pedido não encontrado!");
+        }
+
+        if (pedido.finalizado) {
+            throw new BadRequestException("Pedidos finalizados não podem ser deletados.");
         }
 
         await this.prisma.pedido.delete({ where: { id: pedido.id } });

@@ -40,6 +40,12 @@ export class TransferenciaEtapaService {
                     throw new NotFoundException("Ficha técnica não encontrada");
                 }
 
+                if (ficha.concluida) {
+                    throw new BadRequestException(
+                        "Não é possível transferir etapa de uma ficha técnica já concluída",
+                    );
+                }
+
                 // Se já está na etapa destino não repete nada
                 if (ficha.etapa_atual_id === etapa_destino_id) {
                     return tx.fichaTecnica.findUnique({
@@ -67,6 +73,16 @@ export class TransferenciaEtapaService {
                 if (!etapaOrigem || !etapaDestino) {
                     throw new BadRequestException(
                         "A etapa não pertence ao mesmo fabrico da ficha técnica",
+                    );
+                }
+
+                if (!etapaDestino.ativa) {
+                    throw new BadRequestException("A etapa de destino está inativa");
+                }
+
+                if (etapaDestino.ordem <= etapaOrigem.ordem) {
+                    throw new BadRequestException(
+                        "Não é permitido retornar para etapas anteriores",
                     );
                 }
 
