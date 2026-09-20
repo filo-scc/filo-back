@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaEtapaService } from "./ficha-etapa.service";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
@@ -73,39 +78,10 @@ describe("FichaEtapaService", () => {
         expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
     });
 
-    it("permite criação por admin quando o fabrico é informado no body", async () => {
-        prisma.fichaEtapa.findUnique.mockResolvedValue(null);
-        prisma.fichaEtapa.create.mockResolvedValue({ id: 1 });
-
-        await service.createFichaEtapa(
-            { ficha_tecnica_id: 10, etapa_id: 20, fabrico_id: 30 },
-            admin,
-        );
-
-        expect(etapaService.getById).toHaveBeenCalledWith(20, 30);
-        expect(prisma.fichaEtapa.create).toHaveBeenCalledWith({
-            data: {
-                ficha_tecnica_id: 10,
-                etapa_id: 20,
-                data_inicio: expect.any(Date),
-            },
-        });
-    });
-
-    it("rejeita criação por admin sem fabrico informado", async () => {
+    it("rejeita criação por admin", async () => {
         await expect(
             service.createFichaEtapa({ ficha_tecnica_id: 10, etapa_id: 20 }, admin),
-        ).rejects.toThrow(BadRequestException);
-        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
-    });
-
-    it("rejeita criação tenant com fabrico_id diferente do usuário autenticado", async () => {
-        await expect(
-            service.createFichaEtapa(
-                { ficha_tecnica_id: 10, etapa_id: 20, fabrico_id: 99 },
-                gerenteFabrico30,
-            ),
-        ).rejects.toThrow(BadRequestException);
+        ).rejects.toThrow(ForbiddenException);
         expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
     });
 
@@ -312,6 +288,11 @@ describe("FichaEtapaService", () => {
         await expect(service.updateFichaEtapa(1, {}, gerenteFabrico30)).rejects.toThrow(
             new NotFoundException("FichaEtapa não encontrada"),
         );
+    });
+
+    it("rejeita update por admin", async () => {
+        await expect(service.updateFichaEtapa(1, {}, admin)).rejects.toThrow(ForbiddenException);
+        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
     });
 
     it("rejeita update para vínculo duplicado", async () => {

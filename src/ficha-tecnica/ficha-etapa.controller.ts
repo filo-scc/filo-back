@@ -24,7 +24,7 @@ import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 export class FichaEtapaController {
     constructor(private readonly fichaEtapaService: FichaEtapaService) {}
 
-    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     createFichaEtapa(@Body() data: CreateFichaEtapaDto, @CurrentUser() user: AuthenticatedUser) {
         return this.fichaEtapaService.createFichaEtapa(data, user);
@@ -66,7 +66,7 @@ export class FichaEtapaController {
         return this.fichaEtapaService.finalizarFichaEtapa(idFichaEtapa, user);
     }
 
-    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":ficha_etapa_id")
     updateFichaEtapa(
         @Param("ficha_etapa_id", ParseIntPipe) idFichaEtapa: number,

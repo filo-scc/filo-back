@@ -11,6 +11,7 @@ const mockPrismaService = {
         update: jest.fn(),
         delete: jest.fn(),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         findMany: jest.fn(),
     },
     icone: {
@@ -172,6 +173,24 @@ describe("EtapaService", () => {
                 include: { icone: true, icone_verde: true, icone_cinza: true },
             });
         });
+
+        it("rejeita listagem de um fabrico diferente para usuário tenant", async () => {
+            await expect(service.findAllByFabricoID(2, gerenteFabrico1)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.etapa.findMany).not.toHaveBeenCalled();
+        });
+
+        it("permite que admin liste as etapas de um fabrico específico", async () => {
+            mockPrismaService.etapa.findMany.mockResolvedValue([etapaFabrico2]);
+
+            await expect(service.findAllByFabricoID(2, admin)).resolves.toEqual([etapaFabrico2]);
+            expect(mockPrismaService.etapa.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 2 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
+        });
     });
 
     describe("getById", () => {
@@ -191,6 +210,13 @@ describe("EtapaService", () => {
             expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
                 where: { id: 2, fabrico_id: 1 },
             });
+        });
+
+        it("permite que admin consulte uma etapa pelo id", async () => {
+            mockPrismaService.etapa.findUnique.mockResolvedValue(etapaFabrico2);
+
+            await expect(service.getById(2, admin)).resolves.toEqual(etapaFabrico2);
+            expect(mockPrismaService.etapa.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
         });
     });
 
@@ -226,6 +252,29 @@ describe("EtapaService", () => {
             );
             expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
         });
+
+        it("permite que admin atualize uma etapa quando informa o fabrico no body", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico2);
+            mockPrismaService.etapa.update.mockResolvedValue({ ...etapaFabrico2, nome: "Corte" });
+
+            await expect(
+                service.update(2, { nome: "Corte", fabrico_id: 2 }, admin),
+            ).resolves.toEqual({ ...etapaFabrico2, nome: "Corte" });
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 2, fabrico_id: 2 },
+            });
+            expect(mockPrismaService.etapa.update).toHaveBeenCalledWith({
+                where: { id: 2 },
+                data: { nome: "Corte" },
+            });
+        });
+
+        it("rejeita update por admin sem fabrico informado", async () => {
+            await expect(service.update(2, { nome: "Corte" }, admin)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
+        });
     });
 
     describe("delete", () => {
@@ -242,6 +291,15 @@ describe("EtapaService", () => {
 
             await expect(service.delete(2, gerenteFabrico1)).rejects.toThrow(NotFoundException);
             expect(mockPrismaService.etapa.delete).not.toHaveBeenCalled();
+        });
+
+        it("permite que admin exclua uma etapa identificada pelo id", async () => {
+            mockPrismaService.etapa.findUnique.mockResolvedValue(etapaFabrico2);
+            mockPrismaService.etapa.delete.mockResolvedValue(etapaFabrico2);
+
+            await expect(service.delete(2, admin)).resolves.toEqual(etapaFabrico2);
+            expect(mockPrismaService.etapa.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
+            expect(mockPrismaService.etapa.delete).toHaveBeenCalledWith({ where: { id: 2 } });
         });
     });
 });

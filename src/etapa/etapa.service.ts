@@ -101,12 +101,6 @@ export class EtapaService {
         }
     }
 
-    async findAll(user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-
-        return this.findAllByFabricoID(fabricoId, user);
-    }
-
     async findAllByFabricoID(fabrico_id: number, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user, fabrico_id);
 
@@ -134,6 +128,16 @@ export class EtapaService {
     }
 
     async getById(id: number, scope: FabricoScope) {
+        if (typeof scope !== "number" && scope.cargo === "ADMIN") {
+            const etapa = await this.prisma.etapa.findUnique({ where: { id } });
+
+            if (!etapa) {
+                throw new NotFoundException("Etapa não encontrada");
+            }
+
+            return etapa;
+        }
+
         const fabricoId = this.resolverFabricoId(scope);
         const etapa = await this.prisma.etapa.findFirst({
             where: {
@@ -194,8 +198,7 @@ export class EtapaService {
     }
 
     async delete(id: number, scope: FabricoScope) {
-        const fabricoId = this.resolverFabricoId(scope);
-        const etapa = await this.getById(id, fabricoId);
+        const etapa = await this.getById(id, scope);
 
         return this.prisma.$transaction(async (tx) => {
             const produtoIds = await this.obterProdutosDosFabricos([etapa.fabrico_id], tx);

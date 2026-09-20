@@ -27,23 +27,13 @@ export class FichaEtapaService {
         }
     }
 
-    private resolverFabricoId(user: AuthenticatedUser, fabricoInformado?: number): number {
+    private resolverFabricoId(user: AuthenticatedUser): number {
         if (user.cargo === "ADMIN") {
-            if (!fabricoInformado) {
-                throw new BadRequestException("O fabrico deve ser informado pelo administrador");
-            }
-
-            return Number(fabricoInformado);
+            throw new ForbiddenException("Administrador não pode acessar fichas-etapas");
         }
 
         if (!user.fabrico_id) {
             throw new ForbiddenException("Usuário não está associado a um fabrico");
-        }
-
-        if (fabricoInformado !== undefined && Number(fabricoInformado) !== user.fabrico_id) {
-            throw new BadRequestException(
-                "Não é permitido escolher um fabrico diferente do usuário autenticado",
-            );
         }
 
         return user.fabrico_id;
@@ -56,9 +46,7 @@ export class FichaEtapaService {
     }
 
     async createFichaEtapa(data: CreateFichaEtapaDto, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
-        const dadosFichaEtapa = { ...data };
-        delete dadosFichaEtapa.fabrico_id;
+        const fabricoId = this.resolverFabricoId(user);
 
         const [ficha, etapa] = await Promise.all([
             this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
@@ -90,7 +78,7 @@ export class FichaEtapaService {
                 const dataInicio = new Date();
                 const fichaEtapa = await tx.fichaEtapa.create({
                     data: {
-                        ...dadosFichaEtapa,
+                        ...data,
                         data_inicio: dataInicio,
                     },
                 });
@@ -213,9 +201,7 @@ export class FichaEtapaService {
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
-        const dadosFichaEtapa = { ...data };
-        delete dadosFichaEtapa.fabrico_id;
+        const fabricoId = this.resolverFabricoId(user);
 
         const atual = await this.prisma.fichaEtapa.findUnique({
             where: { id },
@@ -255,7 +241,7 @@ export class FichaEtapaService {
             return this.prisma.fichaEtapa.update({
                 where: { id },
                 data: {
-                    ...dadosFichaEtapa,
+                    ...data,
                 },
             });
         } catch (error) {

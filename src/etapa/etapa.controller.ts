@@ -29,12 +29,6 @@ export class EtapaController {
         return this.etapaService.create(data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
-    @Get()
-    getAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.etapaService.findAll(user);
-    }
-
     @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
     findAllByFabricoID(
@@ -44,13 +38,13 @@ export class EtapaController {
         return this.etapaService.findAllByFabricoID(fabrico_id, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.etapaService.getById(id, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
@@ -60,7 +54,7 @@ export class EtapaController {
         return this.etapaService.update(id, data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
+    @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.etapaService.delete(id, user);
