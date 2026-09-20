@@ -128,26 +128,6 @@ describe("ParceiroService", () => {
         });
     });
 
-    describe("getAllparceiroByFabrico()", () => {
-        it("deve retornar parceiros apenas do fabrico autenticado", async () => {
-            mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
-
-            const result = await service.getAllparceiroByFabrico(1, userFabrico1);
-
-            expect(result).toEqual([mockParceiro]);
-            expect(prisma.parceiro.findMany).toHaveBeenCalledWith(
-                expect.objectContaining({ where: { fabrico_id: 1 } }),
-            );
-        });
-
-        it("deve rejeitar fabrica da URL diferente da autenticada", async () => {
-            await expect(service.getAllparceiroByFabrico(2, userFabrico1)).rejects.toThrow(
-                BadRequestException,
-            );
-            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
-        });
-    });
-
     describe("getById()", () => {
         it("deve retornar parceiro do fabrico autenticado", async () => {
             mockPrismaService.parceiro.findFirst.mockResolvedValue(mockParceiro);
@@ -304,13 +284,6 @@ describe("ParceiroService", () => {
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 1, categoria: "Costura" },
             });
-        });
-
-        it("deve rejeitar categoria com fabrico diferente do autenticado", async () => {
-            await expect(
-                service.getParceirosByFabricoECategoria("Costura", userFabrico1, 2),
-            ).rejects.toThrow(BadRequestException);
-            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
         });
     });
 });

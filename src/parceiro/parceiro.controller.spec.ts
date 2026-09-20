@@ -7,7 +7,6 @@ describe("ParceiroController", () => {
     let controller: ParceiroController;
     let parceiroService: {
         create: jest.Mock;
-        getAllparceiroByFabrico: jest.Mock;
         getAll: jest.Mock;
         getById: jest.Mock;
         update: jest.Mock;
@@ -28,7 +27,6 @@ describe("ParceiroController", () => {
     beforeEach(async () => {
         parceiroService = {
             create: jest.fn(),
-            getAllparceiroByFabrico: jest.fn(),
             getAll: jest.fn(),
             getById: jest.fn(),
             update: jest.fn(),
@@ -75,17 +73,6 @@ describe("ParceiroController", () => {
         expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(
             "Costura",
             user,
-        );
-    });
-
-    it("consulta rota legada validando o fabrico da URL no service", async () => {
-        parceiroService.getParceirosByFabricoECategoria.mockResolvedValue([]);
-
-        await expect(controller.getByFabricoECategoria(7, "Costura", user)).resolves.toEqual([]);
-        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(
-            "Costura",
-            user,
-            7,
         );
     });
 

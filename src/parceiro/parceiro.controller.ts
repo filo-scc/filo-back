@@ -30,14 +30,6 @@ export class ParceiroController {
         return this.parceiroService.create(data, user);
     }
 
-    @Get("fabrico/:id")
-    findAllparceiroByFabrico(
-        @Param("id", ParseIntPipe) id: number,
-        @CurrentUser() user: AuthenticatedUser,
-    ) {
-        return this.parceiroService.getAllparceiroByFabrico(id, user);
-    }
-
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
         return this.parceiroService.getAll(user);
@@ -68,14 +60,5 @@ export class ParceiroController {
     @Delete(":id")
     remove(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseIntPipe) id: number) {
         return this.parceiroService.delete(id, user);
-    }
-
-    @Get("fabrico/:fabricoId/categoria/:categoria")
-    async getByFabricoECategoria(
-        @Param("fabricoId", ParseIntPipe) fabricoId: number,
-        @Param("categoria") categoria: string,
-        @CurrentUser() user: AuthenticatedUser,
-    ) {
-        return this.parceiroService.getParceirosByFabricoECategoria(categoria, user, fabricoId);
     }
 }

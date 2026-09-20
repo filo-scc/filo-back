@@ -22,34 +22,19 @@ export class ParceiroService {
 
     private getTenantFabricoId(user: AuthenticatedUser): number {
         if (user.cargo === "ADMIN") {
-            throw new ForbiddenException("Administrador nao pode acessar parceiros sem escopo");
+            throw new ForbiddenException("Administrador não pode acessar parceiros sem escopo");
         }
 
         if (!user.fabrico_id) {
-            throw new ForbiddenException("Usuario nao esta associado a um fabrico");
+            throw new ForbiddenException("Usuario não esta associado a um fabrico");
         }
 
         return user.fabrico_id;
     }
 
-    private getTenantFabricoIdFromRoute(
-        user: AuthenticatedUser,
-        fabricoIdInformado?: number,
-    ): number {
-        const fabricoId = this.getTenantFabricoId(user);
-
-        if (fabricoIdInformado !== undefined && fabricoIdInformado !== fabricoId) {
-            throw new BadRequestException(
-                "Nao e permitido consultar um fabrico diferente do usuario autenticado",
-            );
-        }
-
-        return fabricoId;
-    }
-
     private assertPayloadNaoEscolheFabrico(data: { fabrico_id?: unknown }) {
         if (Object.prototype.hasOwnProperty.call(data, "fabrico_id")) {
-            throw new BadRequestException("fabrico_id nao deve ser informado para parceiros");
+            throw new BadRequestException("fabrico_id não deve ser informado para parceiros");
         }
     }
 
@@ -70,15 +55,6 @@ export class ParceiroService {
         }
     }
 
-    async getAllparceiroByFabrico(id: number, user: AuthenticatedUser) {
-        const fabricoId = this.getTenantFabricoIdFromRoute(user, id);
-
-        return await this.prisma.parceiro.findMany({
-            where: { fabrico_id: fabricoId },
-            include: { endereco: true },
-        });
-    }
-
     async getById(id: number, user: AuthenticatedUser) {
         const fabricoId = this.getTenantFabricoId(user);
 
@@ -94,7 +70,7 @@ export class ParceiroService {
         });
 
         if (!parceiro) {
-            throw new NotFoundException("Parceiro nao encontrado!");
+            throw new NotFoundException("Parceiro não encontrado!");
         }
 
         return parceiro;
@@ -114,7 +90,7 @@ export class ParceiroService {
         });
 
         if (existente) {
-            throw new ConflictException("Ja existe um parceiro com esse nome nesse fabrico");
+            throw new ConflictException("Já existe um parceiro com esse nome nesse fabrico");
         }
 
         const enderecoCriado = await this.enderecoService.create(endereco ?? {});
@@ -151,13 +127,13 @@ export class ParceiroService {
             });
 
             if (existente) {
-                throw new ConflictException("Ja existe uma parceiro com esse nome nesse fabrico");
+                throw new ConflictException("Já existe uma parceiro com esse nome nesse fabrico");
             }
         }
 
         if (endereco) {
             if (!parceiroAtual.endereco) {
-                throw new NotFoundException("Endereco da parceiro nao encontrado");
+                throw new NotFoundException("Endereço da parceiro não encontrado");
             }
             await this.enderecoService.update(parceiroAtual.endereco.id, endereco);
         }
@@ -179,7 +155,7 @@ export class ParceiroService {
         const parceiro = await this.getById(id, user);
 
         if (!parceiro) {
-            throw new NotFoundException("Parceiro nao encontrado");
+            throw new NotFoundException("Parceiro não encontrado");
         }
 
         await this.prisma.$transaction(async (tx) => {
@@ -194,12 +170,8 @@ export class ParceiroService {
         return { message: "Parceiro foi removido com sucesso" };
     }
 
-    async getParceirosByFabricoECategoria(
-        categoria: string,
-        user: AuthenticatedUser,
-        fabricoIdInformado?: number,
-    ) {
-        const fabricoId = this.getTenantFabricoIdFromRoute(user, fabricoIdInformado);
+    async getParceirosByFabricoECategoria(categoria: string, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
 
         return await this.prisma.parceiro.findMany({
             where: {
