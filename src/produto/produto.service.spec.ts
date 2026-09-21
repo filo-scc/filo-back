@@ -115,7 +115,7 @@ describe("ProdutoService", () => {
             const res = await service.findAll(mockUser);
             expect(res).toEqual([{ id: 1, nome: "Camiseta" }]);
             expect(prisma.produto.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 10 },
+                where: { fabrico_id: 10, ativo: true },
                 orderBy: { nome: "asc" },
             });
         });
@@ -126,7 +126,7 @@ describe("ProdutoService", () => {
             const res = await service.findAllFabrico(mockUser);
             expect(res).toEqual([{ id: 1, nome: "Camiseta", tecido: {} }]);
             expect(prisma.produto.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 10 },
+                where: { fabrico_id: 10, ativo: true },
                 include: { tecido: true },
                 orderBy: { nome: "asc" },
             });
@@ -139,6 +139,18 @@ describe("ProdutoService", () => {
 
             const res = await service.getById(1, mockUser);
             expect(res).toEqual({ id: 1, nome: "Camiseta", fabrico_id: 10 });
+        });
+
+        it("não encontra produto inativo quando a operação exclui inativos", async () => {
+            prisma.produto.findFirst.mockResolvedValue(null);
+
+            await expect(service.getById(1, mockUser, false)).rejects.toThrow(
+                new NotFoundException("Produto não encontrado"),
+            );
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 10, ativo: true },
+                include: { tecido: true },
+            });
         });
 
         it("lança NotFoundException se produto não for encontrado", async () => {
@@ -186,13 +198,19 @@ describe("ProdutoService", () => {
         });
     });
 
-    describe("delete", () => {
-        it("deleta produto existente", async () => {
+    describe("softDelete", () => {
+        it("desativa produto existente sem removê-lo permanentemente", async () => {
             prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
-            prisma.produto.delete.mockResolvedValue({ id: 1 });
+            prisma.produto.update.mockResolvedValue({ id: 1, ativo: false });
 
-            const res = await service.delete(1, mockUser);
-            expect(res).toBe("O produto com o id 1 foi deletado com sucesso");
+            const res = await service.softDelete(1, mockUser);
+
+            expect(res).toBe("O produto com o id 1 foi desativado com sucesso");
+            expect(prisma.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { ativo: false, delete_at: expect.any(Date) },
+            });
+            expect(prisma.produto.delete).not.toHaveBeenCalled();
         });
     });
 
@@ -205,6 +223,7 @@ describe("ProdutoService", () => {
             expect(prisma.produto.findMany).toHaveBeenCalledWith({
                 where: {
                     fabrico_id: 10,
+                    ativo: true,
                     cliente_produto: { none: { cliente_id: 5 } },
                 },
                 orderBy: { nome: "asc" },

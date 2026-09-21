@@ -210,7 +210,7 @@ export class FichaTecnicaService {
 
     async findAllByEtapaId(id: number) {
         try {
-            return this.prisma.fichaTecnica.findMany({
+            return await this.prisma.fichaTecnica.findMany({
                 where: { etapa_atual_id: Number(id) },
                 include: {
                     produto: true,
