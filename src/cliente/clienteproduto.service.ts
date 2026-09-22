@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateClienteProdutoDto } from "./dto/create-clienteproduto.dto";
 import { UpdateClienteProdutoDto } from "./dto/update-clienteproduto.dto";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ClienteProdutoService {
@@ -49,8 +50,10 @@ export class ClienteProdutoService {
         cliente_id: number,
         produto_id: number,
         data: UpdateClienteProdutoDto,
-        fabricoId: number,
+        user: BusinessAuthenticatedUser,
     ) {
+        const fabricoId = user.fabrico_id;
+
         try {
             if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
                 throw new BadRequestException("O preço não pode ser negativo.");
@@ -82,8 +85,10 @@ export class ClienteProdutoService {
         cliente_id: number,
         produto_id: number,
         data: CreateClienteProdutoDto,
-        fabricoId: number,
+        user: BusinessAuthenticatedUser,
     ) {
+        const fabricoId = user.fabrico_id;
+
         if (data.preco_padrao !== undefined && data.preco_padrao < 0) {
             throw new BadRequestException("O preço não pode ser negativo.");
         }
@@ -113,7 +118,9 @@ export class ClienteProdutoService {
         });
     }
 
-    async getAllProdutoByCliente(cliente_id: number, fabricoId: number) {
+    async getAllProdutoByCliente(cliente_id: number, user: BusinessAuthenticatedUser) {
+        const fabricoId = user.fabrico_id;
+
         try {
             await this.assertClienteDoFabrico(this.prisma, cliente_id, fabricoId);
 
@@ -149,7 +156,9 @@ export class ClienteProdutoService {
         }
     }
 
-    async getAllClienteByProduto(produto_id: number, fabricoId: number) {
+    async getAllClienteByProduto(produto_id: number, user: BusinessAuthenticatedUser) {
+        const fabricoId = user.fabrico_id;
+
         try {
             await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId);
 
@@ -181,7 +190,13 @@ export class ClienteProdutoService {
         }
     }
 
-    async removeClienteProduto(cliente_id: number, produto_id: number, fabricoId: number) {
+    async removeClienteProduto(
+        cliente_id: number,
+        produto_id: number,
+        user: BusinessAuthenticatedUser,
+    ) {
+        const fabricoId = user.fabrico_id;
+
         try {
             await this.assertClienteDoFabrico(this.prisma, cliente_id, fabricoId);
             await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId);

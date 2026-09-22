@@ -31,7 +31,7 @@ export class ClienteProdutoController {
         @Param("clienteId", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteProdutoService.getAllProdutoByCliente(cliente_id, user.fabrico_id);
+        return this.clienteProdutoService.getAllProdutoByCliente(cliente_id, user);
     }
 
     @Get("/produto/:produtoId")
@@ -39,7 +39,7 @@ export class ClienteProdutoController {
         @Param("produtoId", ParseIntPipe) produto_id: number,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteProdutoService.getAllClienteByProduto(produto_id, user.fabrico_id);
+        return this.clienteProdutoService.getAllClienteByProduto(produto_id, user);
     }
 
     @Post("/:clienteId/:produtoId")
@@ -49,12 +49,7 @@ export class ClienteProdutoController {
         @Body() dto: CreateClienteProdutoDto,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteProdutoService.vincularClienteProduto(
-            cliente_id,
-            produto_id,
-            dto,
-            user.fabrico_id,
-        );
+        return this.clienteProdutoService.vincularClienteProduto(cliente_id, produto_id, dto, user);
     }
 
     @Delete("/:clienteId/:produtoId")
@@ -63,11 +58,7 @@ export class ClienteProdutoController {
         @Param("produtoId", ParseIntPipe) produto_id: number,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteProdutoService.removeClienteProduto(
-            cliente_id,
-            produto_id,
-            user.fabrico_id,
-        );
+        return this.clienteProdutoService.removeClienteProduto(cliente_id, produto_id, user);
     }
 
     @Put("/:clienteId/:produtoId")
@@ -77,11 +68,6 @@ export class ClienteProdutoController {
         @Body() data: UpdateClienteProdutoDto,
         @CurrentUser() user: BusinessAuthenticatedUser,
     ) {
-        return this.clienteProdutoService.updateClienteProduto(
-            cliente_id,
-            produto_id,
-            data,
-            user.fabrico_id,
-        );
+        return this.clienteProdutoService.updateClienteProduto(cliente_id, produto_id, data, user);
     }
 }
