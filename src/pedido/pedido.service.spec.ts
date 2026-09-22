@@ -79,6 +79,7 @@ describe("PedidoService", () => {
 
         clienteProduto: {
             upsert: jest.fn(),
+            findMany: jest.fn(),
         },
 
         fichaTecnica: {
@@ -149,6 +150,7 @@ describe("PedidoService", () => {
             _sum: { quantidade: 30 },
             _count: { _all: 1 },
         });
+        mockPrismaService.clienteProduto.findMany.mockResolvedValue([]);
     });
 
     it("should be defined", () => {
@@ -642,6 +644,9 @@ describe("PedidoService", () => {
             });
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.clienteProduto.findMany.mockResolvedValue([
+                { produto_id: 5, preco_padrao: toMoney(20) },
+            ]);
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
             mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
                 _sum: { quantidade: 30 },
@@ -667,11 +672,104 @@ describe("PedidoService", () => {
                 data: { quantidade: 30 },
             });
             expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    update: {},
+                }),
+            );
+            expect(mockPrismaService.clienteProduto.findMany).toHaveBeenCalledWith({
+                where: { cliente_id: 7, produto_id: { in: [5] } },
+                select: { produto_id: true, preco_padrao: true },
+            });
+            // 30 peças x preço persistido 20 (payload omitiu preco_padrao)
             expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
                 where: { id: 100 },
                 data: expect.objectContaining({
                     quantidade: 30,
                     custo_total: toMoney(300),
+                    valor_total: toMoney(600),
+                }),
+            });
+        });
+
+        it("deve recuperar preco_padrao persistido ao editar só a data sem reenviar o preço", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.clienteProduto.findMany.mockResolvedValue([
+                { produto_id: 5, preco_padrao: toMoney(25) },
+            ]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
+            mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                _sum: { quantidade: 30 },
+                _count: { _all: 1 },
+            });
+
+            await service.updateCompleto(
+                100,
+                {
+                    data_prevista: "2026-10-01T00:00:00.000Z",
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                        },
+                    ],
+                },
+                usuario,
+            );
+
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    update: {},
+                }),
+            );
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
+                    data_prevista: new Date("2026-10-01T00:00:00.000Z"),
+                    quantidade: 30,
+                    custo_total: toMoney(300),
+                    valor_total: toMoney(750),
+                }),
+            });
+        });
+
+        it("deve zerar valor_total quando preco_padrao é enviado explicitamente como null", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
+            mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
+            mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                _sum: { quantidade: 30 },
+                _count: { _all: 1 },
+            });
+
+            await service.updateCompleto(
+                100,
+                {
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                            preco_padrao: null,
+                        },
+                    ],
+                },
+                usuario,
+            );
+
+            expect(mockPrismaService.clienteProduto.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    update: { preco_padrao: null },
+                }),
+            );
+            expect(mockPrismaService.clienteProduto.findMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 100 },
+                data: expect.objectContaining({
                     valor_total: toMoney(0),
                 }),
             });

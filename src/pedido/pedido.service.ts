@@ -1102,8 +1102,22 @@ export class PedidoService {
         produtoId: number,
         fichaDto: CreatePedidoFichaDto,
     ) {
-        const nomeParaCliente = fichaDto.nome_para_cliente ?? "";
-        const precoPadrao = toMoneyOrNull(fichaDto.preco_padrao);
+        const nomeInformado = fichaDto.nome_para_cliente !== undefined;
+        const precoInformado = fichaDto.preco_padrao !== undefined;
+        const nomeParaCliente = nomeInformado ? (fichaDto.nome_para_cliente ?? "") : "";
+        const precoPadrao = precoInformado ? toMoneyOrNull(fichaDto.preco_padrao) : null;
+
+        // Omitir o campo no payload = manter o valor já persistido.
+        // null explícito em preco_padrao = limpar o preço cadastrado.
+        const update: { nome_para_cliente?: string; preco_padrao?: Prisma.Decimal | null } = {};
+
+        if (nomeInformado) {
+            update.nome_para_cliente = nomeParaCliente;
+        }
+
+        if (precoInformado) {
+            update.preco_padrao = precoPadrao;
+        }
 
         await tx.clienteProduto.upsert({
             where: { produto_id_cliente_id: { produto_id: produtoId, cliente_id: clienteId } },
@@ -1113,10 +1127,7 @@ export class PedidoService {
                 nome_para_cliente: nomeParaCliente,
                 preco_padrao: precoPadrao,
             },
-            update: {
-                nome_para_cliente: nomeParaCliente,
-                preco_padrao: precoPadrao,
-            },
+            update,
         });
     }
 
@@ -1148,11 +1159,7 @@ export class PedidoService {
         );
 
         const valorTotal = data.cliente_id
-            ? sumMoney(
-                  fichasDto.map((ficha) =>
-                      lineTotal(Number(ficha.quantidade) || 0, ficha.preco_padrao),
-                  ),
-              )
+            ? await this.calcularValorTotalDoCliente(tx, data.cliente_id, fichasDto)
             : null;
 
         return {
@@ -1160,6 +1167,57 @@ export class PedidoService {
             custo_total: custoTotal,
             valor_total: valorTotal,
         };
+    }
+
+    /**
+     * Usa o preco_padrao do payload quando informado (inclusive null explícito).
+     * Quando omitido, recupera o preço já cadastrado em ClienteProduto.
+     */
+    private async calcularValorTotalDoCliente(
+        tx: Prisma.TransactionClient,
+        clienteId: number,
+        fichasDto: CreatePedidoFichaDto[],
+    ) {
+        const produtosSemPrecoNoPayload = [
+            ...new Set(
+                fichasDto
+                    .filter((ficha) => ficha.preco_padrao === undefined)
+                    .map((ficha) => Number(ficha.produto_id)),
+            ),
+        ];
+
+        const precoPersistidoPorProduto = new Map<number, Prisma.Decimal | null>();
+
+        if (produtosSemPrecoNoPayload.length) {
+            const registros = await tx.clienteProduto.findMany({
+                where: {
+                    cliente_id: clienteId,
+                    produto_id: { in: produtosSemPrecoNoPayload },
+                },
+                select: { produto_id: true, preco_padrao: true },
+            });
+
+            for (const registro of registros) {
+                precoPersistidoPorProduto.set(
+                    registro.produto_id,
+                    registro.preco_padrao !== null && registro.preco_padrao !== undefined
+                        ? moneyOrZero(registro.preco_padrao)
+                        : null,
+                );
+            }
+        }
+
+        return sumMoney(
+            fichasDto.map((ficha) => {
+                const produtoId = Number(ficha.produto_id);
+                const precoUnitario =
+                    ficha.preco_padrao !== undefined
+                        ? ficha.preco_padrao
+                        : precoPersistidoPorProduto.get(produtoId);
+
+                return lineTotal(Number(ficha.quantidade) || 0, precoUnitario);
+            }),
+        );
     }
 
     async findAll(user: AuthenticatedUser) {
