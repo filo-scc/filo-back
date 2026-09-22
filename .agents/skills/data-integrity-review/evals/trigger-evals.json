@@ -1,0 +1,12 @@
+[
+  { "query": "Audite esta operação batch contra falha parcial e retry.", "should_trigger": true },
+  { "query": "Duas criações concorrentes podem gerar o mesmo número de pedido?", "should_trigger": true },
+  { "query": "Confira precisão Decimal, ROUND_HALF_UP e total persistido.", "should_trigger": true },
+  { "query": "Este delete em cascata pode deixar órfãos ou remover dados demais?", "should_trigger": true },
+  { "query": "Modele falha entre as três escritas deste service e verifique rollback.", "should_trigger": true },
+  { "query": "Revise somente a mudança de schema e o plano de backfill da migration.", "should_trigger": false },
+  { "query": "Compare o novo enum da API com o frontend publicado.", "should_trigger": false },
+  { "query": "Monte a matriz de papéis e revogação de sessão.", "should_trigger": false },
+  { "query": "Audite apenas acesso cruzado entre fábricas por ID.", "should_trigger": false },
+  { "query": "Ajuste a tipografia do dashboard.", "should_trigger": false }
+]

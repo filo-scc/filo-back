@@ -1,9 +1,16 @@
-import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    Injectable,
+    ConflictException,
+    NotFoundException,
+    ForbiddenException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnderecoService } from "../endereco/endereco.service";
 import { CreateParceiroDto } from "./dto/create-parceiro.dto";
 import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
 import { ProdutoService } from "src/produto/produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ParceiroService {
@@ -13,9 +20,30 @@ export class ParceiroService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async getAll() {
+    private getTenantFabricoId(user: AuthenticatedUser): number {
+        if (user.cargo === "ADMIN") {
+            throw new ForbiddenException("Administrador não pode acessar parceiros sem escopo");
+        }
+
+        if (!user.fabrico_id) {
+            throw new ForbiddenException("Usuario não esta associado a um fabrico");
+        }
+
+        return user.fabrico_id;
+    }
+
+    private assertPayloadNaoEscolheFabrico(data: { fabrico_id?: unknown }) {
+        if (Object.prototype.hasOwnProperty.call(data, "fabrico_id")) {
+            throw new BadRequestException("fabrico_id não deve ser informado para parceiros");
+        }
+    }
+
+    async getAll(user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
+
         try {
             return await this.prisma.parceiro.findMany({
+                where: { fabrico_id: fabricoId },
                 include: {
                     endereco: true,
                     parceiro_produto: { include: { produto: true } },
@@ -27,18 +55,14 @@ export class ParceiroService {
         }
     }
 
-    async getAllparceiroByFabrico(id: number) {
-        const parceiros = await this.prisma.parceiro.findMany({
-            where: { fabrico_id: id },
-            include: { endereco: true },
-        });
+    async getById(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
 
-        return parceiros;
-    }
-
-    async getById(id: number) {
-        const parceiro = await this.prisma.parceiro.findUnique({
-            where: { id },
+        const parceiro = await this.prisma.parceiro.findFirst({
+            where: {
+                id,
+                fabrico_id: fabricoId,
+            },
             include: {
                 endereco: true,
                 parceiro_produto: { include: { produto: true } },
@@ -52,13 +76,16 @@ export class ParceiroService {
         return parceiro;
     }
 
-    async create(data: CreateParceiroDto) {
-        const { endereco, ...dadosparceiro } = data;
+    async create(data: CreateParceiroDto, user: AuthenticatedUser) {
+        this.assertPayloadNaoEscolheFabrico(data as { fabrico_id?: unknown });
+        const fabricoId = this.getTenantFabricoId(user);
+        const { endereco, produtos, ...dadosparceiro } = data;
+        void produtos;
 
         const existente = await this.prisma.parceiro.findFirst({
             where: {
                 nome: dadosparceiro.nome,
-                fabrico_id: dadosparceiro.fabrico_id,
+                fabrico_id: fabricoId,
             },
         });
 
@@ -71,6 +98,7 @@ export class ParceiroService {
         await this.prisma.parceiro.create({
             data: {
                 ...dadosparceiro,
+                fabrico_id: fabricoId,
                 telefone: dadosparceiro.telefone ?? null,
                 endereco: { connect: { id: enderecoCriado.id } },
                 categoria: dadosparceiro.categoria ?? null,
@@ -81,18 +109,19 @@ export class ParceiroService {
         return { message: "Parceiro criado com sucesso" };
     }
 
-    async update(id: number, data: UpdateParceiroDto) {
-        const { endereco, ...dadosparceiro } = data;
+    async update(id: number, data: UpdateParceiroDto, user: AuthenticatedUser) {
+        this.assertPayloadNaoEscolheFabrico(data as { fabrico_id?: unknown });
+        const fabricoId = this.getTenantFabricoId(user);
+        const { endereco, produtos, ...dadosparceiro } = data;
+        void produtos;
 
-        const parceiroAtual = await this.getById(id);
-        const fabricoChecar = dadosparceiro.fabrico_id || parceiroAtual.fabrico_id;
+        const parceiroAtual = await this.getById(id, user);
 
-        if (dadosparceiro.nome || dadosparceiro.fabrico_id) {
-            const nomeChecar = dadosparceiro.nome || parceiroAtual.nome;
+        if (dadosparceiro.nome) {
             const existente = await this.prisma.parceiro.findFirst({
                 where: {
-                    nome: nomeChecar,
-                    fabrico_id: fabricoChecar,
+                    nome: dadosparceiro.nome,
+                    fabrico_id: fabricoId,
                     id: { not: id },
                 },
             });
@@ -122,8 +151,8 @@ export class ParceiroService {
         return { message: "Parceiro atualizado com sucesso" };
     }
 
-    async delete(id: number) {
-        const parceiro = await this.getById(id);
+    async delete(id: number, user: AuthenticatedUser) {
+        const parceiro = await this.getById(id, user);
 
         if (!parceiro) {
             throw new NotFoundException("Parceiro não encontrado");
@@ -141,7 +170,9 @@ export class ParceiroService {
         return { message: "Parceiro foi removido com sucesso" };
     }
 
-    async getParceirosByFabricoECategoria(fabricoId: number, categoria: string) {
+    async getParceirosByFabricoECategoria(categoria: string, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
+
         return await this.prisma.parceiro.findMany({
             where: {
                 fabrico_id: fabricoId,
