@@ -1,9 +1,15 @@
-import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+    Injectable,
+    ConflictException,
+    NotFoundException,
+    ForbiddenException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { ProdutoService } from "src/produto/produto.service";
 import { ParceiroService } from "./parceiro.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ParceiroProdutoService {
@@ -13,15 +19,35 @@ export class ParceiroProdutoService {
         private readonly parceiroService: ParceiroService,
     ) {}
 
+    private getTenantFabricoId(user: AuthenticatedUser): number {
+        if (user.cargo === "ADMIN") {
+            throw new ForbiddenException(
+                "Administrador não pode acessar associações de parceiros sem escopo",
+            );
+        }
+
+        if (!user.fabrico_id) {
+            throw new ForbiddenException("Usuario não está associado a um fabrico");
+        }
+
+        return user.fabrico_id;
+    }
+
     async createParceiroProduto(
         parceiro_id: number,
         produto_id: number,
         data: CreateParceiroProdutoDto,
+        user: AuthenticatedUser,
     ) {
+        const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
-            this.parceiroService.getById(parceiro_id),
+            this.parceiroService.getById(parceiro_id, user),
         ]);
+
+        if (produto.fabrico_id !== fabricoId) {
+            throw new NotFoundException("Produto não encontrado");
+        }
 
         if (produto.fabrico_id !== parceiro.fabrico_id) {
             throw new ConflictException("O produto e o parceiro devem pertencer ao mesmo fabrico");
@@ -32,7 +58,7 @@ export class ParceiroProdutoService {
         });
 
         if (vinculoExiste) {
-            throw new ConflictException("Este produto já está vinculado a este parceiro");
+            throw new ConflictException("Este produto já esta vinculado a este parceiro");
         }
 
         return this.prisma.$transaction(async (tx) => {
@@ -50,12 +76,18 @@ export class ParceiroProdutoService {
         });
     }
 
-    async deleteParceiroProduto(parceiro_id: number, produto_id: number) {
+    async deleteParceiroProduto(parceiro_id: number, produto_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
         const vinculo = await this.prisma.parceiroProduto.findUnique({
             where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
+            include: { produto: true, parceiro: true },
         });
 
-        if (!vinculo) throw new NotFoundException("Vínculo não encontrado");
+        if (!vinculo) throw new NotFoundException("Vinculo não encontrado");
+
+        if (vinculo.produto.fabrico_id !== fabricoId || vinculo.parceiro.fabrico_id !== fabricoId) {
+            throw new NotFoundException("Vinculo não encontrado");
+        }
 
         return this.prisma.$transaction(async (tx) => {
             await this.produtoService.bloquearProdutosParaRecalculo([produto_id], tx);
@@ -68,22 +100,33 @@ export class ParceiroProdutoService {
         });
     }
 
-    async getProdutosByParceiro(parceiro_id: number) {
-        const parceiro = await this.prisma.parceiro.findUnique({ where: { id: parceiro_id } });
-        if (!parceiro) throw new NotFoundException("Parceiro não encontrado");
+    async getProdutosByParceiro(parceiro_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
+        await this.parceiroService.getById(parceiro_id, user);
 
         return await this.prisma.parceiroProduto.findMany({
-            where: { parceiro_id: parceiro_id },
+            where: {
+                parceiro_id: parceiro_id,
+                produto: { fabrico_id: fabricoId },
+            },
             include: { produto: true },
         });
     }
 
-    async getParceiroByProduto(produto_id: number) {
+    async getParceiroByProduto(produto_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
         const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
         if (!produto) throw new NotFoundException("Produto não encontrado");
 
+        if (produto.fabrico_id !== fabricoId) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
         return await this.prisma.parceiroProduto.findMany({
-            where: { produto_id: produto_id },
+            where: {
+                produto_id: produto_id,
+                parceiro: { fabrico_id: fabricoId },
+            },
             include: { parceiro: true },
         });
     }
@@ -92,11 +135,17 @@ export class ParceiroProdutoService {
         parceiro_id: number,
         produto_id: number,
         data: UpdateParceiroProdutoDto,
+        user: AuthenticatedUser,
     ) {
+        const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
             this.produtoService.getById(produto_id),
-            this.parceiroService.getById(parceiro_id),
+            this.parceiroService.getById(parceiro_id, user),
         ]);
+
+        if (produto.fabrico_id !== fabricoId) {
+            throw new NotFoundException("Produto não encontrado");
+        }
 
         if (produto.fabrico_id !== parceiro.fabrico_id) {
             throw new ConflictException("O produto e o parceiro devem pertencer ao mesmo fabrico");
@@ -122,11 +171,20 @@ export class ParceiroProdutoService {
         });
     }
 
-    async getParceiroProduto(produto_id: number, parceiro_id: number) {
+    async getParceiroProduto(produto_id: number, parceiro_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getTenantFabricoId(user);
         const vinculo = await this.prisma.parceiroProduto.findUnique({
             where: { produto_id_parceiro_id: { produto_id, parceiro_id } },
             include: { produto: true, parceiro: true },
         });
+
+        if (
+            !vinculo ||
+            vinculo.produto.fabrico_id !== fabricoId ||
+            vinculo.parceiro.fabrico_id !== fabricoId
+        ) {
+            throw new NotFoundException("Relacionamento não encontrado");
+        }
 
         return vinculo;
     }

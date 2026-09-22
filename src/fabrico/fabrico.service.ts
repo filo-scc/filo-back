@@ -1,7 +1,8 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFabricoDto } from "./dto/create-fabrico.dto";
-import { Prisma } from "@prisma/client";
+import { Cargo, Prisma } from "@prisma/client";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class FabricoService {
@@ -29,9 +30,9 @@ export class FabricoService {
         return this.prisma.fabrico.findMany();
     }
 
-    async getById(id: number) {
-        const fabrico = await this.prisma.fabrico.findUnique({
-            where: { id },
+    async getByIdForUser(id: number, user: AuthenticatedUser) {
+        const fabrico = await this.prisma.fabrico.findFirst({
+            where: user.cargo === Cargo.ADMIN ? { id } : { AND: [{ id }, { id: user.fabrico_id }] },
         });
 
         if (!fabrico) {
@@ -68,5 +69,15 @@ export class FabricoService {
         return this.prisma.fabrico.delete({
             where: { id },
         });
+    }
+
+    async getById(id: number) {
+        const fabrico = await this.prisma.fabrico.findUnique({ where: { id } });
+
+        if (!fabrico) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        return fabrico;
     }
 }
