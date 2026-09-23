@@ -29,7 +29,6 @@ export class FabricoGradeController {
         return this.fabricoGradeService.create(data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
         return this.fabricoGradeService.findAllByFabricoID(user);

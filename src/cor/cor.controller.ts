@@ -20,23 +20,21 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("ADMIN", "PROPRIETARIO", "GERENTE")
 @Controller("cores")
 export class CorController {
     constructor(private readonly corService: CorService) {}
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Post()
     create(@Body() data: CreateCorDto, @CurrentUser() user: AuthenticatedUser) {
         return this.corService.create(data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
         return this.corService.findAll(user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
     findAllByFabricoID(
         @Param("fabrico_id", ParseIntPipe) fabrico_id: number,
@@ -51,13 +49,11 @@ export class CorController {
         return this.corService.findAllByFabricoID(currentFabricoId);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.corService.findOne(id, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
@@ -67,7 +63,6 @@ export class CorController {
         return this.corService.update(id, data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
     remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.corService.remove(id, user);
