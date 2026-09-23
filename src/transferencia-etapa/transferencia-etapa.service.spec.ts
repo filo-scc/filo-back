@@ -48,8 +48,8 @@ describe("TransferenciaEtapaService", () => {
             etapa_atual_id: 1,
         });
         prisma.etapa.findFirst
-            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId })
-            .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId })
+            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId, ativa: true, ordem: 1 })
+            .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId, ativa: true, ordem: 2 })
             .mockResolvedValueOnce({ id: 2 });
         prisma.fichaEtapa.findFirst.mockResolvedValue({ id: 100, data_fim: null });
         prisma.fichaEtapa.findUnique.mockResolvedValue(null);
@@ -135,7 +135,7 @@ describe("TransferenciaEtapaService", () => {
     it("rejeita quando a etapa destino é de outro fabrico", async () => {
         prisma.etapa.findFirst
             .mockReset()
-            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId })
+            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId, ativa: true, ordem: 1 })
             .mockResolvedValueOnce(null);
 
         await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
@@ -338,8 +338,8 @@ describe("TransferenciaEtapaService", () => {
     it("não marca produzida_em quando a etapa destino não é a última etapa ativa", async () => {
         prisma.etapa.findFirst
             .mockReset()
-            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId })
-            .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId })
+            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId, ativa: true, ordem: 1 })
+            .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId, ativa: true, ordem: 2 })
             .mockResolvedValueOnce({ id: 5 });
 
         await service.transferir(dtoBase as any, fabricoId);
