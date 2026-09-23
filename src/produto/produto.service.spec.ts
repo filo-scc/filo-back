@@ -134,11 +134,31 @@ describe("ProdutoService", () => {
     });
 
     describe("getById", () => {
-        it("retorna produto existente pertencente ao fabrico", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, nome: "Camiseta", fabrico_id: 10 });
+        it("retorna produto com a projeção mínima do fabrico", async () => {
+            const produto = {
+                id: 1,
+                nome: "Camiseta",
+                fabrico_id: 10,
+                fabrico: { fabricacao_sob_demanda: false },
+            };
+            prisma.produto.findFirst.mockResolvedValue(produto);
 
             const res = await service.getById(1, mockUser);
-            expect(res).toEqual({ id: 1, nome: "Camiseta", fabrico_id: 10 });
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: {
+                    id: 1,
+                    fabrico_id: 10,
+                },
+                include: {
+                    tecido: true,
+                    fabrico: {
+                        select: {
+                            fabricacao_sob_demanda: true,
+                        },
+                    },
+                },
+            });
+            expect(res).toEqual(produto);
         });
 
         it("lança NotFoundException se produto não for encontrado", async () => {
