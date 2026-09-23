@@ -24,7 +24,23 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async findAllByFichaTecnicaID(ficha_tecnica_id: number) {
+    private async getFichaTecnicaOrFail(ficha_tecnica_id: number, fabrico_id: number) {
+        const ficha = await this.prisma.fichaTecnica.findFirst({
+            where: { id: Number(ficha_tecnica_id), fabrico_id: fabrico_id },
+            select: {
+                id: true,
+                fabrico_id: true,
+                grade_versao_id: true,
+            },
+        });
+        if (!ficha) {
+            throw new NotFoundException("Ficha técnica não encontrada");
+        }
+        return ficha;
+    }
+
+    async findAllByFichaTecnicaID(ficha_tecnica_id: number, fabrico_id: number) {
+        await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
         try {
             return await this.prisma.fichaTecnicaItem.findMany({
                 where: { ficha_tecnica_id: Number(ficha_tecnica_id) },
@@ -47,10 +63,10 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, fabrico_id: number) {
         try {
-            const item = await this.prisma.fichaTecnicaItem.findUnique({
-                where: { id },
+            const item = await this.prisma.fichaTecnicaItem.findFirst({
+                where: { id, ficha_tecnica: { fabrico_id: fabrico_id } },
                 include: {
                     ficha_tecnica: true,
                     cor: true,
@@ -76,18 +92,12 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async createManyByFichaTecnicaID(ficha_tecnica_id: number, itens: CreateFichaTecnicaItemDto[]) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: Number(ficha_tecnica_id) },
-            include: {
-                produto: true,
-                grade_versao: true,
-            },
-        });
-
-        if (!ficha) {
-            throw new NotFoundException("Ficha técnica não encontrada");
-        }
+    async createManyByFichaTecnicaID(
+        ficha_tecnica_id: number,
+        itens: CreateFichaTecnicaItemDto[],
+        fabrico_id: number,
+    ) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         if (!itens.length) {
             throw new BadRequestException("Informe ao menos um item para a ficha técnica");
@@ -175,8 +185,31 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async update(id: number, data: UpdateFichaTecnicaItemDto) {
-        const atual = await this.findOne(id);
+    async update(id: number, data: UpdateFichaTecnicaItemDto, fabrico_id: number) {
+        const atual = await this.findOne(id, fabrico_id);
+
+        if (data.cor_id && data.cor_id !== atual.cor_id) {
+            const cor = await this.prisma.cor.findFirst({
+                where: { id: Number(data.cor_id), fabrico_id: atual.ficha_tecnica.fabrico_id },
+            });
+            if (!cor) {
+                throw new BadRequestException("A cor não pertence ao fabrico da ficha técnica");
+            }
+        }
+
+        if (data.grade_versao_item_id && data.grade_versao_item_id !== atual.grade_versao_item_id) {
+            const gradeVersaoItem = await this.prisma.gradeVersaoItem.findFirst({
+                where: {
+                    id: Number(data.grade_versao_item_id),
+                    grade_versao_id: atual.ficha_tecnica.grade_versao_id,
+                },
+            });
+            if (!gradeVersaoItem) {
+                throw new BadRequestException(
+                    "O item de grade não pertence à versão da ficha técnica",
+                );
+            }
+        }
 
         try {
             const item = await this.prisma.fichaTecnicaItem.update({
@@ -216,8 +249,8 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async remove(id: number) {
-        await this.findOne(id);
+    async remove(id: number, fabrico_id: number) {
+        await this.findOne(id, fabrico_id);
 
         try {
             const item = await this.prisma.fichaTecnicaItem.delete({ where: { id } });
@@ -233,10 +266,12 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async clearByFichaTecnicaID(ficha_tecnica_id: number) {
+    async clearByFichaTecnicaID(ficha_tecnica_id: number, fabrico_id: number) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
+
         try {
             await this.prisma.fichaTecnicaItem.deleteMany({
-                where: { ficha_tecnica_id: Number(ficha_tecnica_id) },
+                where: { ficha_tecnica_id: ficha.id },
             });
 
             return { message: "Itens da ficha técnica removidos com sucesso" };
@@ -248,19 +283,8 @@ export class FichaTecnicaItemService {
         }
     }
 
-    async gerarItensPorCor(ficha_tecnica_id: number, cor_id: number) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: Number(ficha_tecnica_id) },
-            select: {
-                id: true,
-                fabrico_id: true,
-                grade_versao_id: true,
-            },
-        });
-
-        if (!ficha) {
-            throw new NotFoundException("Ficha técnica não encontrada");
-        }
+    async gerarItensPorCor(ficha_tecnica_id: number, cor_id: number, fabrico_id: number) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         const cor = await this.prisma.cor.findFirst({
             where: {
@@ -330,19 +354,12 @@ export class FichaTecnicaItemService {
         };
     }
 
-    async gerarItensPorCoresBatch(ficha_tecnica_id: number, cores_ids: number[]) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: Number(ficha_tecnica_id) },
-            select: {
-                id: true,
-                fabrico_id: true,
-                grade_versao_id: true,
-            },
-        });
-
-        if (!ficha) {
-            throw new NotFoundException("Ficha técnica não encontrada");
-        }
+    async gerarItensPorCoresBatch(
+        ficha_tecnica_id: number,
+        cores_ids: number[],
+        fabrico_id: number,
+    ) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         // valida cores pertencentes ao fabrico
         const cores = await this.prisma.cor.findMany({
@@ -432,18 +449,8 @@ export class FichaTecnicaItemService {
         };
     }
 
-    async removerCoresBatch(ficha_tecnica_id: number, cores_ids: number[]) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: Number(ficha_tecnica_id) },
-            select: {
-                id: true,
-                fabrico_id: true,
-            },
-        });
-
-        if (!ficha) {
-            throw new NotFoundException("Ficha técnica não encontrada");
-        }
+    async removerCoresBatch(ficha_tecnica_id: number, cores_ids: number[], fabrico_id: number) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         // valida se cores pertencem ao fabrico
         const cores = await this.prisma.cor.findMany({
@@ -490,19 +497,8 @@ export class FichaTecnicaItemService {
         });
     }
 
-    async syncCoresBatch(ficha_tecnica_id: number, cores_ids: number[]) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: Number(ficha_tecnica_id) },
-            select: {
-                id: true,
-                fabrico_id: true,
-                grade_versao_id: true,
-            },
-        });
-
-        if (!ficha) {
-            throw new NotFoundException("Ficha técnica não encontrada");
-        }
+    async syncCoresBatch(ficha_tecnica_id: number, cores_ids: number[], fabrico_id: number) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         const coresUnicas = [...new Set(cores_ids.map(Number))];
 
@@ -579,16 +575,8 @@ export class FichaTecnicaItemService {
         });
     }
 
-    async create(ficha_tecnica_id: number, data: CreateFichaTecnicaItemDto) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id: ficha_tecnica_id },
-            select: {
-                id: true,
-                fabrico_id: true,
-                grade_versao_id: true,
-            },
-        });
-        if (!ficha) throw new NotFoundException("Ficha não encontrada");
+    async create(ficha_tecnica_id: number, data: CreateFichaTecnicaItemDto, fabrico_id: number) {
+        const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         const cor = await this.prisma.cor.findFirst({
             where: { id: Number(data.cor_id), fabrico_id: ficha.fabrico_id },

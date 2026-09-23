@@ -14,19 +14,20 @@ export class FichaParceiroService {
     constructor(private prisma: PrismaService) {}
 
     async create(data: CreateFichaParceiroDto, fabrico_id: number) {
-        const fichaExiste = await this.prisma.fichaTecnica.findUnique({
-            where: { id: data.ficha_id },
+        const fichaExiste = await this.prisma.fichaTecnica.findFirst({
+            where: { id: data.ficha_id, fabrico_id },
+            select: { id: true },
         });
-        if (!fichaExiste || fichaExiste.fabrico_id !== fabrico_id) {
+        if (!fichaExiste) {
             throw new NotFoundException(
                 "Ficha Técnica não encontrada ou o fabrico não possui essa ficha",
             );
         }
 
-        const parceiroExiste = await this.prisma.parceiro.findUnique({
-            where: { id: data.parceiro_id },
+        const parceiroExiste = await this.prisma.parceiro.findFirst({
+            where: { id: data.parceiro_id, fabrico_id },
         });
-        if (!parceiroExiste || parceiroExiste.fabrico_id !== fabrico_id) {
+        if (!parceiroExiste) {
             throw new NotFoundException(
                 "Parceiro não encontrado ou o fabrico não possui esse parceiro",
             );
@@ -50,9 +51,10 @@ export class FichaParceiroService {
         }
     }
 
-    async getAll() {
+    async getAll(fabrico_id: number) {
         try {
             return this.prisma.fichaParceiro.findMany({
+                where: { ficha: { fabrico_id } },
                 include: {
                     ficha: true,
                     parceiro: true,
@@ -65,12 +67,11 @@ export class FichaParceiroService {
     }
 
     async findOne(ficha_id: number, parceiro_id: number, fabrico_id: number) {
-        const existe = await this.prisma.fichaParceiro.findUnique({
+        const existe = await this.prisma.fichaParceiro.findFirst({
             where: {
-                ficha_id_parceiro_id: {
-                    ficha_id,
-                    parceiro_id,
-                },
+                ficha_id,
+                parceiro_id,
+                ficha: { fabrico_id },
             },
             include: {
                 ficha: true,
@@ -78,7 +79,7 @@ export class FichaParceiroService {
             },
         });
 
-        if (!existe || existe.ficha.fabrico_id !== fabrico_id) {
+        if (!existe) {
             throw new NotFoundException(
                 "Essa relacionamento entre ficha e parceiro não existe ou o fabrico não a possui",
             );
@@ -125,8 +126,11 @@ export class FichaParceiroService {
     }
 
     async getFichaParceiroByFicha(ficha_id: number, fabrico_id: number) {
-        const ficha = await this.prisma.fichaTecnica.findUnique({ where: { id: ficha_id } });
-        if (!ficha || ficha.fabrico_id !== fabrico_id) {
+        const ficha = await this.prisma.fichaTecnica.findFirst({
+            where: { id: ficha_id, fabrico_id },
+            select: { id: true },
+        });
+        if (!ficha) {
             throw new NotFoundException("Ficha técnica não encontrada ou o fabrico não a possui");
         }
 
@@ -137,8 +141,11 @@ export class FichaParceiroService {
     }
 
     async getFichaParceiroByParceiro(parceiro_id: number, fabrico_id: number) {
-        const parceiro = await this.prisma.parceiro.findUnique({ where: { id: parceiro_id } });
-        if (!parceiro || parceiro.fabrico_id !== fabrico_id) {
+        const parceiro = await this.prisma.parceiro.findFirst({
+            where: { id: parceiro_id, fabrico_id },
+            select: { id: true },
+        });
+        if (!parceiro) {
             throw new NotFoundException("Parceiro não encontrado ou o fabrico não a possui");
         }
 
