@@ -1,6 +1,16 @@
 <!-- Faixa obrigatória quando RELEASE_STATUS for draft. Para scheduled/released, substitua DRAFT_BANNER por vazio. -->
 <tr>
-    <td style="background: #8b1e1e; color: #ffffff; padding: 12px 20px; text-align: center; font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: 700">
+    <td
+        style="
+            background: #8b1e1e;
+            color: #ffffff;
+            padding: 12px 20px;
+            text-align: center;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+        "
+    >
         RASCUNHO — NÃO ENVIAR
     </td>
 </tr>
@@ -8,14 +18,34 @@
 <!-- Hero opcional. Substitua HERO_BLOCK por vazio quando não houver URL HTTPS aprovada. -->
 <tr>
     <td style="background: #a9e2f2">
-        <img src="{{HERO_IMAGE_URL}}" alt="{{HERO_ALT}}" width="720" style="display: block; width: 100%; max-width: 720px; height: auto; border: 0; margin: 0" />
+        <img
+            src="{{HERO_IMAGE_URL}}"
+            alt="{{HERO_ALT}}"
+            width="720"
+            style="
+                display: block;
+                width: 100%;
+                max-width: 720px;
+                height: auto;
+                border: 0;
+                margin: 0;
+            "
+        />
     </td>
 </tr>
 
 <!-- Cabeçalho de grupo. Use somente quando houver novidades específicas por público. -->
 <tr>
     <td class="pad-x" style="padding: 14px 38px 10px; background: #ffffff">
-        <h2 style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 21px; line-height: 29px; color: #1c2a22">
+        <h2
+            style="
+                margin: 0;
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 21px;
+                line-height: 29px;
+                color: #1c2a22;
+            "
+        >
             {{AUDIENCE_HEADING}}
         </h2>
     </td>
@@ -24,15 +54,36 @@
 <!-- Cartão de novidade. Repita entre três e seis vezes no total e alterne apenas as cores aprovadas. -->
 <tr>
     <td class="pad-x" style="padding: 0 38px 14px; background: #ffffff">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; background: {{CARD_BACKGROUND}}; border-collapse: separate; border-spacing: 0; border-radius: 18px">
+        <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            style="width: 100%; background: {{CARD_BACKGROUND}}; border-collapse: separate; border-spacing: 0; border-radius: 18px"
+        >
             <tr>
-                <td width="58" valign="top" style="padding: 24px 0 24px 22px; font-family: Arial, Helvetica, sans-serif">
-                    <div style="width: 38px; height: 38px; line-height: 38px; text-align: center; border-radius: 12px; background: {{BADGE_BACKGROUND}}; color: #1c2a22; font-size: 16px; font-weight: 700">
+                <td
+                    width="58"
+                    valign="top"
+                    style="padding: 24px 0 24px 22px; font-family: Arial, Helvetica, sans-serif"
+                >
+                    <div
+                        style="width: 38px; height: 38px; line-height: 38px; text-align: center; border-radius: 12px; background: {{BADGE_BACKGROUND}}; color: #1c2a22; font-size: 16px; font-weight: 700"
+                    >
                         {{FEATURE_NUMBER}}
                     </div>
                 </td>
                 <td style="padding: 24px 22px 24px 14px; font-family: Arial, Helvetica, sans-serif">
-                    <h2 style="margin: 0; font-size: 19px; line-height: 26px; color: #1c2a22; font-weight: 700">
+                    <h2
+                        style="
+                            margin: 0;
+                            font-size: 19px;
+                            line-height: 26px;
+                            color: #1c2a22;
+                            font-weight: 700;
+                        "
+                    >
                         {{FEATURE_TITLE}}
                     </h2>
                     <p style="margin: 8px 0 0; font-size: 15px; line-height: 24px; color: #355044">
@@ -45,6 +96,14 @@
 </tr>
 
 <!-- Rodapé opcional. Use exatamente o texto/link aprovado ou o merge tag fornecido pela plataforma. -->
-<div style="margin-top: 8px; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 17px; color: #355044">
+<div
+    style="
+        margin-top: 8px;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 11px;
+        line-height: 17px;
+        color: #355044;
+    "
+>
     {{PREFERENCES_OR_UNSUBSCRIBE_CONTENT}}
 </div>
