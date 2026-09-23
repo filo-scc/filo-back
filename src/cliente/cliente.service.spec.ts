@@ -103,7 +103,8 @@ describe("ClienteService", () => {
 
             expect(prisma.cliente.create).toHaveBeenCalledTimes(1);
 
-            const { endereco: _endereco, ...dadosDoCliente } = clienteData;
+            const dadosDoCliente = { ...clienteData };
+            delete dadosDoCliente.endereco;
 
             expect(prisma.cliente.create).toHaveBeenCalledWith({
                 data: {
@@ -177,7 +178,8 @@ describe("ClienteService", () => {
                 new ConflictException("CNPJ já cadastrado"),
             );
 
-            const { endereco: _endereco, ...dadosDoCliente } = clienteData;
+            const dadosDoCliente = { ...clienteData };
+            delete dadosDoCliente.endereco;
 
             expect(prisma.cliente.create).toHaveBeenCalledWith({
                 data: {
