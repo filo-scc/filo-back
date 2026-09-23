@@ -100,7 +100,6 @@ jobs:
         run: pnpm test:cov
 
       - name: Executar Testes E2E
-        continue-on-error: false
         run: pnpm test:e2e
 
       - name: Upload Coverage Report
