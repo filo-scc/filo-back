@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsNumber, IsOptional, IsString, Length, ValidateNested } from "class-validator";
+import { IsBoolean, IsOptional, IsString, Length, ValidateNested } from "class-validator";
 import { CreateEnderecoDto } from "src/endereco/dto/create-endereco.dto";
 
 export class CreateClienteDto {
@@ -22,9 +22,6 @@ export class CreateClienteDto {
     @IsOptional()
     @IsString()
     responsavel?: string;
-
-    @IsNumber()
-    fabrico_id: number;
 
     @IsOptional()
     @ValidateNested()

@@ -1,20 +1,31 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { ClienteProdutoService } from "./clienteproduto.service";
+import type { BusinessAuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
+
+const FABRICO_ID = 10;
+
+const user: BusinessAuthenticatedUser = {
+    id: 1,
+    email: "gerente@teste.com",
+    nome: "Gerente",
+    foto_de_perfil: null,
+    cargo: "GERENTE",
+    fabrico_id: FABRICO_ID,
+    fabrico: { id: FABRICO_ID, ativo: true },
+};
 
 describe("ClienteProdutoService", () => {
     let service: ClienteProdutoService;
     let prisma: any;
-    let consoleErrorSpy: jest.SpyInstance;
 
     beforeEach(() => {
-        consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
         prisma = {
             $transaction: jest.fn(async (callback) => callback(prisma)),
-            cliente: { findUnique: jest.fn() },
-            produto: { findUnique: jest.fn() },
+            cliente: { findFirst: jest.fn() },
+            produto: { findFirst: jest.fn() },
             clienteProduto: {
                 update: jest.fn(),
                 findFirst: jest.fn(),
@@ -26,23 +37,30 @@ describe("ClienteProdutoService", () => {
         service = new ClienteProdutoService(prisma);
     });
 
-    afterEach(() => {
-        consoleErrorSpy.mockRestore();
-    });
-
     it("vincula cliente e produto do mesmo fabrico", async () => {
-        prisma.produto.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
-        prisma.cliente.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.findFirst.mockResolvedValue(null);
         prisma.clienteProduto.create.mockResolvedValue({ cliente_id: 1, produto_id: 2 });
 
         await expect(
-            service.vincularClienteProduto(1, 2, {
-                nome_para_cliente: "camisa",
-                preco_padrao: 12,
-            }),
+            service.vincularClienteProduto(
+                1,
+                2,
+                {
+                    nome_para_cliente: "camisa",
+                    preco_padrao: 12,
+                },
+                user,
+            ),
         ).resolves.toEqual({ cliente_id: 1, produto_id: 2 });
 
+        expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+            where: { id: 2, fabrico_id: FABRICO_ID },
+        });
+        expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
+            where: { id: 1, fabrico_id: FABRICO_ID },
+        });
         expect(prisma.clienteProduto.create).toHaveBeenCalledWith({
             data: {
                 cliente_id: 1,
@@ -55,57 +73,53 @@ describe("ClienteProdutoService", () => {
 
     it("rejeita preco negativo ao vincular", async () => {
         await expect(
-            service.vincularClienteProduto(1, 2, { preco_padrao: -1 } as any),
+            service.vincularClienteProduto(1, 2, { preco_padrao: -1 } as any, user),
         ).rejects.toThrow(new BadRequestException("O preço não pode ser negativo."));
         expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it("rejeita produto inexistente ao vincular", async () => {
-        prisma.produto.findUnique.mockResolvedValue(null);
+    it("rejeita produto inexistente ou de outro fabrico ao vincular", async () => {
+        prisma.produto.findFirst.mockResolvedValue(null);
 
-        await expect(service.vincularClienteProduto(1, 2, {})).rejects.toThrow(
-            new NotFoundException("Esse produto não existe"),
+        await expect(service.vincularClienteProduto(1, 2, {} as any, user)).rejects.toThrow(
+            new NotFoundException("Produto não encontrado"),
         );
     });
 
-    it("rejeita cliente inexistente ao vincular", async () => {
-        prisma.produto.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
-        prisma.cliente.findUnique.mockResolvedValue(null);
+    it("rejeita cliente inexistente ou de outro fabrico ao vincular", async () => {
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
+        prisma.cliente.findFirst.mockResolvedValue(null);
 
-        await expect(service.vincularClienteProduto(1, 2, {})).rejects.toThrow(
-            new NotFoundException("Esse cliente não existe"),
-        );
-    });
-
-    it("rejeita cliente e produto de fabricos diferentes", async () => {
-        prisma.produto.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
-        prisma.cliente.findUnique.mockResolvedValue({ id: 1, fabrico_id: 11 });
-
-        await expect(service.vincularClienteProduto(1, 2, {})).rejects.toThrow(
-            new BadRequestException("Cliente e produto não pertencem ao mesmo fabrico"),
+        await expect(service.vincularClienteProduto(1, 2, {} as any, user)).rejects.toThrow(
+            new NotFoundException("Cliente não encontrado"),
         );
     });
 
     it("rejeita vinculo duplicado", async () => {
-        prisma.produto.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
-        prisma.cliente.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.findFirst.mockResolvedValue({ cliente_id: 1, produto_id: 2 });
 
-        await expect(service.vincularClienteProduto(1, 2, {})).rejects.toThrow(
+        await expect(service.vincularClienteProduto(1, 2, {} as any, user)).rejects.toThrow(
             new BadRequestException("Esse produto já está vinculado a esse cliente"),
         );
     });
 
     it("atualiza um vinculo existente", async () => {
-        prisma.cliente.findUnique.mockResolvedValue({ id: 1 });
-        prisma.produto.findUnique.mockResolvedValue({ id: 2 });
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.update.mockResolvedValue({ cliente_id: 1, produto_id: 2 });
 
         await expect(
-            service.updateClienteProduto(1, 2, {
-                nome_para_cliente: "novo",
-                preco_padrao: 30,
-            }),
+            service.updateClienteProduto(
+                1,
+                2,
+                {
+                    nome_para_cliente: "novo",
+                    preco_padrao: 30,
+                },
+                user,
+            ),
         ).resolves.toEqual({ cliente_id: 1, produto_id: 2 });
 
         expect(prisma.clienteProduto.update).toHaveBeenCalledWith({
@@ -115,8 +129,8 @@ describe("ClienteProdutoService", () => {
     });
 
     it("traduz update sem vinculo em NotFoundException", async () => {
-        prisma.cliente.findUnique.mockResolvedValue({ id: 1 });
-        prisma.produto.findUnique.mockResolvedValue({ id: 2 });
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.update.mockRejectedValue(
             new PrismaClientKnownRequestError("missing", {
                 code: "P2025",
@@ -124,17 +138,24 @@ describe("ClienteProdutoService", () => {
             }),
         );
 
-        await expect(service.updateClienteProduto(1, 2, {})).rejects.toThrow(
+        await expect(service.updateClienteProduto(1, 2, {}, user)).rejects.toThrow(
             new NotFoundException("Relação cliente-produto não encontrada."),
         );
     });
 
-    it("lista produtos por cliente", async () => {
+    it("lista produtos por cliente do fabrico autenticado", async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.findMany.mockResolvedValue([{ produto: { id: 2 } }]);
 
-        await expect(service.getAllProdutoByCliente(1)).resolves.toEqual([{ produto: { id: 2 } }]);
+        await expect(service.getAllProdutoByCliente(1, user)).resolves.toEqual([
+            { produto: { id: 2 } },
+        ]);
         expect(prisma.clienteProduto.findMany).toHaveBeenCalledWith({
-            where: { cliente_id: 1 },
+            where: {
+                cliente_id: 1,
+                cliente: { fabrico_id: FABRICO_ID },
+                produto: { fabrico_id: FABRICO_ID },
+            },
             select: {
                 nome_para_cliente: true,
                 preco_padrao: true,
@@ -151,6 +172,7 @@ describe("ClienteProdutoService", () => {
     });
 
     it("traduz erro Prisma ao listar produtos por cliente", async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.findMany.mockRejectedValue(
             new PrismaClientKnownRequestError("erro", {
                 code: "P2000",
@@ -158,19 +180,24 @@ describe("ClienteProdutoService", () => {
             }),
         );
 
-        await expect(service.getAllProdutoByCliente(1)).rejects.toThrow(
+        await expect(service.getAllProdutoByCliente(1, user)).rejects.toThrow(
             new ConflictException("Erro ao buscar produtos"),
         );
     });
 
-    it("lista clientes por produto", async () => {
+    it("lista clientes por produto do fabrico autenticado", async () => {
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.findMany.mockResolvedValue([{ cliente: { nome: "Loja" } }]);
 
-        await expect(service.getAllClienteByProduto(2)).resolves.toEqual([
+        await expect(service.getAllClienteByProduto(2, user)).resolves.toEqual([
             { cliente: { nome: "Loja" } },
         ]);
         expect(prisma.clienteProduto.findMany).toHaveBeenCalledWith({
-            where: { produto_id: 2 },
+            where: {
+                produto_id: 2,
+                cliente: { fabrico_id: FABRICO_ID },
+                produto: { fabrico_id: FABRICO_ID },
+            },
             select: {
                 nome_para_cliente: true,
                 preco_padrao: true,
@@ -187,10 +214,12 @@ describe("ClienteProdutoService", () => {
         });
     });
 
-    it("remove um vinculo", async () => {
+    it("remove um vinculo do fabrico autenticado", async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.delete.mockResolvedValue({ cliente_id: 1, produto_id: 2 });
 
-        await expect(service.removeClienteProduto(1, 2)).resolves.toEqual({
+        await expect(service.removeClienteProduto(1, 2, user)).resolves.toEqual({
             cliente_id: 1,
             produto_id: 2,
         });
@@ -200,6 +229,8 @@ describe("ClienteProdutoService", () => {
     });
 
     it("traduz delete sem vinculo em NotFoundException", async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 1, fabrico_id: FABRICO_ID });
+        prisma.produto.findFirst.mockResolvedValue({ id: 2, fabrico_id: FABRICO_ID });
         prisma.clienteProduto.delete.mockRejectedValue(
             new PrismaClientKnownRequestError("missing", {
                 code: "P2025",
@@ -207,7 +238,7 @@ describe("ClienteProdutoService", () => {
             }),
         );
 
-        await expect(service.removeClienteProduto(1, 2)).rejects.toThrow(
+        await expect(service.removeClienteProduto(1, 2, user)).rejects.toThrow(
             new NotFoundException("Este vínculo não existe ou já foi removido."),
         );
     });
