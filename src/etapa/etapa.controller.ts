@@ -29,6 +29,12 @@ export class EtapaController {
         return this.etapaService.create(data, user);
     }
 
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Get()
+    getAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.etapaService.findAllForAuthenticatedUser(user);
+    }
+
     @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Get("fabrico/:fabrico_id")
     findAllByFabricoID(

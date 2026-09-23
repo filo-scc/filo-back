@@ -127,6 +127,16 @@ export class EtapaService {
         }
     }
 
+    async findAllForAuthenticatedUser(user: AuthenticatedUser) {
+        if (user.cargo === "ADMIN") {
+            throw new BadRequestException(
+                "O administrador deve informar o fabrico que deseja consultar",
+            );
+        }
+
+        return this.findAllByFabricoID(user.fabrico_id, user);
+    }
+
     async getById(id: number, scope: FabricoScope) {
         if (typeof scope !== "number" && scope.cargo === "ADMIN") {
             const etapa = await this.prisma.etapa.findUnique({ where: { id } });

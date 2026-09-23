@@ -57,6 +57,15 @@ describe("EtapaService", () => {
         fabrico_id: 1,
         fabrico: { id: 1, ativo: true },
     };
+    const gerenteFabrico2: AuthenticatedUser = {
+        id: 20,
+        email: "gerente-2@filo.test",
+        nome: "Gerente 2",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 2,
+        fabrico: { id: 2, ativo: true },
+    };
     const admin: AuthenticatedUser = {
         id: 99,
         email: "admin@filo.test",
@@ -190,6 +199,38 @@ describe("EtapaService", () => {
                 orderBy: { ordem: "asc" },
                 include: { icone: true, icone_verde: true, icone_cinza: true },
             });
+        });
+    });
+
+    describe("findAllForAuthenticatedUser", () => {
+        it("isola a listagem entre os fabricos dos usuários autenticados", async () => {
+            mockPrismaService.etapa.findMany.mockImplementation(({ where }) =>
+                Promise.resolve(where.fabrico_id === 1 ? [etapaFabrico1] : [etapaFabrico2]),
+            );
+
+            await expect(service.findAllForAuthenticatedUser(gerenteFabrico1)).resolves.toEqual([
+                etapaFabrico1,
+            ]);
+            await expect(service.findAllForAuthenticatedUser(gerenteFabrico2)).resolves.toEqual([
+                etapaFabrico2,
+            ]);
+            expect(mockPrismaService.etapa.findMany).toHaveBeenNthCalledWith(1, {
+                where: { fabrico_id: 1 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
+            expect(mockPrismaService.etapa.findMany).toHaveBeenNthCalledWith(2, {
+                where: { fabrico_id: 2 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
+        });
+
+        it("exige que administradores usem a consulta com fabrico explícito", async () => {
+            await expect(service.findAllForAuthenticatedUser(admin)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.etapa.findMany).not.toHaveBeenCalled();
         });
     });
 
