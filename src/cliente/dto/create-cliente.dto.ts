@@ -23,9 +23,6 @@ export class CreateClienteDto {
     @IsString()
     responsavel?: string;
 
-    @IsNumber()
-    fabrico_id: number;
-
     @IsOptional()
     @ValidateNested()
     @Type(() => CreateEnderecoDto)
