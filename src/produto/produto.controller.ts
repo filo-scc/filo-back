@@ -8,7 +8,6 @@ import {
     Delete,
     Put,
     UseGuards,
-    NotFoundException,
 } from "@nestjs/common";
 import { ProdutoService } from "./produto.service";
 import { CreateProdutoDto } from "./dto/create-produto.dto";

@@ -32,12 +32,6 @@ describe("FabricoGradeService", () => {
         fabrico_id: 2,
     } as AuthenticatedUser;
 
-    const mockUserSemFabrico: AuthenticatedUser = {
-        id: 3,
-        cargo: "ADMIN",
-        fabrico_id: undefined,
-    } as any;
-
     const mockPrismaService = {
         grade: {
             findUnique: jest.fn(),
