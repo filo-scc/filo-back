@@ -440,7 +440,6 @@ export class PedidoService {
                             quantidade?: number;
                             grade_versao_id?: number;
                             observacoes?: string;
-                            etapa_atual_id?: number | null;
                         } = {};
 
                         if (novaQuantidade !== fichaDb.quantidade) {
@@ -449,27 +448,6 @@ export class PedidoService {
 
                         if (fichaDto.observacoes !== undefined) {
                             updateData.observacoes = fichaDto.observacoes;
-                        }
-
-                        if (fichaDto.etapa_atual_id !== undefined) {
-                            if (fichaDto.etapa_atual_id !== null) {
-                                const etapa = await tx.etapa.findFirst({
-                                    where: {
-                                        id: Number(fichaDto.etapa_atual_id),
-                                        fabrico_id: fabricoId,
-                                        ativa: true,
-                                    },
-                                    select: { id: true },
-                                });
-
-                                if (!etapa) {
-                                    throw new BadRequestException(
-                                        "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
-                                    );
-                                }
-                            }
-
-                            updateData.etapa_atual_id = fichaDto.etapa_atual_id;
                         }
 
                         if (temEdicaoDeMatriz) {
