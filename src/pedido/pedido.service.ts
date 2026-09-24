@@ -124,6 +124,8 @@ export class PedidoService {
             this.assertSomaItensIgualQuantidade(fichaDto);
         }
 
+        this.assertUmaFichaPorProduto(fichasDto);
+
         if (data.cliente_id) {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -298,6 +300,8 @@ export class PedidoService {
         if (idsExistentesPayload.length !== new Set(idsExistentesPayload).size) {
             throw new BadRequestException("Há fichas técnicas duplicadas no payload");
         }
+
+        this.assertUmaFichaPorProduto(fichasDto);
 
         for (const fichaDto of fichasExistentesDto) {
             const temEdicaoDeMatriz =
@@ -606,6 +610,17 @@ export class PedidoService {
             }
 
             throw new InternalServerErrorException("Erro ao editar o pedido!");
+        }
+    }
+
+    // Um pedido tem no máximo uma ficha por produto; grade e preço são resolvidos por produto.
+    private assertUmaFichaPorProduto(fichasDto: CreatePedidoFichaDto[]) {
+        const produtoIds = fichasDto.map((ficha) => Number(ficha.produto_id));
+
+        if (produtoIds.length !== new Set(produtoIds).size) {
+            throw new BadRequestException(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
         }
     }
 

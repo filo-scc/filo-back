@@ -225,6 +225,26 @@ describe("PedidoService", () => {
             ],
         };
 
+        it("deve rejeitar duas fichas do mesmo produto sem gravar nada", async () => {
+            await expect(
+                service.createCompleto(
+                    {
+                        ...dtoBase,
+                        fichas: [
+                            { ...dtoBase.fichas[0] },
+                            { ...dtoBase.fichas[0], grade_versao_id: 4 },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.produto.updateMany).not.toHaveBeenCalled();
+        });
+
         const prepararCenarioFeliz = () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany
@@ -580,6 +600,26 @@ describe("PedidoService", () => {
             finalizado: false,
             fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
         };
+
+        it("deve rejeitar ficha nova de produto que ja tem ficha no pedido", async () => {
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            { id: 200, produto_id: 5, quantidade: 30 },
+                            { produto_id: 5, quantidade: 0 },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalled();
+        });
 
         it("deve atualizar cliente, preço e totais em uma única transação", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
