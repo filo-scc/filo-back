@@ -29,13 +29,22 @@ export class FabricoGradeController {
         return this.fabricoGradeService.create(data, user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE","ADMIN")
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.fabricoGradeService.findAllByFabricoID(user);
+        return this.fabricoGradeService.findAll(user);
     }
 
-    @Roles("PROPRIETARIO", "GERENTE","ADMIN")
+    @Roles("ADMIN")
+    @Get("fabrico/:fabricoId")
+    findAllByFabricoID(
+        @Param("fabricoId", ParseIntPipe) fabricoId: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.fabricoGradeService.findAll(user, fabricoId);
+    }
+
+    @Roles("PROPRIETARIO", "GERENTE", "ADMIN")
     @Get(":id")
     findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.fabricoGradeService.findOne(id, user);
