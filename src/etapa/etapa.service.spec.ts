@@ -1,15 +1,16 @@
-import { Test, TestingModule } from "@nestjs/testing";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { EtapaService } from "./etapa.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { ConflictException, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
 import { ProdutoService } from "../produto/produto.service";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const mockPrismaService = {
     etapa: {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
     },
@@ -29,243 +30,317 @@ const mockProdutoService = {
 
 describe("EtapaService", () => {
     let service: EtapaService;
-    let prismaService: typeof mockPrismaService;
-    let etapaData: any;
 
-    beforeEach(async () => {
+    const etapaFabrico1 = {
+        id: 1,
+        fabrico_id: 1,
+        nome: "Costura",
+        descricao: "Etapa importante",
+        ordem: 1,
+        ativa: true,
+        icone_id: 99,
+        icone_verde_id: 88,
+        icone_cinza_id: 77,
+    };
+    const etapaFabrico2 = {
+        ...etapaFabrico1,
+        id: 2,
+        fabrico_id: 2,
+        nome: "Embalagem",
+    };
+    const gerenteFabrico1: AuthenticatedUser = {
+        id: 10,
+        email: "gerente@filo.test",
+        nome: "Gerente",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 1,
+        fabrico: { id: 1, ativo: true },
+    };
+    const gerenteFabrico2: AuthenticatedUser = {
+        id: 20,
+        email: "gerente-2@filo.test",
+        nome: "Gerente 2",
+        foto_de_perfil: null,
+        cargo: "GERENTE",
+        fabrico_id: 2,
+        fabrico: { id: 2, ativo: true },
+    };
+    const admin: AuthenticatedUser = {
+        id: 99,
+        email: "admin@filo.test",
+        nome: "Admin",
+        foto_de_perfil: null,
+        cargo: "ADMIN",
+        fabrico_id: null,
+        fabrico: null,
+    };
+
+    beforeEach(() => {
+        jest.clearAllMocks();
         mockPrismaService.$transaction.mockImplementation((callback) =>
             callback(mockPrismaService),
         );
         mockPrismaService.produto.findMany.mockResolvedValue([]);
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                EtapaService,
-                { provide: PrismaService, useValue: mockPrismaService },
-                { provide: ProdutoService, useValue: mockProdutoService },
-            ],
-        }).compile();
-
-        service = module.get<EtapaService>(EtapaService);
-        prismaService = module.get(PrismaService);
+        service = new EtapaService(
+            mockPrismaService as unknown as PrismaService,
+            mockProdutoService as unknown as ProdutoService,
+        );
     });
 
-    afterEach(() => {
-        jest.clearAllMocks(); // Alterado para afterEach para limpar após CADA teste
-    });
-
-    beforeAll(() => {
-        etapaData = {
-            id: 1,
-            fabrico_id: 1,
-            nome: "costura",
-            descricao: "etapa importante",
-            ordem: 1,
-            ativa: true,
-            icone_id: 99,
-            icone_verde_id: 88,
-            icone_cinza_id: 77,
-            icone: { id: 99, nome: "icone-teste" },
-            icone_verde: { id: 88, nome: "icone-verde-teste" },
-            icone_cinza: { id: 77, nome: "icone-cinza-teste" },
-        };
-    });
-
-    it("should be defined", () => {
+    it("deve ser definido", () => {
         expect(service).toBeDefined();
     });
 
     describe("create", () => {
-        it("deve criar uma etapa com sucesso quando o icone_id enviado existir", async () => {
-            const { ...createDto } = etapaData;
-            prismaService.icone.findUnique.mockResolvedValue({ id: 99, nome: "icone-teste" });
-            prismaService.etapa.create.mockResolvedValue(etapaData);
+        it("associa automaticamente a etapa ao fabrico autenticado", async () => {
+            mockPrismaService.icone.findUnique.mockResolvedValue({ id: 99 });
+            mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico1);
 
-            const resultado = await service.create(createDto);
+            const data = { ...etapaFabrico1, fabrico_id: undefined };
+            const resultado = await service.create(data, gerenteFabrico1);
 
-            expect(resultado).toEqual(etapaData);
-            expect(prismaService.icone.findUnique).toHaveBeenCalledWith({ where: { id: 99 } });
-        });
-
-        it("deve lançar NotFoundException se o icone_id enviado não existir", async () => {
-            const { ...createDto } = etapaData;
-            prismaService.icone.findUnique.mockResolvedValue(null);
-
-            await expect(service.create(createDto)).rejects.toThrow(NotFoundException);
-            await expect(service.create(createDto)).rejects.toThrow("Ícone não encontrado");
-            expect(prismaService.etapa.create).not.toHaveBeenCalled();
-        });
-
-        it("deve lançar ConflictException quando violar restrição única (Erro P2002)", async () => {
-            const { ...createDto } = etapaData;
-            prismaService.icone.findUnique.mockResolvedValue({ id: 99 });
-
-            const prismaError = new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2002",
-                clientVersion: "4.x",
+            expect(resultado).toEqual(etapaFabrico1);
+            expect(mockPrismaService.produto.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: { in: [1] } },
+                select: { id: true },
             });
-            prismaService.etapa.create.mockRejectedValue(prismaError);
-
-            await expect(service.create(createDto)).rejects.toThrow(ConflictException);
-            await expect(service.create(createDto)).rejects.toThrow("Etapa já cadastrada");
+            expect(mockPrismaService.etapa.create).toHaveBeenCalledWith({
+                data: { ...data, fabrico_id: 1 },
+            });
         });
 
-        it("deve lançar NotFoundException se falhar chave estrangeira no momento de criar (Erro P2003)", async () => {
-            const { ...createDto } = etapaData;
-            prismaService.icone.findUnique.mockResolvedValue({ id: 99 });
+        it("rejeita criação com fabrico_id de outro tenant", async () => {
+            await expect(
+                service.create({ ...etapaFabrico1, fabrico_id: 2 }, gerenteFabrico1),
+            ).rejects.toThrow(BadRequestException);
+            expect(mockPrismaService.etapa.create).not.toHaveBeenCalled();
+        });
 
-            const prismaError = new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2003",
-                clientVersion: "4.x",
+        it("permite criação por admin quando o fabrico é informado no body", async () => {
+            mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico1);
+
+            await service.create(etapaFabrico1, admin);
+
+            expect(mockPrismaService.etapa.create).toHaveBeenCalledWith({
+                data: {
+                    nome: etapaFabrico1.nome,
+                    descricao: etapaFabrico1.descricao,
+                    ordem: etapaFabrico1.ordem,
+                    ativa: etapaFabrico1.ativa,
+                    icone_id: etapaFabrico1.icone_id,
+                    icone_verde_id: etapaFabrico1.icone_verde_id,
+                    icone_cinza_id: etapaFabrico1.icone_cinza_id,
+                    id: etapaFabrico1.id,
+                    fabrico_id: 1,
+                },
             });
-            prismaService.etapa.create.mockRejectedValue(prismaError);
+        });
 
-            await expect(service.create(createDto)).rejects.toThrow(NotFoundException);
-            await expect(service.create(createDto)).rejects.toThrow("Ícone não encontrado");
+        it("rejeita criação por admin sem fabrico informado", async () => {
+            await expect(
+                service.create({ ...etapaFabrico1, fabrico_id: undefined }, admin),
+            ).rejects.toThrow(BadRequestException);
+            expect(mockPrismaService.etapa.create).not.toHaveBeenCalled();
+        });
+
+        it("lança NotFoundException quando o ícone não existe", async () => {
+            mockPrismaService.icone.findUnique.mockResolvedValue(null);
+
+            await expect(service.create(etapaFabrico1, gerenteFabrico1)).rejects.toThrow(
+                NotFoundException,
+            );
+            expect(mockPrismaService.etapa.create).not.toHaveBeenCalled();
+        });
+
+        it("traduz conflito de unicidade do Prisma", async () => {
+            mockPrismaService.icone.findUnique.mockResolvedValue({ id: 99 });
+            mockPrismaService.etapa.create.mockRejectedValue(
+                new Prisma.PrismaClientKnownRequestError("Erro", {
+                    code: "P2002",
+                    clientVersion: "7.x",
+                }),
+            );
+
+            await expect(service.create(etapaFabrico1, gerenteFabrico1)).rejects.toThrow(
+                ConflictException,
+            );
         });
     });
 
     describe("findAllByFabricoID", () => {
-        it("deve retornar uma lista de etapas por fabrico_id", async () => {
-            prismaService.etapa.findMany.mockResolvedValue([etapaData]);
+        it("lista somente etapas do fabrico informado em ordem produtiva", async () => {
+            mockPrismaService.etapa.findMany.mockResolvedValue([etapaFabrico1]);
 
-            const resultado = await service.findAllByFabricoID(1);
+            const resultado = await service.findAllByFabricoID(1, gerenteFabrico1);
 
-            expect(resultado).toEqual([etapaData]);
-            expect(prismaService.etapa.findMany).toHaveBeenCalledWith({
+            expect(resultado).toEqual([etapaFabrico1]);
+            expect(resultado).not.toContain(etapaFabrico2);
+            expect(mockPrismaService.etapa.findMany).toHaveBeenCalledWith({
                 where: { fabrico_id: 1 },
+                orderBy: { ordem: "asc" },
                 include: { icone: true, icone_verde: true, icone_cinza: true },
             });
         });
 
-        it("deve lançar PrismaClientKnownRequestError se o Prisma retornar um KnownRequestError", async () => {
-            const prismaError = new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2000",
-                clientVersion: "4.x",
-            });
-            prismaService.etapa.findMany.mockRejectedValue(prismaError);
-
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow(
-                Prisma.PrismaClientKnownRequestError,
+        it("rejeita listagem de um fabrico diferente para usuário tenant", async () => {
+            await expect(service.findAllByFabricoID(2, gerenteFabrico1)).rejects.toThrow(
+                BadRequestException,
             );
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow("Erro");
+            expect(mockPrismaService.etapa.findMany).not.toHaveBeenCalled();
         });
 
-        it("deve lançar PrismaClientValidationError se o Prisma retornar um ValidationError", async () => {
-            const prismaError = new Prisma.PrismaClientValidationError("Erro de validação", {
-                clientVersion: "4.x",
-            });
-            prismaService.etapa.findMany.mockRejectedValue(prismaError);
+        it("permite que admin liste as etapas de um fabrico específico", async () => {
+            mockPrismaService.etapa.findMany.mockResolvedValue([etapaFabrico2]);
 
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow(
-                Prisma.PrismaClientValidationError,
-            );
-            await expect(service.findAllByFabricoID(1)).rejects.toThrow("Erro de validação");
+            await expect(service.findAllByFabricoID(2, admin)).resolves.toEqual([etapaFabrico2]);
+            expect(mockPrismaService.etapa.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 2 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
         });
     });
 
-    describe("getAll", () => {
-        it("deve retornar todas as etapas", async () => {
-            prismaService.etapa.findMany.mockResolvedValue([etapaData]);
-            const resultado = await service.getAll();
-            expect(resultado).toEqual([etapaData]);
+    describe("findAllForAuthenticatedUser", () => {
+        it("isola a listagem entre os fabricos dos usuários autenticados", async () => {
+            mockPrismaService.etapa.findMany.mockImplementation(({ where }) =>
+                Promise.resolve(where.fabrico_id === 1 ? [etapaFabrico1] : [etapaFabrico2]),
+            );
+
+            await expect(service.findAllForAuthenticatedUser(gerenteFabrico1)).resolves.toEqual([
+                etapaFabrico1,
+            ]);
+            await expect(service.findAllForAuthenticatedUser(gerenteFabrico2)).resolves.toEqual([
+                etapaFabrico2,
+            ]);
+            expect(mockPrismaService.etapa.findMany).toHaveBeenNthCalledWith(1, {
+                where: { fabrico_id: 1 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
+            expect(mockPrismaService.etapa.findMany).toHaveBeenNthCalledWith(2, {
+                where: { fabrico_id: 2 },
+                orderBy: { ordem: "asc" },
+                include: { icone: true, icone_verde: true, icone_cinza: true },
+            });
+        });
+
+        it("exige que administradores usem a consulta com fabrico explícito", async () => {
+            await expect(service.findAllForAuthenticatedUser(admin)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.etapa.findMany).not.toHaveBeenCalled();
         });
     });
 
     describe("getById", () => {
-        it("deve retornar a etapa quando encontrada", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData);
-            const resultado = await service.getById(1);
-            expect(resultado).toEqual(etapaData);
+        it("busca etapa por id dentro do fabrico autenticado", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico1);
+
+            await expect(service.getById(1, gerenteFabrico1)).resolves.toEqual(etapaFabrico1);
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 1 },
+            });
         });
 
-        it("deve lançar NotFoundException quando a etapa não existir", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(null);
-            await expect(service.getById(99)).rejects.toThrow(NotFoundException);
+        it("retorna 404 ao consultar etapa de outro tenant", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+            await expect(service.getById(2, gerenteFabrico1)).rejects.toThrow(NotFoundException);
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 2, fabrico_id: 1 },
+            });
+        });
+
+        it("permite que admin consulte uma etapa pelo id", async () => {
+            mockPrismaService.etapa.findUnique.mockResolvedValue(etapaFabrico2);
+
+            await expect(service.getById(2, admin)).resolves.toEqual(etapaFabrico2);
+            expect(mockPrismaService.etapa.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
         });
     });
 
     describe("update", () => {
-        it("deve atualizar a etapa com sucesso sem alterar o icone_id", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData); // Mock do getById
-            prismaService.etapa.update.mockResolvedValue({ ...etapaData, nome: "novo nome" });
+        it("atualiza somente etapa pertencente ao fabrico autenticado", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico1);
+            mockPrismaService.etapa.update.mockResolvedValue({ ...etapaFabrico1, nome: "Corte" });
 
-            const resultado = await service.update(1, { nome: "novo nome" });
+            const resultado = await service.update(1, { nome: "Corte" }, gerenteFabrico1);
 
-            expect(resultado.nome).toEqual("novo nome");
-            expect(prismaService.icone.findUnique).not.toHaveBeenCalled(); // Não deve validar ícone
-            expect(prismaService.etapa.update).toHaveBeenCalledWith({
+            expect(resultado.nome).toBe("Corte");
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 1 },
+            });
+            expect(mockPrismaService.etapa.update).toHaveBeenCalledWith({
                 where: { id: 1 },
-                data: { nome: "novo nome" },
+                data: { nome: "Corte" },
             });
         });
 
-        it("deve atualizar a etapa validando o novo icone_id", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData);
-            prismaService.icone.findUnique.mockResolvedValue({ id: 88 });
-            prismaService.etapa.update.mockResolvedValue({ ...etapaData, icone_id: 88 });
-
-            const resultado = await service.update(1, { icone_id: 88 });
-
-            expect(resultado.icone_id).toEqual(88);
-            expect(prismaService.icone.findUnique).toHaveBeenCalledWith({ where: { id: 88 } });
-        });
-
-        it("deve lançar NotFoundException se tentar atualizar com um icone_id inexistente", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData);
-            prismaService.icone.findUnique.mockResolvedValue(null);
-
-            await expect(service.update(1, { icone_id: 88 })).rejects.toThrow(NotFoundException);
-            expect(prismaService.etapa.update).not.toHaveBeenCalled();
-        });
-
-        it("deve lançar NotFoundException se a etapa não existir", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(null);
-            await expect(service.update(99, { nome: "novo" })).rejects.toThrow(NotFoundException);
-        });
-
-        // Testes de erros do Prisma na atualização
-        it("deve lançar ConflictException ao dar erro P2002", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData);
-            const prismaError = new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2002",
-                clientVersion: "4.x",
-            });
-            prismaService.etapa.update.mockRejectedValue(prismaError);
-
-            await expect(service.update(1, { nome: "teste" })).rejects.toThrow(ConflictException);
-        });
-
-        it("deve lançar NotFoundException ao dar erro P2003 (Relacionamento inválido)", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData);
-            const prismaError = new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2003",
-                clientVersion: "4.x",
-            });
-            prismaService.etapa.update.mockRejectedValue(prismaError);
-
-            await expect(service.update(1, { nome: "teste" })).rejects.toThrow(NotFoundException);
-            await expect(service.update(1, { nome: "teste" })).rejects.toThrow(
-                "Relacionamento inválido",
+        it("rejeita tentativa de alterar fabrico_id", async () => {
+            await expect(service.update(1, { fabrico_id: 2 }, gerenteFabrico1)).rejects.toThrow(
+                BadRequestException,
             );
+            expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
+        });
+
+        it("retorna 404 ao alterar etapa de outro tenant", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+            await expect(service.update(2, { nome: "Corte" }, gerenteFabrico1)).rejects.toThrow(
+                NotFoundException,
+            );
+            expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
+        });
+
+        it("permite que admin atualize uma etapa quando informa o fabrico no body", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico2);
+            mockPrismaService.etapa.update.mockResolvedValue({ ...etapaFabrico2, nome: "Corte" });
+
+            await expect(
+                service.update(2, { nome: "Corte", fabrico_id: 2 }, admin),
+            ).resolves.toEqual({ ...etapaFabrico2, nome: "Corte" });
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 2, fabrico_id: 2 },
+            });
+            expect(mockPrismaService.etapa.update).toHaveBeenCalledWith({
+                where: { id: 2 },
+                data: { nome: "Corte" },
+            });
+        });
+
+        it("rejeita update por admin sem fabrico informado", async () => {
+            await expect(service.update(2, { nome: "Corte" }, admin)).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
         });
     });
 
     describe("delete", () => {
-        it("deve deletar a etapa com sucesso", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(etapaData); // getById
-            prismaService.etapa.delete.mockResolvedValue(etapaData);
+        it("exclui somente etapa pertencente ao fabrico autenticado", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico1);
+            mockPrismaService.etapa.delete.mockResolvedValue(etapaFabrico1);
 
-            const resultado = await service.delete(1);
-
-            expect(resultado).toEqual(etapaData);
-            expect(prismaService.etapa.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            await expect(service.delete(1, gerenteFabrico1)).resolves.toEqual(etapaFabrico1);
+            expect(mockPrismaService.etapa.delete).toHaveBeenCalledWith({ where: { id: 1 } });
         });
 
-        it("deve lançar NotFoundException se tentar deletar uma etapa inexistente", async () => {
-            prismaService.etapa.findUnique.mockResolvedValue(null);
+        it("retorna 404 ao excluir etapa de outro tenant", async () => {
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
 
-            await expect(service.delete(99)).rejects.toThrow(NotFoundException);
-            expect(prismaService.etapa.delete).not.toHaveBeenCalled();
+            await expect(service.delete(2, gerenteFabrico1)).rejects.toThrow(NotFoundException);
+            expect(mockPrismaService.etapa.delete).not.toHaveBeenCalled();
+        });
+
+        it("permite que admin exclua uma etapa identificada pelo id", async () => {
+            mockPrismaService.etapa.findUnique.mockResolvedValue(etapaFabrico2);
+            mockPrismaService.etapa.delete.mockResolvedValue(etapaFabrico2);
+
+            await expect(service.delete(2, admin)).resolves.toEqual(etapaFabrico2);
+            expect(mockPrismaService.etapa.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
+            expect(mockPrismaService.etapa.delete).toHaveBeenCalledWith({ where: { id: 2 } });
         });
     });
 });

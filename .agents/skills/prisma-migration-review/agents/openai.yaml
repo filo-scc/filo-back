@@ -1,0 +1,7 @@
+interface:
+    display_name: "Prisma Migration Review"
+    short_description: "Revisa migrations, dados existentes e deploy seguro"
+    default_prompt: "Use $prisma-migration-review para avaliar esta mudança de schema e seu plano de deploy e rollback."
+
+policy:
+    allow_implicit_invocation: true

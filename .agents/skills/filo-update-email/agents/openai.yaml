@@ -1,0 +1,7 @@
+interface:
+  display_name: "FILO Update Email"
+  short_description: "Cria emails HTML das novidades do FILO"
+  default_prompt: "Use $filo-update-email para criar um email HTML anunciando as novidades verificadas da próxima versão do FILO."
+
+policy:
+  allow_implicit_invocation: true

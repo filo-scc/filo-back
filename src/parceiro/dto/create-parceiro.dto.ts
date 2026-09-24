@@ -43,9 +43,6 @@ export class CreateParceiroDto {
     @IsString()
     categoria?: string;
 
-    @IsNumber()
-    fabrico_id: number;
-
     @IsOptional()
     @IsEnum(FormaPagamentoEnum, {
         message: "A forma de pagamento deve ser: PIX ou TED",

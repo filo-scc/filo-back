@@ -1,0 +1,126 @@
+version: "1.0"
+workflows:
+  - id: pull-request-review
+    title: Revisão de pull request
+    description: Parte do identificador do PR, roteia riscos para especialistas e termina em decisão humana.
+    steps:
+      - type: action
+        label: Validar entrada e repositório
+        detail: Aceitar comando gh ou URL canônica e preservar mudanças locais.
+      - type: skill
+        label: Revisar o PR em duas passagens
+        skill: github-pr-review
+        detail: Descobrir candidatos e contestá-los contra base, head, testes e contratos.
+      - type: decision
+        label: Classificar áreas afetadas
+        detail: Isolamento, autorização, dados, Prisma, API ou Kanban.
+      - type: skill
+        label: Aplicar revisões especializadas
+        skills:
+          - tenant-isolation-review
+          - authorization-review
+          - data-integrity-review
+          - prisma-migration-review
+          - api-contract-review
+          - kanban-transition-review
+        detail: Usar somente as skills cujo gatilho corresponda ao diff.
+      - type: action
+        label: Consolidar evidências
+        detail: Remover duplicidades, registrar checks, descartes e limitações.
+      - type: human
+        label: Revisão e decisão humana
+        detail: Confirmar findings e decidir correção, risco e merge.
+
+  - id: tenant-access-review
+    title: Isolamento e autorização
+    description: Separa o risco de cruzamento entre fábricas da matriz geral de capacidades e sessões.
+    steps:
+      - type: action
+        label: Identificar ator, fábrica e recurso
+        detail: Fixar papel, fábrica autorizada, posse direta ou derivada e IDs controlados pelo cliente.
+      - type: skill
+        label: Testar fábrica A contra fábrica B
+        skill: tenant-isolation-review
+        detail: Cobrir leitura, mutação, relações, jobs, cache, uploads e anti-enumeração.
+      - type: decision
+        label: Há risco de papel ou sessão?
+        detail: Verificar guard, capacidade administrativa, revogação e chamada direta à API.
+      - type: skill
+        label: Montar matriz ator × ação × recurso
+        skill: authorization-review
+        detail: Complementar a análise quando o problema não se limita ao cruzamento tenant.
+      - type: human
+        label: Validar severidade e correção
+        detail: Risco crítico ou alto exige revisão humana independente.
+
+  - id: schema-and-contract-change
+    title: Schema, dados e contrato público
+    description: Avalia uma mudança persistida desde o banco até seus consumidores e a ordem de deploy.
+    steps:
+      - type: action
+        label: Fixar schema antes e depois
+        detail: Identificar migration, dados existentes, volume e versões de código em convivência.
+      - type: skill
+        label: Revisar evolução do banco
+        skill: prisma-migration-review
+        detail: Avaliar expand, backfill, contract, locks, rollback e verificações.
+      - type: skill
+        label: Revisar integridade da operação
+        skill: data-integrity-review
+        detail: Avaliar constraints, transações, precisão, retry e concorrência.
+      - type: decision
+        label: O contrato público mudou?
+        detail: Campo, tipo, enum, nulabilidade, erro ou comportamento consumido pelo frontend.
+      - type: skill
+        label: Comparar produtor e consumidor
+        skill: api-contract-review
+        detail: Definir compatibilidade, janela de convivência e ordem mínima de deploy.
+      - type: human
+        label: Aprovar plano de mudança
+        detail: Migration, deploy e aceite de risco continuam sob autoridade humana.
+
+  - id: kanban-transition
+    title: Mudança no fluxo do Kanban
+    description: Combina máquina de estados, isolamento, atomicidade e contrato da interface.
+    steps:
+      - type: action
+        label: Reconstruir estado e transição
+        detail: Fixar ficha, origem esperada, destino, ator, fábrica, histórico e efeitos auxiliares.
+      - type: skill
+        label: Validar a máquina de estados
+        skill: kanban-transition-review
+        detail: Testar avanço, salto, retorno, retry, conclusão após 72 horas e concorrência.
+      - type: skill
+        label: Validar fábrica e atomicidade
+        skills:
+          - tenant-isolation-review
+          - data-integrity-review
+        detail: Garantir mesma fábrica e atualização atômica de estado, histórico e efeitos.
+      - type: skill
+        label: Validar contrato da interface
+        skill: api-contract-review
+        detail: Confirmar estados, erros, atualização otimista e recuperação após conflito.
+      - type: human
+        label: Revisar evidências do fluxo
+        detail: Confirmar regras de produto e riscos antes de integrar a mudança.
+
+  - id: release-communication
+    title: Comunicação de novidades
+    description: Transforma mudanças comprovadamente disponíveis em um HTML de email revisável, sem acessar destinatários ou enviar a campanha.
+    steps:
+      - type: action
+        label: Reunir evidências da release
+        detail: Fixar versão, mudanças, público e estado real de disponibilidade.
+      - type: decision
+        label: A novidade está disponível?
+        detail: Código local, PR aberto e planejamento permanecem como rascunho NÃO ENVIAR.
+      - type: skill
+        label: Criar o HTML do anúncio
+        skill: filo-update-email
+        detail: Separar novidades para todos, fabricação sob demanda e produção própria.
+      - type: action
+        label: Validar conteúdo e compatibilidade
+        detail: Executar o validador do HTML e, quando possível, inspecionar desktop e mobile.
+      - type: human
+        label: Aprovar conteúdo e envio
+        detail: Classificação, destinatários, rodapé da plataforma e envio continuam sob responsabilidade humana.
