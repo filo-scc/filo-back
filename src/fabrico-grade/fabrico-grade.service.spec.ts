@@ -198,9 +198,7 @@ describe("FabricoGradeService", () => {
     describe("findAllByFabricoID", () => {
         it("deve rejeitar operação de listagem por fabrico para ADMIN quando não houver target explícito", async () => {
             await expect(service.findAllByFabricoID(mockAdminUser)).rejects.toThrow(
-                new BadRequestException(
-                    "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
-                ),
+                new BadRequestException("Usuário não possui um fabrico associado"),
             );
             expect(mockPrismaService.fabricoGrade.findMany).not.toHaveBeenCalled();
         });

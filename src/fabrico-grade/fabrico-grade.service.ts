@@ -166,11 +166,6 @@ export class FabricoGradeService {
     }
 
     async findAllByFabricoID(user: AuthenticatedUser) {
-        if (user.cargo === "ADMIN") {
-            throw new BadRequestException(
-                "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
-            );
-        }
 
         return this.prisma.fabricoGrade.findMany({
             where: {
