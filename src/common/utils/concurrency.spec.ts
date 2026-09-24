@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
     isIdempotencyConflict,
@@ -12,6 +13,19 @@ describe("concurrency", () => {
         expect(normalizeIdempotencyKey(undefined)).toBeNull();
         expect(normalizeIdempotencyKey("  ")).toBeNull();
         expect(normalizeIdempotencyKey("abc-1")).toBe("abc-1");
+    });
+
+    it("aceita chave de idempotência com exatamente 128 caracteres", () => {
+        const chave = "a".repeat(128);
+
+        expect(normalizeIdempotencyKey(chave)).toBe(chave);
+    });
+
+    it("rejeita chaves acima de 128 caracteres em vez de truncar", () => {
+        const prefixo = "a".repeat(128);
+
+        expect(() => normalizeIdempotencyKey(`${prefixo}1`)).toThrow(BadRequestException);
+        expect(() => normalizeIdempotencyKey(`${prefixo}2`)).toThrow(BadRequestException);
     });
 
     it("reconhece conflito de idempotência pelo target do Prisma", () => {

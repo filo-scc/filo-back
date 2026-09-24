@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 const FABRICO_NUMERACAO_LOCK = 1;
@@ -10,7 +11,14 @@ export function normalizeIdempotencyKey(value?: string | null): string | null {
         return null;
     }
 
-    return key.slice(0, IDEMPOTENCY_KEY_MAX);
+    // Truncar faria chaves distintas colidirem e devolverem o pedido de outra requisição.
+    if (key.length > IDEMPOTENCY_KEY_MAX) {
+        throw new BadRequestException(
+            `A chave de idempotência deve ter no máximo ${IDEMPOTENCY_KEY_MAX} caracteres`,
+        );
+    }
+
+    return key;
 }
 
 export function isIdempotencyConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
