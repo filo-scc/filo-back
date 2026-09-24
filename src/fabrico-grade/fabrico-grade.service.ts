@@ -108,37 +108,10 @@ export class FabricoGradeService {
         }
     }
 
-    async findAll(user: AuthenticatedUser) {
-        if (user.cargo === "ADMIN") {
-            return this.prisma.fabricoGrade.findMany({
-                include: {
-                    fabrico: true,
-                    grade: {
-                        include: {
-                            items: {
-                                include: { tamanho: true },
-                                orderBy: { posicao: "asc" },
-                            },
-                            versoes: {
-                                where: { ativo: true },
-                                orderBy: { versao: "desc" },
-                                take: 1,
-                                include: {
-                                    itens: {
-                                        include: { tamanho: true },
-                                        orderBy: { posicao: "asc" },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-                orderBy: { id: "asc" },
-            });
-        }
-
+    async findAll(user: AuthenticatedUser, fabricoInformado?: number) {
+        const fabricoId = this.getFabricoIdParaOperacao(user, fabricoInformado);
         return this.prisma.fabricoGrade.findMany({
-            where: { fabrico_id: this.getFabricoId(user) },
+            where: { fabrico_id: fabricoId, ativo: true },
             include: {
                 fabrico: true,
                 grade: {
@@ -166,12 +139,6 @@ export class FabricoGradeService {
     }
 
     async findAllByFabricoID(user: AuthenticatedUser) {
-        if (user.cargo === "ADMIN") {
-            throw new BadRequestException(
-                "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
-            );
-        }
-
         return this.prisma.fabricoGrade.findMany({
             where: {
                 fabrico_id: this.getFabricoId(user),

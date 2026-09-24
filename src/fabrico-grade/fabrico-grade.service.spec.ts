@@ -26,6 +26,12 @@ describe("FabricoGradeService", () => {
         fabrico_id: 1,
     } as AuthenticatedUser;
 
+    const mockProprietarioUser: AuthenticatedUser = {
+        id: 4,
+        cargo: "PROPRIETARIO",
+        fabrico_id: 2,
+    } as AuthenticatedUser;
+
     const mockUserSemFabrico: AuthenticatedUser = {
         id: 3,
         cargo: "ADMIN",
@@ -53,6 +59,12 @@ describe("FabricoGradeService", () => {
         ativo: true,
         fabrico: mockFabrico,
         grade: mockGrade,
+    };
+    const mockFabricoGradeOutroFabrico = {
+        ...mockFabricoGrade,
+        id: 11,
+        fabrico_id: 2,
+        fabrico: { id: 2, nome: "Outro Fabrico" },
     };
 
     const mockPrismaValidationError = new Prisma.PrismaClientValidationError(
@@ -180,27 +192,52 @@ describe("FabricoGradeService", () => {
     });
 
     describe("findAll", () => {
-        it("deve retornar todos os relacionamentos para ADMIN sem filtrar por fabrico do usuário", async () => {
-            mockPrismaService.fabricoGrade.findMany.mockResolvedValue([mockFabricoGrade]);
+        it("deve limitar ADMIN à fábrica-alvo informada", async () => {
+            mockPrismaService.fabricoGrade.findMany.mockResolvedValue([
+                mockFabricoGradeOutroFabrico,
+            ]);
 
-            const resultado = await service.findAll(mockAdminUser);
+            const resultado = await service.findAll(mockAdminUser, 2);
 
-            expect(resultado).toEqual([mockFabricoGrade]);
+            expect(resultado).toEqual([mockFabricoGradeOutroFabrico]);
             expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    include: expect.any(Object),
-                    orderBy: { id: "asc" },
+                    where: { fabrico_id: 2, ativo: true },
                 }),
             );
         });
+
+        it("deve rejeitar ADMIN sem fábrica-alvo explícita", async () => {
+            await expect(service.findAll(mockAdminUser)).rejects.toThrow(
+                new BadRequestException("Fabrico alvo obrigatório para usuários ADMIN"),
+            );
+            expect(mockPrismaService.fabricoGrade.findMany).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ["GERENTE", mockGerenteUser, mockFabricoGrade, 2],
+            ["PROPRIETARIO", mockProprietarioUser, mockFabricoGradeOutroFabrico, 1],
+        ])(
+            "deve limitar %s à própria fábrica mesmo que outro alvo seja informado",
+            async (_cargo, user, vinculoEsperado, outroFabricoId) => {
+                mockPrismaService.fabricoGrade.findMany.mockResolvedValue([vinculoEsperado]);
+
+                const resultado = await service.findAll(user, outroFabricoId);
+
+                expect(resultado).toEqual([vinculoEsperado]);
+                expect(mockPrismaService.fabricoGrade.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: { fabrico_id: user.fabrico_id, ativo: true },
+                    }),
+                );
+            },
+        );
     });
 
     describe("findAllByFabricoID", () => {
         it("deve rejeitar operação de listagem por fabrico para ADMIN quando não houver target explícito", async () => {
             await expect(service.findAllByFabricoID(mockAdminUser)).rejects.toThrow(
-                new BadRequestException(
-                    "Usuário ADMIN deve informar o fabrico alvo em operação explícita",
-                ),
+                new BadRequestException("Usuário não possui um fabrico associado"),
             );
             expect(mockPrismaService.fabricoGrade.findMany).not.toHaveBeenCalled();
         });

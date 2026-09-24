@@ -216,7 +216,14 @@ export class ProdutoService {
                 fabrico_id: userFabricoId,
                 ...(incluirInativos ? {} : { ativo: true }),
             },
-            include: { tecido: true },
+            include: {
+                tecido: true,
+                fabrico: {
+                    select: {
+                        fabricacao_sob_demanda: true,
+                    },
+                },
+            },
         });
 
         if (!produto) {

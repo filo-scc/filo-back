@@ -3,6 +3,7 @@ import {
     ConflictException,
     Injectable,
     NotFoundException,
+    ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
@@ -10,6 +11,7 @@ import { CreateFichaEtapaDto } from "./dto/create-ficha-etapa.dto";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { EtapaService } from "src/etapa/etapa.service";
 import { Prisma } from "@prisma/client";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class FichaEtapaService {
@@ -25,11 +27,32 @@ export class FichaEtapaService {
         }
     }
 
-    async createFichaEtapa(data: CreateFichaEtapaDto) {
+    private resolverFabricoId(user: AuthenticatedUser): number {
+        if (user.cargo === "ADMIN") {
+            throw new ForbiddenException("Administrador não pode acessar fichas-etapas");
+        }
+
+        if (!user.fabrico_id) {
+            throw new ForbiddenException("Usuário não está associado a um fabrico");
+        }
+
+        return user.fabrico_id;
+    }
+
+    private assertFichaDoFabrico(ficha: { fabrico_id: number }, fabricoId: number) {
+        if (ficha.fabrico_id !== fabricoId) {
+            throw new NotFoundException("FichaEtapa não encontrada");
+        }
+    }
+
+    async createFichaEtapa(data: CreateFichaEtapaDto, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+
         const [ficha, etapa] = await Promise.all([
             this.fichaTecnicaService.findOne(data.ficha_tecnica_id),
-            this.etapaService.getById(data.etapa_id),
+            this.etapaService.getById(data.etapa_id, fabricoId),
         ]);
+        this.assertFichaDoFabrico(ficha, fabricoId);
         this.assertMesmaFabrica(ficha, etapa);
 
         const vinculoExiste = await this.prisma.fichaEtapa.findUnique({
@@ -89,12 +112,18 @@ export class FichaEtapaService {
         }
     }
 
-    async deleteFichaEtapa(id: number) {
+    async deleteFichaEtapa(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
         const fichaEtapa = await this.prisma.fichaEtapa.findUnique({
             where: { id },
+            include: {
+                ficha_tecnica: {
+                    select: { fabrico_id: true },
+                },
+            },
         });
 
-        if (!fichaEtapa) {
+        if (!fichaEtapa || fichaEtapa.ficha_tecnica?.fabrico_id !== fabricoId) {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
 
@@ -103,8 +132,10 @@ export class FichaEtapaService {
         });
     }
 
-    async getByFichaTecnica(ficha_tecnica_id: number) {
-        await this.fichaTecnicaService.findOne(ficha_tecnica_id);
+    async getByFichaTecnica(ficha_tecnica_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+        const ficha = await this.fichaTecnicaService.findOne(ficha_tecnica_id);
+        this.assertFichaDoFabrico(ficha, fabricoId);
 
         const fichasEtapas = await this.prisma.fichaEtapa.findMany({
             where: { ficha_tecnica_id },
@@ -116,11 +147,16 @@ export class FichaEtapaService {
         return fichasEtapas;
     }
 
-    async getByEtapa(etapa_id: number) {
-        await this.etapaService.getById(etapa_id);
+    async getByEtapa(etapa_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+
+        await this.etapaService.getById(etapa_id, fabricoId);
 
         const fichasEtapas = await this.prisma.fichaEtapa.findMany({
-            where: { etapa_id },
+            where: {
+                etapa_id,
+                ficha_tecnica: { fabrico_id: fabricoId },
+            },
             include: {
                 ficha_tecnica: true,
             },
@@ -129,12 +165,18 @@ export class FichaEtapaService {
         return fichasEtapas;
     }
 
-    async finalizarFichaEtapa(id: number) {
+    async finalizarFichaEtapa(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
         const fichaEtapa = await this.prisma.fichaEtapa.findUnique({
             where: { id },
+            include: {
+                ficha_tecnica: {
+                    select: { fabrico_id: true },
+                },
+            },
         });
 
-        if (!fichaEtapa) {
+        if (!fichaEtapa || fichaEtapa.ficha_tecnica?.fabrico_id !== fabricoId) {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
 
@@ -158,12 +200,19 @@ export class FichaEtapaService {
         return fichaEtapaFinalizada;
     }
 
-    async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto) {
+    async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, user: AuthenticatedUser) {
+        const fabricoId = this.resolverFabricoId(user);
+
         const atual = await this.prisma.fichaEtapa.findUnique({
             where: { id },
+            include: {
+                ficha_tecnica: {
+                    select: { fabrico_id: true },
+                },
+            },
         });
 
-        if (!atual) {
+        if (!atual || atual.ficha_tecnica?.fabrico_id !== fabricoId) {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
 
@@ -171,8 +220,9 @@ export class FichaEtapaService {
         const etapa_id = data.etapa_id ?? atual.etapa_id;
         const [ficha, etapa] = await Promise.all([
             this.fichaTecnicaService.findOne(ficha_tecnica_id),
-            this.etapaService.getById(etapa_id),
+            this.etapaService.getById(etapa_id, fabricoId),
         ]);
+        this.assertFichaDoFabrico(ficha, fabricoId);
         this.assertMesmaFabrica(ficha, etapa);
 
         const vinculoExiste = await this.prisma.fichaEtapa.findFirst({
