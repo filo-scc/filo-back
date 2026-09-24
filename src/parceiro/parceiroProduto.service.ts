@@ -41,7 +41,7 @@ export class ParceiroProdutoService {
     ) {
         const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id,user),
+            this.produtoService.getById(produto_id, user),
             this.parceiroService.getById(parceiro_id, user),
         ]);
 
