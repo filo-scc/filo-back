@@ -14,6 +14,7 @@ import { FabricoService } from "../fabrico/fabrico.service";
 import { Prisma } from "@prisma/client";
 import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
 import { lockFabricoNumeracao, proximoNumeroFicha } from "src/common/utils/concurrency";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -36,6 +37,13 @@ export class FichaTecnicaService {
         if (!pedido) {
             throw new NotFoundException("Pedido não encontrado para este fabrico");
         }
+    }
+
+    private findfabricoIdFromUser(user: AuthenticatedUser): number {
+        if (!user.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
     }
 
     private validateProductionReport(
@@ -86,14 +94,14 @@ export class FichaTecnicaService {
         }
     }
 
-    async create(data: CreateFichaTecnicaDto, fabricoId: number) {
+    async create(data: CreateFichaTecnicaDto, user: AuthenticatedUser) {
         const produto_id = Number(data.produto_id);
-        const fabrico_id = Number(fabricoId);
+        const fabrico_id = Number(user.fabrico_id);
 
         this.validateProductionReport(data);
 
         await Promise.all([
-            this.produtoService.getById(produto_id),
+            this.produtoService.getById(produto_id, user),
             this.fabricoService.getById(fabrico_id),
             this.assertPedidoDoFabrico(Number(data.pedido_id), fabrico_id),
         ]);
@@ -212,7 +220,7 @@ export class FichaTecnicaService {
 
     async findAllByEtapaId(id: number) {
         try {
-            return this.prisma.fichaTecnica.findMany({
+            return await this.prisma.fichaTecnica.findMany({
                 where: { etapa_atual_id: Number(id) },
                 include: {
                     produto: true,
@@ -313,8 +321,9 @@ export class FichaTecnicaService {
         return ficha;
     }
 
-    async update(id: number, data: UpdateFichaTecnicaDto, fabricoId: number) {
+    async update(id: number, data: UpdateFichaTecnicaDto, user: AuthenticatedUser) {
         const ficha = await this.findOne(id);
+        const fabricoId = this.findfabricoIdFromUser(user);
 
         if (ficha.fabrico_id !== Number(fabricoId)) {
             throw new NotFoundException("Ficha não encontrada");
