@@ -169,7 +169,14 @@ describe("ProdutoService", () => {
             );
             expect(prisma.produto.findFirst).toHaveBeenCalledWith({
                 where: { id: 1, fabrico_id: 10, ativo: true },
-                include: { tecido: true },
+                include: {
+                    tecido: true,
+                    fabrico: {
+                        select: {
+                            fabricacao_sob_demanda: true,
+                        },
+                    },
+                },
             });
         });
 
