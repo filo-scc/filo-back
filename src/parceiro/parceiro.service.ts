@@ -79,8 +79,7 @@ export class ParceiroService {
     async create(data: CreateParceiroDto, user: AuthenticatedUser) {
         this.assertPayloadNaoEscolheFabrico(data as { fabrico_id?: unknown });
         const fabricoId = this.getTenantFabricoId(user);
-        const { endereco, produtos, ...dadosparceiro } = data;
-        void produtos;
+        const { endereco, ...dadosparceiro } = data;
 
         const existente = await this.prisma.parceiro.findFirst({
             where: {
@@ -112,8 +111,7 @@ export class ParceiroService {
     async update(id: number, data: UpdateParceiroDto, user: AuthenticatedUser) {
         this.assertPayloadNaoEscolheFabrico(data as { fabrico_id?: unknown });
         const fabricoId = this.getTenantFabricoId(user);
-        const { endereco, produtos, ...dadosparceiro } = data;
-        void produtos;
+        const { endereco, ...dadosparceiro } = data;
 
         const parceiroAtual = await this.getById(id, user);
 
