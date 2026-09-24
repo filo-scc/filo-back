@@ -116,9 +116,7 @@ describe("FichaTecnicaService", () => {
             prismaService.fichaTecnica.findMany.mockResolvedValue([
                 { quantidade: 10, produto: { id: 10, custo_total: 5 } },
             ]);
-            prismaService.fichaTecnica.count
-                .mockResolvedValueOnce(1)
-                .mockResolvedValueOnce(1);
+            prismaService.fichaTecnica.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
             prismaService.pedido.update.mockResolvedValue({});
             prismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
 
@@ -494,9 +492,7 @@ describe("FichaTecnicaService", () => {
             prismaService.fichaTecnica.findMany.mockResolvedValue([
                 { quantidade: 20, produto: { id: 10, custo_total: 8 } },
             ]);
-            prismaService.fichaTecnica.count
-                .mockResolvedValueOnce(1)
-                .mockResolvedValueOnce(0);
+            prismaService.fichaTecnica.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
             prismaService.pedido.update.mockResolvedValue({});
             prismaService.pedido.updateMany.mockResolvedValue({ count: 1 });
 

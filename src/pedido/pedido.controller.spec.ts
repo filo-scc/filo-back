@@ -46,7 +46,7 @@ describe("PedidoController", () => {
         expect(controller).toBeDefined();
     });
 
-        it("deve criar pedido com fabrico do usuário autenticado", async () => {
+    it("deve criar pedido com fabrico do usuário autenticado", async () => {
         const dto = { cor: "#FFFFFF", quantidade: 1 };
         mockPedidoService.create.mockResolvedValue({ id: 1 });
 

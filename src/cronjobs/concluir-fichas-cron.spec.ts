@@ -19,8 +19,8 @@ describe("ConcluirFichasCronService", () => {
         jest.clearAllMocks();
         service = new ConcluirFichasCronService(prisma as any);
         prisma.fichaTecnica.findMany.mockResolvedValue([]);
-        prisma.$transaction.mockImplementation(async (cb: (client: typeof tx) => Promise<unknown>) =>
-            cb(tx),
+        prisma.$transaction.mockImplementation(
+            async (cb: (client: typeof tx) => Promise<unknown>) => cb(tx),
         );
     });
 
