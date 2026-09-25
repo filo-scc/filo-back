@@ -41,7 +41,7 @@ export class ParceiroProdutoService {
     ) {
         const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id, user),
+            this.produtoService.getActiveById(produto_id, user),
             this.parceiroService.getById(parceiro_id, user),
         ]);
 
@@ -85,7 +85,11 @@ export class ParceiroProdutoService {
 
         if (!vinculo) throw new NotFoundException("Vinculo não encontrado");
 
-        if (vinculo.produto.fabrico_id !== fabricoId || vinculo.parceiro.fabrico_id !== fabricoId) {
+        if (
+            vinculo.produto.fabrico_id !== fabricoId ||
+            vinculo.produto.ativo === false ||
+            vinculo.parceiro.fabrico_id !== fabricoId
+        ) {
             throw new NotFoundException("Vinculo não encontrado");
         }
 
@@ -115,8 +119,7 @@ export class ParceiroProdutoService {
 
     async getParceiroByProduto(produto_id: number, user: AuthenticatedUser) {
         const fabricoId = this.getTenantFabricoId(user);
-        const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
-        if (!produto) throw new NotFoundException("Produto não encontrado");
+        const produto = await this.produtoService.getById(produto_id, user);
 
         if (produto.fabrico_id !== fabricoId) {
             throw new NotFoundException("Produto não encontrado");
@@ -139,7 +142,7 @@ export class ParceiroProdutoService {
     ) {
         const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id, user),
+            this.produtoService.getActiveById(produto_id, user),
             this.parceiroService.getById(parceiro_id, user),
         ]);
 

@@ -41,7 +41,11 @@ export class ProdutoAviamentoService {
 
         try {
             const produtoExiste = await this.prisma.produto.findFirst({
-                where: { id: dadosDto.produto_id, fabrico_id: this.getFabricoId(user) },
+                where: {
+                    id: dadosDto.produto_id,
+                    fabrico_id: this.getFabricoId(user),
+                    ativo: true,
+                },
             });
             if (!produtoExiste) {
                 throw new NotFoundException("Produto não encontrado");
@@ -161,6 +165,11 @@ export class ProdutoAviamentoService {
         this.assertFabricoImutavel(payload.fabrico_id, fabricoId);
 
         const vinculoExistente = await this.findOne(id, user);
+        if (vinculoExistente.produto.ativo !== true) {
+            throw new NotFoundException(
+                "O relacionamento entre produto e aviamento não foi encontrado",
+            );
+        }
         const { fabrico_id: _fabricoIdIgnorado, ...dadosPayload } = payload;
 
         const quantidadeInformada = dadosPayload.quantidade !== undefined;
@@ -209,6 +218,11 @@ export class ProdutoAviamentoService {
 
     async remove(id: number, user: AuthenticatedUser) {
         const vinculoExistente = await this.findOne(id, user);
+        if (vinculoExistente.produto.ativo !== true) {
+            throw new NotFoundException(
+                "O relacionamento entre produto e aviamento não foi encontrado",
+            );
+        }
 
         try {
             return await this.prisma.$transaction(async (tx) => {

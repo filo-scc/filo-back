@@ -6,6 +6,7 @@ import {
     Param,
     ParseIntPipe,
     Delete,
+    Patch,
     Put,
     UseGuards,
 } from "@nestjs/common";
@@ -59,8 +60,14 @@ export class ProdutoController {
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Delete(":id")
-    delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.service.delete(id, user);
+    softDelete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.softDelete(id, user);
+    }
+
+    @Roles("PROPRIETARIO", "GERENTE")
+    @Patch("restaurar/:id")
+    restore(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.service.restore(id, user);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")

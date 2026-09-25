@@ -144,7 +144,11 @@ export class ProdutoService {
 
     async create(data: CreateProdutoDto, user: AuthenticatedUser) {
         const userFabricoId = this.getFabricoId(user);
-        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+        const payload = data as CreateProdutoDto & {
+            ativo?: unknown;
+            delete_at?: unknown;
+        };
+        this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
 
         if (data.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -159,7 +163,12 @@ export class ProdutoService {
             }
         }
 
-        const { ...dadosCreate } = data;
+        const {
+            fabrico_id: _fabricoIdIgnorado,
+            ativo: _ativoIgnorado,
+            delete_at: _deleteAtIgnorado,
+            ...dadosCreate
+        } = payload;
 
         try {
             return await this.prisma.produto.create({
@@ -188,6 +197,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
             },
             orderBy: { nome: "asc" },
         });
@@ -198,6 +208,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
             },
             include: {
                 tecido: true,
@@ -206,12 +217,13 @@ export class ProdutoService {
         });
     }
 
-    async getById(id: number, user: AuthenticatedUser) {
+    private async getByIdWithStatus(id: number, user: AuthenticatedUser, exigirAtivo: boolean) {
         const userFabricoId = this.getFabricoId(user);
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id,
                 fabrico_id: userFabricoId,
+                ...(exigirAtivo ? { ativo: true } : {}),
             },
             include: {
                 tecido: true,
@@ -230,18 +242,51 @@ export class ProdutoService {
         return produto;
     }
 
-    async delete(id: number, user: AuthenticatedUser) {
-        const produto = await this.getById(id, user);
+    async getById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, false);
+    }
 
-        await this.prisma.produto.delete({ where: { id: produto.id } });
-        return `O produto com o id ${id} foi deletado com sucesso`;
+    async getActiveById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, true);
+    }
+
+    async softDelete(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const resultado = await this.prisma.produto.updateMany({
+            where: { id, fabrico_id: userFabricoId, ativo: true },
+            data: { ativo: false, delete_at: new Date() },
+        });
+
+        if (resultado.count === 0) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+        return `O produto com o id ${id} foi desativado com sucesso`;
+    }
+
+    async restore(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const resultado = await this.prisma.produto.updateMany({
+            where: { id, fabrico_id: userFabricoId, ativo: false },
+            data: { ativo: true, delete_at: null },
+        });
+
+        if (resultado.count === 0) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
+        return `O produto com o id ${id} foi restaurado com sucesso`;
     }
 
     async update(id: number, dados: UpdateProduto, user: AuthenticatedUser) {
         const userFabricoId = this.getFabricoId(user);
-        this.assertFabricoImutavel(dados.fabrico_id, userFabricoId);
+        const payload = dados as UpdateProduto & {
+            fabrico_id?: number;
+            ativo?: unknown;
+            delete_at?: unknown;
+        };
+        this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
 
-        const produto = await this.getById(id, user);
+        const produto = await this.getActiveById(id, user);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -256,7 +301,12 @@ export class ProdutoService {
             }
         }
 
-        const { ...dadosUpdate } = dados;
+        const {
+            fabrico_id: _fabricoIdIgnorado,
+            ativo: _ativoIgnorado,
+            delete_at: _deleteAtIgnorado,
+            ...dadosUpdate
+        } = payload;
 
         try {
             const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
@@ -305,6 +355,7 @@ export class ProdutoService {
         return this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
+                ativo: true,
                 cliente_produto: {
                     none: {
                         cliente_id: clienteId,
