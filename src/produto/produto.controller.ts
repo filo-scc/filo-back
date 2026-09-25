@@ -65,7 +65,7 @@ export class ProdutoController {
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
-    @Patch(":id/restaurar")
+    @Patch("restaurar/:id")
     restore(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.service.restore(id, user);
     }
