@@ -154,7 +154,7 @@ describe("ClienteProdutoService", () => {
             where: {
                 cliente_id: 1,
                 cliente: { fabrico_id: FABRICO_ID },
-                produto: { fabrico_id: FABRICO_ID, ativo: true },
+                produto: { fabrico_id: FABRICO_ID },
             },
             select: {
                 nome_para_cliente: true,
@@ -196,7 +196,7 @@ describe("ClienteProdutoService", () => {
             where: {
                 produto_id: 2,
                 cliente: { fabrico_id: FABRICO_ID },
-                produto: { fabrico_id: FABRICO_ID, ativo: true },
+                produto: { fabrico_id: FABRICO_ID },
             },
             select: {
                 nome_para_cliente: true,

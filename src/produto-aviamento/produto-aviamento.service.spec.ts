@@ -45,7 +45,7 @@ describe("ProdutoAviamentoService", () => {
         id: 1,
         produto_id: 1,
         aviamento_id: 2,
-        produto: { id: 1, fabrico_id: 10 },
+        produto: { id: 1, fabrico_id: 10, ativo: true },
         aviamento: { id: 2, fabrico_id: 10 },
         custo: 15.5,
         quantidade: 1,
@@ -188,7 +188,7 @@ describe("ProdutoAviamentoService", () => {
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
                 where: {
-                    produto: { fabrico_id: 10, ativo: true },
+                    produto: { fabrico_id: 10 },
                     aviamento: { fabrico_id: 10 },
                 },
                 include: {
@@ -209,7 +209,7 @@ describe("ProdutoAviamentoService", () => {
             expect(prisma.produtoAviamento.findFirst).toHaveBeenCalledWith({
                 where: {
                     id: 1,
-                    produto: { fabrico_id: 10, ativo: true },
+                    produto: { fabrico_id: 10 },
                     aviamento: { fabrico_id: 10 },
                 },
                 include: { produto: true, aviamento: true },
@@ -236,7 +236,7 @@ describe("ProdutoAviamentoService", () => {
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produto.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: 10, ativo: true },
+                where: { id: 1, fabrico_id: 10 },
             });
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
                 where: { produto_id: 1, aviamento: { fabrico_id: 10 } },
@@ -263,7 +263,7 @@ describe("ProdutoAviamentoService", () => {
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
-                where: { aviamento_id: 2, produto: { fabrico_id: 10, ativo: true } },
+                where: { aviamento_id: 2, produto: { fabrico_id: 10 } },
                 include: { produto: true },
             });
         });

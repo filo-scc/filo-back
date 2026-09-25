@@ -217,13 +217,13 @@ export class ProdutoService {
         });
     }
 
-    async getById(id: number, user: AuthenticatedUser) {
+    private async getByIdWithStatus(id: number, user: AuthenticatedUser, exigirAtivo: boolean) {
         const userFabricoId = this.getFabricoId(user);
         const produto = await this.prisma.produto.findFirst({
             where: {
                 id,
                 fabrico_id: userFabricoId,
-                ativo: true,
+                ...(exigirAtivo ? { ativo: true } : {}),
             },
             include: {
                 tecido: true,
@@ -240,6 +240,14 @@ export class ProdutoService {
         }
 
         return produto;
+    }
+
+    async getById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, false);
+    }
+
+    async getActiveById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, true);
     }
 
     async softDelete(id: number, user: AuthenticatedUser) {
@@ -278,7 +286,7 @@ export class ProdutoService {
         };
         this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
 
-        const produto = await this.getById(id, user);
+        const produto = await this.getActiveById(id, user);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({

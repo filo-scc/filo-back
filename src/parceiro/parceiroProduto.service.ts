@@ -41,7 +41,7 @@ export class ParceiroProdutoService {
     ) {
         const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id, user),
+            this.produtoService.getActiveById(produto_id, user),
             this.parceiroService.getById(parceiro_id, user),
         ]);
 
@@ -111,7 +111,7 @@ export class ParceiroProdutoService {
         return await this.prisma.parceiroProduto.findMany({
             where: {
                 parceiro_id: parceiro_id,
-                produto: { fabrico_id: fabricoId, ativo: true },
+                produto: { fabrico_id: fabricoId },
             },
             include: { produto: true },
         });
@@ -142,7 +142,7 @@ export class ParceiroProdutoService {
     ) {
         const fabricoId = this.getTenantFabricoId(user);
         const [produto, parceiro] = await Promise.all([
-            this.produtoService.getById(produto_id, user),
+            this.produtoService.getActiveById(produto_id, user),
             this.parceiroService.getById(parceiro_id, user),
         ]);
 
@@ -184,7 +184,6 @@ export class ParceiroProdutoService {
         if (
             !vinculo ||
             vinculo.produto.fabrico_id !== fabricoId ||
-            vinculo.produto.ativo === false ||
             vinculo.parceiro.fabrico_id !== fabricoId
         ) {
             throw new NotFoundException("Relacionamento não encontrado");

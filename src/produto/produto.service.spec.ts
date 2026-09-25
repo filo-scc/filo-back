@@ -135,11 +135,12 @@ describe("ProdutoService", () => {
     });
 
     describe("getById", () => {
-        it("retorna produto com a projeção mínima do fabrico", async () => {
+        it("retorna produto inativo por ID para preservar acesso ao histórico", async () => {
             const produto = {
                 id: 1,
                 nome: "Camiseta",
                 fabrico_id: 10,
+                ativo: false,
                 fabrico: { fabricacao_sob_demanda: false },
             };
             prisma.produto.findFirst.mockResolvedValue(produto);
@@ -149,7 +150,6 @@ describe("ProdutoService", () => {
                 where: {
                     id: 1,
                     fabrico_id: 10,
-                    ativo: true,
                 },
                 include: {
                     tecido: true,
@@ -163,10 +163,10 @@ describe("ProdutoService", () => {
             expect(res).toEqual(produto);
         });
 
-        it("não encontra produto inativo nas operações comuns", async () => {
+        it("não encontra produto inativo quando a operação exige produto ativo", async () => {
             prisma.produto.findFirst.mockResolvedValue(null);
 
-            await expect(service.getById(1, mockUser)).rejects.toThrow(
+            await expect(service.getActiveById(1, mockUser)).rejects.toThrow(
                 new NotFoundException("Produto não encontrado"),
             );
             expect(prisma.produto.findFirst).toHaveBeenCalledWith({

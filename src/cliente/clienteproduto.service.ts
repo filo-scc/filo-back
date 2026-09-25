@@ -34,9 +34,14 @@ export class ClienteProdutoService {
         tx: Prisma.TransactionClient | PrismaService,
         produto_id: number,
         fabricoId: number,
+        exigirAtivo = true,
     ) {
         const produto = await tx.produto.findFirst({
-            where: { id: produto_id, fabrico_id: fabricoId, ativo: true },
+            where: {
+                id: produto_id,
+                fabrico_id: fabricoId,
+                ...(exigirAtivo ? { ativo: true } : {}),
+            },
         });
 
         if (!produto) {
@@ -128,7 +133,7 @@ export class ClienteProdutoService {
                 where: {
                     cliente_id,
                     cliente: { fabrico_id: fabricoId },
-                    produto: { fabrico_id: fabricoId, ativo: true },
+                    produto: { fabrico_id: fabricoId },
                 },
                 select: {
                     nome_para_cliente: true,
@@ -160,13 +165,13 @@ export class ClienteProdutoService {
         const fabricoId = user.fabrico_id;
 
         try {
-            await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId);
+            await this.assertProdutoDoFabrico(this.prisma, produto_id, fabricoId, false);
 
             return await this.prisma.clienteProduto.findMany({
                 where: {
                     produto_id,
                     cliente: { fabrico_id: fabricoId },
-                    produto: { fabrico_id: fabricoId, ativo: true },
+                    produto: { fabrico_id: fabricoId },
                 },
                 select: {
                     nome_para_cliente: true,
