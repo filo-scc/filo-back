@@ -1,17 +1,32 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import {
+    BadRequestException,
+    Injectable,
+    InternalServerErrorException,
+    NotFoundException,
+} from "@nestjs/common";
 
 import { supabase } from "src/common/libs/supabase";
+import { PrismaService } from "src/prisma/prisma.service";
 
 @Injectable()
 export class UploadService {
-    async uploadImagem(file: Express.Multer.File, fabricoId: number) {
+    constructor(private readonly prisma: PrismaService) {}
+
+    async uploadImagem(file: Express.Multer.File, destino: number | "admin") {
         try {
             if (!file) {
                 throw new BadRequestException("Arquivo não enviado");
             }
 
-            if (!fabricoId || Number.isNaN(fabricoId)) {
-                throw new BadRequestException("fabrico_id inválido");
+            if (typeof destino === "number") {
+                const fabrico = await this.prisma.fabrico.findFirst({
+                    where: { id: destino, ativo: true },
+                    select: { id: true },
+                });
+
+                if (!fabrico) {
+                    throw new NotFoundException("Fábrico não encontrado ou inativo");
+                }
             }
 
             const partesNome = file.originalname.split(".");
@@ -21,7 +36,7 @@ export class UploadService {
                 .toString(36)
                 .substring(2)}.${extensao}`;
 
-            const pathArquivo = `${fabricoId}/${nomeArquivo}`;
+            const pathArquivo = `${destino}/${nomeArquivo}`;
 
             const { data, error } = await supabase.storage
                 .from("uploads")
@@ -40,14 +55,14 @@ export class UploadService {
                 .getPublicUrl(data.path);
 
             return {
-                fabrico_id: fabricoId,
+                fabrico_id: typeof destino === "number" ? destino : null,
                 path: data.path,
                 url: publicUrlData.publicUrl,
             };
         } catch (error) {
             console.error(error);
 
-            if (error instanceof BadRequestException) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException) {
                 throw error;
             }
 

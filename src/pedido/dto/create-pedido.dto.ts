@@ -1,9 +1,6 @@
 import { IsBoolean, IsOptional, IsInt, IsString, IsDateString, IsNumber } from "class-validator";
 
 export class CreatePedidoDto {
-    @IsBoolean()
-    finalizado: boolean;
-
     @IsOptional()
     @IsDateString()
     data_prevista?: string;

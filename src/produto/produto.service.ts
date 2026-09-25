@@ -1,17 +1,24 @@
 import {
-    NotFoundException,
-    Injectable,
-    ConflictException,
     BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
-import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/prisma/prisma.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoService {
     constructor(private prisma: PrismaService) {}
+
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico do produto");
+        }
+    }
 
     private normalizarNome(valor: string | null | undefined) {
         return String(valor ?? "")
@@ -20,6 +27,13 @@ export class ProdutoService {
             .trim()
             .toLocaleLowerCase("pt-BR")
             .replace(/\s+/g, " ");
+    }
+
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
     }
 
     async bloquearProdutosParaRecalculo(
@@ -35,7 +49,6 @@ export class ProdutoService {
         }
     }
 
-    // No ProdutoService.ts
     async recalcularCustoTotal(produtoId: number, db?: Prisma.TransactionClient): Promise<number> {
         if (!db) {
             return this.prisma.$transaction((tx) => this.recalcularCustoTotal(produtoId, tx));
@@ -129,7 +142,10 @@ export class ProdutoService {
         }
     }
 
-    async create(data: CreateProdutoDto) {
+    async create(data: CreateProdutoDto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        this.assertFabricoImutavel(data.fabrico_id, userFabricoId);
+
         if (data.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
                 where: {
@@ -143,26 +159,68 @@ export class ProdutoService {
             }
         }
 
+        const { ...dadosCreate } = data;
+
         try {
             return await this.prisma.produto.create({
-                data: { ...data },
+                data: {
+                    ...dadosCreate,
+                    fabrico_id: userFabricoId,
+                },
             });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Já existe um produto com este nome para este fabrico");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um produto com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async findAll() {
-        return this.prisma.produto.findMany();
+    async findAll(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: userFabricoId,
+            },
+            orderBy: { nome: "asc" },
+        });
     }
 
-    async getById(id: number) {
-        const produto = await this.prisma.produto.findUnique({
-            where: { id },
-            include: { tecido: true },
+    async findAllFabrico(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: userFabricoId,
+            },
+            include: {
+                tecido: true,
+            },
+            orderBy: { nome: "asc" },
+        });
+    }
+
+    async getById(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const produto = await this.prisma.produto.findFirst({
+            where: {
+                id,
+                fabrico_id: userFabricoId,
+            },
+            include: {
+                tecido: true,
+                fabrico: {
+                    select: {
+                        fabricacao_sob_demanda: true,
+                    },
+                },
+            },
         });
 
         if (!produto) {
@@ -172,24 +230,18 @@ export class ProdutoService {
         return produto;
     }
 
-    async delete(id: number) {
-        const produto = await this.prisma.produto.findUnique({ where: { id } });
-        if (produto) {
-            await this.prisma.produto.delete({ where: { id } });
-            return `O produto com o id ${id} foi deletado com sucesso`;
-        } else {
-            throw new NotFoundException("Produto não encontrado");
-        }
+    async delete(id: number, user: AuthenticatedUser) {
+        const produto = await this.getById(id, user);
+
+        await this.prisma.produto.delete({ where: { id: produto.id } });
+        return `O produto com o id ${id} foi deletado com sucesso`;
     }
 
-    async update(id: number, dados: UpdateProduto) {
-        const produto = await this.prisma.produto.findUnique({
-            where: { id },
-        });
+    async update(id: number, dados: UpdateProduto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        this.assertFabricoImutavel(dados.fabrico_id, userFabricoId);
 
-        if (!produto) {
-            throw new NotFoundException("Produto não encontrado");
-        }
+        const produto = await this.getById(id, user);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -204,6 +256,8 @@ export class ProdutoService {
             }
         }
 
+        const { ...dadosUpdate } = dados;
+
         try {
             const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
                 "custo_tecido",
@@ -212,55 +266,52 @@ export class ProdutoService {
                 "custo_operacional",
                 "outros_custos",
                 "custo_total",
-                "fabrico_id",
             ];
-            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dados);
+            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dadosUpdate);
 
             if (deveRecalcular) {
                 await this.prisma.$transaction(async (tx) => {
                     await tx.produto.update({
-                        where: { id },
-                        data: { ...dados },
+                        where: { id: produto.id },
+                        data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
                     });
-                    await this.recalcularCustoTotal(id, tx);
+                    await this.recalcularCustoTotal(produto.id, tx);
                 });
             } else {
                 await this.prisma.produto.update({
-                    where: { id },
-                    data: { ...dados },
+                    where: { id: produto.id },
+                    data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
                 });
             }
 
             return `O produto com o id ${id} foi atualizado`;
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Já existe um produto com este nome para este fabrico");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um produto com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async findAllFabrico(fabrico_id: number) {
-        const produtos = await this.prisma.produto.findMany({
-            where: { fabrico_id: fabrico_id },
-            include: {
-                tecido: true,
-            },
-        });
-        return produtos;
-    }
-
-    async getUnassociatedProductsForClient(cliente_id: number, fabrico_id: number) {
+    async getUnassociatedProductsForClient(clienteId: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         return this.prisma.produto.findMany({
             where: {
-                fabrico_id: fabrico_id,
-                // Filtra produtos que NÃO estão na tabela clienteProduto para este cliente
+                fabrico_id: userFabricoId,
                 cliente_produto: {
                     none: {
-                        cliente_id: cliente_id,
+                        cliente_id: clienteId,
                     },
                 },
             },
+            orderBy: { nome: "asc" },
         });
     }
 }

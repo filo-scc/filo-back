@@ -1,0 +1,119 @@
+schema_version: "1.0"
+identity:
+  name: kanban-transition-review
+  display_name: Kanban Transition Review
+  summary: Audita a máquina de estados das fichas, histórico, produzida_em, conclusão automática, retry e concorrência.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Arthur Capistrano
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories: [filo-back, filo-front]
+  canonical_repository: filo-back
+  objective: Provar que ficha, etapa atual, histórico e efeitos auxiliares permanecem coerentes em toda transição e execução do job.
+  non_objectives:
+    - Revisar mudança visual do quadro sem efeito de estado.
+    - Substituir revisão tenant, de contrato ou integridade quando o risco não for a máquina de estados.
+    - Mover fichas reais, executar jobs ou alterar produção.
+invocation:
+  mode: both
+  triggers:
+    - Mudança em quadro, etapas, ficha-etapa, transferência ou conclusão.
+    - Retry, idempotência ou concorrência de duas transferências.
+    - produzida_em, última etapa ou job de conclusão após 72 horas.
+  anti_triggers:
+    - Ajuste puramente visual em cartões e colunas.
+    - Operação de pedido sem transição de ficha.
+    - Migration sem efeito na máquina de estados.
+input:
+  mode: contextual
+  parameters:
+    - name: target
+      type: string-or-artifact
+      required: true
+      origin: Pedido do usuário, diff, PR, endpoint, componente ou job local.
+      validation: Deve identificar uma transição, estado do Kanban ou rotina de conclusão verificável.
+      default: null
+      example: transferência da etapa Corte para Costura
+      description: Fluxo de estado que será auditado.
+    - name: transition_context
+      type: object
+      required: false
+      origin: Código, contrato ou cenário fornecido.
+      validation: Origem, destino, ordem, fábrica e estado esperado não podem ser inventados.
+      default: contexto persistido disponível
+      example: "origem 2; destino 4; mesma fábrica; ficha não concluída"
+      description: Estado inicial e intenção da transição.
+  artifacts:
+    - AGENTS.md
+    - docs/ai/DOMAIN_INVARIANTS.md
+    - services, histórico, schema, job, contrato frontend e testes afetados
+  preconditions:
+    - Ordem e atividade das etapas estão disponíveis ou marcadas como evidência ausente.
+    - Origem persistida e regras do job foram procuradas.
+    - Nenhuma ficha ou rotina real será executada.
+output:
+  format: markdown
+  artifact: null
+  required_sections:
+    - Matriz de transições
+    - Linha do tempo e estado persistido
+    - Atomicidade, retry, concorrência e job
+    - Findings, descartes e limitações
+  no_findings: Declarar nenhum finding mantido e informar transições e interleavings cobertos.
+  insufficient_evidence: Não concluir validade; solicitar origem, ordem, contrato do job ou estado persistido faltante.
+  limitations:
+    - Registrar cenários concorrentes não executados e dependência de contrato ainda não integrado.
+    - Separar estado otimista do frontend da fonte persistida no backend.
+  prohibited_claims:
+    - Não afirmar conclusão manual ou retorno de etapa como regra válida.
+    - Não considerar toast ou posição visual como prova de persistência correta.
+workflow:
+  required_steps:
+    - Aplicar AGENTS.md, INV-KAN e invariantes tenant afetadas.
+    - Reconstruir ficha, origem, destino, ator, fábrica, histórico e efeitos.
+    - Cobrir avanço, salto, mesma etapa, retorno, retry e falha intermediária.
+    - Modelar concorrência entre transferências e disputa com o job.
+    - Contestar findings e entregar matriz, correção mínima e limitações.
+  improvisation: O agente pode escolher interleavings e checks proporcionais, sem alterar a regra de negócio nem executar dados reais.
+permissions:
+  tools:
+    - { name: filesystem-read, access: allow, enforcement: documented }
+    - { name: grep-glob, access: allow, enforcement: documented }
+    - { name: shell-readonly, access: allow, enforcement: documented }
+    - { name: browser-read, access: ask, enforcement: human-gated }
+    - { name: local-edit, access: deny, enforcement: documented }
+    - { name: database-write, access: deny, enforcement: enforced }
+    - { name: job-execution, access: deny, enforcement: documented }
+  bash:
+    - git status --short
+    - git diff e git show sobre o fluxo
+    - testes não destrutivos de transição e concorrência
+  network: deny
+  external_write: deny
+resources:
+  references: [references/protocol.md]
+  scripts: []
+  assets: []
+composition:
+  complements:
+    - tenant-isolation-review para etapa e ficha da mesma fábrica
+    - data-integrity-review para atomicidade de estado e histórico
+    - api-contract-review para atualização otimista e erros do frontend
+  does_not_replace:
+    - prisma-migration-review quando schema persistido muda
+    - decisão humana sobre regras de produto ainda não ratificadas
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: ../../evals/kanban-transition-review/cases.json
+  minimum_categories: { positive: 5, negative: 5, adversarial: 3, prompt_injection: 1, insufficient_evidence: 1 }
+  minimum_trigger_cases: 10
+examples:
+  positive: Audite duas transferências concorrentes da mesma ficha e o retry ao entrar na última etapa.
+  negative: Revise somente a cor e o espaçamento visual dos cartões sem mudança de estado.
+  output: "## Matriz de transições\n| Atual | Destino | Resultado esperado | Enforcement |\n\n## Concorrência e job\nInterleavings, findings e limitações."

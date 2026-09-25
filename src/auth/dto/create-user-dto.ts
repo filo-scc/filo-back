@@ -20,8 +20,9 @@ export class CreateUserDto {
     @IsEnum(Cargo)
     cargo: Cargo;
 
+    @IsOptional()
     @IsNumber()
-    fabrico_id: number;
+    fabrico_id?: number;
 
     @IsOptional()
     @IsString()
