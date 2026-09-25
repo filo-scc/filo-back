@@ -41,7 +41,11 @@ export class ProdutoAviamentoService {
 
         try {
             const produtoExiste = await this.prisma.produto.findFirst({
-                where: { id: dadosDto.produto_id, fabrico_id: this.getFabricoId(user) },
+                where: {
+                    id: dadosDto.produto_id,
+                    fabrico_id: this.getFabricoId(user),
+                    ativo: true,
+                },
             });
             if (!produtoExiste) {
                 throw new NotFoundException("Produto não encontrado");
@@ -88,7 +92,7 @@ export class ProdutoAviamentoService {
     async findAll(user: AuthenticatedUser) {
         return this.prisma.produtoAviamento.findMany({
             where: {
-                produto: { fabrico_id: this.getFabricoId(user) },
+                produto: { fabrico_id: this.getFabricoId(user), ativo: true },
                 aviamento: { fabrico_id: this.getFabricoId(user) },
             },
             include: {
@@ -102,7 +106,7 @@ export class ProdutoAviamentoService {
         const relacao = await this.prisma.produtoAviamento.findFirst({
             where: {
                 id,
-                produto: { fabrico_id: this.getFabricoId(user) },
+                produto: { fabrico_id: this.getFabricoId(user), ativo: true },
                 aviamento: { fabrico_id: this.getFabricoId(user) },
             },
             include: {
@@ -123,7 +127,7 @@ export class ProdutoAviamentoService {
     async findAllByProduto(produto_id: number, user: AuthenticatedUser) {
         const fabricoId = this.getFabricoId(user);
         const produtoExiste = await this.prisma.produto.findFirst({
-            where: { id: produto_id, fabrico_id: fabricoId },
+            where: { id: produto_id, fabrico_id: fabricoId, ativo: true },
         });
 
         if (!produtoExiste) {
@@ -147,7 +151,7 @@ export class ProdutoAviamentoService {
         }
 
         return this.prisma.produtoAviamento.findMany({
-            where: { aviamento_id, produto: { fabrico_id: fabricoId } },
+            where: { aviamento_id, produto: { fabrico_id: fabricoId, ativo: true } },
             include: { produto: true },
         });
     }

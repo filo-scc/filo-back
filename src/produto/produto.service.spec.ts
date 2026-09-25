@@ -32,6 +32,7 @@ describe("ProdutoService", () => {
                 findUnique: jest.fn(),
                 findFirst: jest.fn(),
                 update: jest.fn(),
+                updateMany: jest.fn(),
                 delete: jest.fn(),
             },
             gradeVersao: {
@@ -148,6 +149,7 @@ describe("ProdutoService", () => {
                 where: {
                     id: 1,
                     fabrico_id: 10,
+                    ativo: true,
                 },
                 include: {
                     tecido: true,
@@ -161,10 +163,10 @@ describe("ProdutoService", () => {
             expect(res).toEqual(produto);
         });
 
-        it("não encontra produto inativo quando a operação exclui inativos", async () => {
+        it("não encontra produto inativo nas operações comuns", async () => {
             prisma.produto.findFirst.mockResolvedValue(null);
 
-            await expect(service.getById(1, mockUser, false)).rejects.toThrow(
+            await expect(service.getById(1, mockUser)).rejects.toThrow(
                 new NotFoundException("Produto não encontrado"),
             );
             expect(prisma.produto.findFirst).toHaveBeenCalledWith({
@@ -177,6 +179,24 @@ describe("ProdutoService", () => {
                         },
                     },
                 },
+            });
+        });
+
+        it("ignora campos de ciclo de vida mesmo em chamada direta ao service", async () => {
+            prisma.produto.create.mockResolvedValue({ id: 1, nome: "Camiseta", fabrico_id: 10 });
+
+            await service.create(
+                {
+                    nome: "Camiseta",
+                    tipo_produto_id: 1,
+                    ativo: false,
+                    delete_at: new Date(),
+                } as any,
+                mockUser,
+            );
+
+            expect(prisma.produto.create).toHaveBeenCalledWith({
+                data: { nome: "Camiseta", tipo_produto_id: 1, fabrico_id: 10 },
             });
         });
 
@@ -197,6 +217,22 @@ describe("ProdutoService", () => {
             const res = await service.update(1, { nome: "Camiseta Polo" }, mockUser);
 
             expect(res).toBe("O produto com o id 1 foi atualizado");
+            expect(prisma.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { nome: "Camiseta Polo", fabrico_id: 10 },
+            });
+        });
+
+        it("não permite reativar produto nem alterar delete_at pelo payload comum", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10, ativo: true });
+            prisma.produto.update.mockResolvedValue({ id: 1, nome: "Camiseta Polo" });
+
+            await service.update(
+                1,
+                { nome: "Camiseta Polo", ativo: true, delete_at: null } as any,
+                mockUser,
+            );
+
             expect(prisma.produto.update).toHaveBeenCalledWith({
                 where: { id: 1 },
                 data: { nome: "Camiseta Polo", fabrico_id: 10 },
@@ -227,17 +263,46 @@ describe("ProdutoService", () => {
 
     describe("softDelete", () => {
         it("desativa produto existente sem removê-lo permanentemente", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
-            prisma.produto.update.mockResolvedValue({ id: 1, ativo: false });
+            prisma.produto.updateMany.mockResolvedValue({ count: 1 });
 
             const res = await service.softDelete(1, mockUser);
 
             expect(res).toBe("O produto com o id 1 foi desativado com sucesso");
-            expect(prisma.produto.update).toHaveBeenCalledWith({
-                where: { id: 1 },
+            expect(prisma.produto.updateMany).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 10, ativo: true },
                 data: { ativo: false, delete_at: expect.any(Date) },
             });
             expect(prisma.produto.delete).not.toHaveBeenCalled();
+        });
+
+        it("não desativa novamente produto inativo ou inacessível", async () => {
+            prisma.produto.updateMany.mockResolvedValue({ count: 0 });
+
+            await expect(service.softDelete(1, mockUser)).rejects.toThrow(
+                new NotFoundException("Produto não encontrado"),
+            );
+        });
+    });
+
+    describe("restore", () => {
+        it("restaura atomicamente apenas produto inativo do próprio fabrico", async () => {
+            prisma.produto.updateMany.mockResolvedValue({ count: 1 });
+
+            await expect(service.restore(1, mockUser)).resolves.toBe(
+                "O produto com o id 1 foi restaurado com sucesso",
+            );
+            expect(prisma.produto.updateMany).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 10, ativo: false },
+                data: { ativo: true, delete_at: null },
+            });
+        });
+
+        it("não revela se o produto está ativo, inexiste ou pertence a outro fabrico", async () => {
+            prisma.produto.updateMany.mockResolvedValue({ count: 0 });
+
+            await expect(service.restore(1, mockUser)).rejects.toThrow(
+                new NotFoundException("Produto não encontrado"),
+            );
         });
     });
 

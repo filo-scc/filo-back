@@ -85,7 +85,11 @@ export class ParceiroProdutoService {
 
         if (!vinculo) throw new NotFoundException("Vinculo não encontrado");
 
-        if (vinculo.produto.fabrico_id !== fabricoId || vinculo.parceiro.fabrico_id !== fabricoId) {
+        if (
+            vinculo.produto.fabrico_id !== fabricoId ||
+            vinculo.produto.ativo === false ||
+            vinculo.parceiro.fabrico_id !== fabricoId
+        ) {
             throw new NotFoundException("Vinculo não encontrado");
         }
 
@@ -107,7 +111,7 @@ export class ParceiroProdutoService {
         return await this.prisma.parceiroProduto.findMany({
             where: {
                 parceiro_id: parceiro_id,
-                produto: { fabrico_id: fabricoId },
+                produto: { fabrico_id: fabricoId, ativo: true },
             },
             include: { produto: true },
         });
@@ -115,8 +119,7 @@ export class ParceiroProdutoService {
 
     async getParceiroByProduto(produto_id: number, user: AuthenticatedUser) {
         const fabricoId = this.getTenantFabricoId(user);
-        const produto = await this.prisma.produto.findUnique({ where: { id: produto_id } });
-        if (!produto) throw new NotFoundException("Produto não encontrado");
+        const produto = await this.produtoService.getById(produto_id, user);
 
         if (produto.fabrico_id !== fabricoId) {
             throw new NotFoundException("Produto não encontrado");
@@ -181,6 +184,7 @@ export class ParceiroProdutoService {
         if (
             !vinculo ||
             vinculo.produto.fabrico_id !== fabricoId ||
+            vinculo.produto.ativo === false ||
             vinculo.parceiro.fabrico_id !== fabricoId
         ) {
             throw new NotFoundException("Relacionamento não encontrado");

@@ -36,7 +36,7 @@ export class ClienteProdutoService {
         fabricoId: number,
     ) {
         const produto = await tx.produto.findFirst({
-            where: { id: produto_id, fabrico_id: fabricoId },
+            where: { id: produto_id, fabrico_id: fabricoId, ativo: true },
         });
 
         if (!produto) {
@@ -128,7 +128,7 @@ export class ClienteProdutoService {
                 where: {
                     cliente_id,
                     cliente: { fabrico_id: fabricoId },
-                    produto: { fabrico_id: fabricoId },
+                    produto: { fabrico_id: fabricoId, ativo: true },
                 },
                 select: {
                     nome_para_cliente: true,
@@ -166,7 +166,7 @@ export class ClienteProdutoService {
                 where: {
                     produto_id,
                     cliente: { fabrico_id: fabricoId },
-                    produto: { fabrico_id: fabricoId },
+                    produto: { fabrico_id: fabricoId, ativo: true },
                 },
                 select: {
                     nome_para_cliente: true,

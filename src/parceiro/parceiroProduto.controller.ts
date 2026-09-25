@@ -16,6 +16,8 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { ParceiroProdutoService } from "./parceiroProduto.service";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @Controller("parceiros-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)

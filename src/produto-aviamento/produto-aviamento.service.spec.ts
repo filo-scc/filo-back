@@ -96,6 +96,9 @@ describe("ProdutoAviamentoService", () => {
             const result = await service.create(dto, mockUser);
 
             expect(result).toEqual(mockProdutoAviamento);
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 10, ativo: true },
+            });
             expect(prisma.produtoAviamento.create).toHaveBeenCalledWith({ data: dto });
             expect(mockProdutoService.recalcularCustoTotal).toHaveBeenCalledWith(
                 mockProdutoAviamento.produto_id,
@@ -185,7 +188,7 @@ describe("ProdutoAviamentoService", () => {
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
                 where: {
-                    produto: { fabrico_id: 10 },
+                    produto: { fabrico_id: 10, ativo: true },
                     aviamento: { fabrico_id: 10 },
                 },
                 include: {
@@ -206,7 +209,7 @@ describe("ProdutoAviamentoService", () => {
             expect(prisma.produtoAviamento.findFirst).toHaveBeenCalledWith({
                 where: {
                     id: 1,
-                    produto: { fabrico_id: 10 },
+                    produto: { fabrico_id: 10, ativo: true },
                     aviamento: { fabrico_id: 10 },
                 },
                 include: { produto: true, aviamento: true },
@@ -232,6 +235,9 @@ describe("ProdutoAviamentoService", () => {
             const result = await service.findAllByProduto(1, mockUser);
 
             expect(result).toEqual([mockProdutoAviamento]);
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: { id: 1, fabrico_id: 10, ativo: true },
+            });
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
                 where: { produto_id: 1, aviamento: { fabrico_id: 10 } },
                 include: { aviamento: true },
@@ -257,7 +263,7 @@ describe("ProdutoAviamentoService", () => {
 
             expect(result).toEqual([mockProdutoAviamento]);
             expect(prisma.produtoAviamento.findMany).toHaveBeenCalledWith({
-                where: { aviamento_id: 2, produto: { fabrico_id: 10 } },
+                where: { aviamento_id: 2, produto: { fabrico_id: 10, ativo: true } },
                 include: { produto: true },
             });
         });

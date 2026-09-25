@@ -169,7 +169,7 @@ describe("ParceiroProdutoService", () => {
         ]);
         expect(parceiroService.getById).toHaveBeenCalledWith(1, userTenant);
         expect(prisma.parceiroProduto.findMany).toHaveBeenCalledWith({
-            where: { parceiro_id: 1, produto: { fabrico_id: 10 } },
+            where: { parceiro_id: 1, produto: { fabrico_id: 10, ativo: true } },
             include: { produto: true },
         });
     });
@@ -183,7 +183,7 @@ describe("ParceiroProdutoService", () => {
     });
 
     it("lista parceiros por produto existente no tenant", async () => {
-        prisma.produto.findUnique.mockResolvedValue(produtoTenant);
+        produtoService.getById.mockResolvedValue(produtoTenant);
         prisma.parceiroProduto.findMany.mockResolvedValue([{ parceiro: { id: 1 } }]);
 
         await expect(service.getParceiroByProduto(2, userTenant)).resolves.toEqual([
@@ -196,11 +196,25 @@ describe("ParceiroProdutoService", () => {
     });
 
     it("retorna 404 ao listar parceiros de produto fora do tenant", async () => {
-        prisma.produto.findUnique.mockResolvedValue({ id: 2, fabrico_id: 11 });
+        produtoService.getById.mockRejectedValue(new NotFoundException("Produto não encontrado"));
 
         await expect(service.getParceiroByProduto(2, userTenant)).rejects.toThrow(
             NotFoundException,
         );
+    });
+
+    it("retorna 404 ao remover vínculo de produto inativo", async () => {
+        prisma.parceiroProduto.findUnique.mockResolvedValue({
+            parceiro_id: 1,
+            produto_id: 2,
+            produto: { ...produtoTenant, ativo: false },
+            parceiro: parceiroTenant,
+        });
+
+        await expect(service.deleteParceiroProduto(1, 2, userTenant)).rejects.toThrow(
+            NotFoundException,
+        );
+        expect(prisma.parceiroProduto.delete).not.toHaveBeenCalled();
     });
 
     it("atualiza preco do vinculo no tenant autenticado", async () => {
