@@ -120,6 +120,11 @@ export class PedidoService {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
         }
 
+        // Sem chave, um retry após timeout criaria outro pedido com todas as fichas duplicadas.
+        if (!chaveIdempotencia) {
+            throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
+        }
+
         for (const fichaDto of fichasDto) {
             this.assertSomaItensIgualQuantidade(fichaDto);
         }

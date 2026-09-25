@@ -208,6 +208,7 @@ describe("PedidoService", () => {
     describe("createCompleto", () => {
         const dtoBase = {
             cliente_id: 7,
+            idempotency_key: "chave-base",
             fichas: [
                 {
                     produto_id: 5,
@@ -224,6 +225,31 @@ describe("PedidoService", () => {
                 },
             ],
         };
+
+        it("deve exigir chave de idempotência sem consultar nem gravar nada", async () => {
+            const semChave = { ...dtoBase, idempotency_key: undefined };
+
+            await expect(service.createCompleto(semChave, usuario)).rejects.toThrow(
+                "Informe o header Idempotency-Key para criar o pedido",
+            );
+            await expect(service.createCompleto(semChave, usuario, "   ")).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.pedido.findFirst).not.toHaveBeenCalled();
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+        });
+
+        it("deve aceitar a chave pelo header quando o body não traz", async () => {
+            prepararCenarioFeliz();
+            const semChave = { ...dtoBase, idempotency_key: undefined };
+
+            await service.createCompleto(semChave, usuario, "chave-header");
+
+            expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({ idempotency_key: "chave-header" }),
+            });
+        });
 
         it("deve rejeitar duas fichas do mesmo produto sem gravar nada", async () => {
             await expect(
@@ -258,7 +284,10 @@ describe("PedidoService", () => {
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
                 .mockResolvedValueOnce({ id: 8 });
-            mockPrismaService.pedido.findFirst.mockResolvedValue({ numero: 6 });
+            // Consulta por idempotency_key não encontra pedido; consulta de numeração devolve o último.
+            mockPrismaService.pedido.findFirst.mockImplementation(async (args: any) =>
+                args?.where?.idempotency_key ? null : { numero: 6 },
+            );
             mockPrismaService.pedido.create.mockResolvedValue({ id: 100 });
             mockPrismaService.fichaTecnica.findFirst.mockResolvedValue({ numero: 4 });
             mockPrismaService.fichaTecnica.create.mockResolvedValue({ id: 200 });
@@ -380,6 +409,7 @@ describe("PedidoService", () => {
 
             await service.createCompleto(
                 {
+                    idempotency_key: "chave-teste",
                     fichas: [
                         {
                             produto_id: 5,
@@ -493,6 +523,7 @@ describe("PedidoService", () => {
             await expect(
                 service.createCompleto(
                     {
+                        idempotency_key: "chave-teste",
                         fichas: [
                             {
                                 produto_id: 5,
@@ -549,6 +580,7 @@ describe("PedidoService", () => {
             await expect(
                 service.createCompleto(
                     {
+                        idempotency_key: "chave-teste",
                         fichas: [{ produto_id: 5, quantidade: 30 }],
                     },
                     usuario,
