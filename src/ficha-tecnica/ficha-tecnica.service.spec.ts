@@ -157,6 +157,21 @@ describe("FichaTecnicaService", () => {
             expectPedidoTravadoAntesDe(prismaService.fichaTecnica.create);
         });
 
+        it("deve recusar se o pedido for finalizado entre a checagem inicial e a trava", async () => {
+            produtoService.getById.mockResolvedValue(true);
+            fabricoService.getById.mockResolvedValue(true);
+            prismaService.pedido.findFirst
+                .mockResolvedValueOnce({ id: 100 }) // pedido pertence ao fabrico
+                .mockResolvedValueOnce({ finalizado: false }) // checagem antes da transação
+                .mockResolvedValueOnce({ finalizado: true }); // releitura com o pedido travado
+            prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
+            prismaService.gradeVersaoItem.findMany.mockResolvedValue([{ id: 1 }]);
+
+            await expect(service.create(createDto, mockUser)).rejects.toThrow(ConflictException);
+            expect(prismaService.fichaTecnica.create).not.toHaveBeenCalled();
+            expect(prismaService.pedido.updateMany).not.toHaveBeenCalled();
+        });
+
         it("deve lançar NotFoundException se o pedido não pertencer ao fabrico", async () => {
             produtoService.getById.mockResolvedValue(true);
             fabricoService.getById.mockResolvedValue(true);
@@ -385,6 +400,22 @@ describe("FichaTecnicaService", () => {
             expectPedidoTravadoAntesDe(prismaService.fichaTecnica.update);
         });
 
+        it("deve recusar update se o pedido for finalizado entre a checagem inicial e a trava", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+            } as any);
+            prismaService.pedido.findFirst
+                .mockReset()
+                .mockResolvedValueOnce({ finalizado: false })
+                .mockResolvedValueOnce({ finalizado: true });
+
+            await expect(service.update(1, { quantidade: 50 } as any, mockUser)).rejects.toThrow(
+                ConflictException,
+            );
+            expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
+        });
+
         it("deve aceitar um relatório de perdas válido", async () => {
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
@@ -542,6 +573,19 @@ describe("FichaTecnicaService", () => {
                 data: { finalizado: true },
             });
             expectPedidoTravadoAntesDe(prismaService.fichaTecnica.delete);
+        });
+
+        it("deve recusar remoção se o pedido for finalizado entre a checagem inicial e a trava", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+            } as any);
+            prismaService.pedido.findFirst
+                .mockResolvedValueOnce({ finalizado: false })
+                .mockResolvedValueOnce({ finalizado: true });
+
+            await expect(service.remove(1)).rejects.toThrow(ConflictException);
+            expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
         });
 
         it("deve lançar NotFoundException se a ficha não existir", async () => {
