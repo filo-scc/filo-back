@@ -103,6 +103,15 @@ describe("FichaTecnicaService", () => {
         expect(service).toBeDefined();
     });
 
+    // O cron trava pedido -> fichas; todo fluxo de ficha precisa seguir a mesma ordem.
+    const expectPedidoTravadoAntesDe = (mutacaoDaFicha: jest.Mock) => {
+        expect(prismaService.$queryRaw).toHaveBeenCalled();
+        expect(mutacaoDaFicha).toHaveBeenCalled();
+        expect(prismaService.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+            mutacaoDaFicha.mock.invocationCallOrder[0],
+        );
+    };
+
     describe("create", () => {
         const createDto = { produto_id: 10, pedido_id: 100 } as any;
 
@@ -145,6 +154,7 @@ describe("FichaTecnicaService", () => {
                 where: { id: 100, finalizado: true },
                 data: { finalizado: false },
             });
+            expectPedidoTravadoAntesDe(prismaService.fichaTecnica.create);
         });
 
         it("deve lançar NotFoundException se o pedido não pertencer ao fabrico", async () => {
@@ -358,6 +368,23 @@ describe("FichaTecnicaService", () => {
             ).rejects.toThrow("A nova versão de grade informada é inválida ou está inativa");
         });
 
+        it("deve travar o pedido antes de atualizar ficha vinculada", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                pedido_id: 100,
+            } as any);
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData, quantidade: 50 });
+            prismaService.pedido.findUnique.mockResolvedValue({ cliente_id: null });
+            prismaService.fichaTecnica.findMany.mockResolvedValue([]);
+            prismaService.fichaTecnica.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+            prismaService.pedido.update.mockResolvedValue({});
+            prismaService.pedido.updateMany.mockResolvedValue({ count: 0 });
+
+            await service.update(1, { quantidade: 50 } as any, mockUser);
+
+            expectPedidoTravadoAntesDe(prismaService.fichaTecnica.update);
+        });
+
         it("deve aceitar um relatório de perdas válido", async () => {
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
@@ -514,6 +541,7 @@ describe("FichaTecnicaService", () => {
                 where: { id: 100, finalizado: false },
                 data: { finalizado: true },
             });
+            expectPedidoTravadoAntesDe(prismaService.fichaTecnica.delete);
         });
 
         it("deve lançar NotFoundException se a ficha não existir", async () => {

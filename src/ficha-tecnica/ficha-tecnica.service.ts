@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
-import { sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
+import { lockPedidos, sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
@@ -143,6 +143,8 @@ export class FichaTecnicaService {
 
         return this.prisma.$transaction(async (tx) => {
             await lockFabricoNumeracao(tx, fabrico_id);
+            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+            await lockPedidos(tx, [Number(data.pedido_id)]);
             const numero = await proximoNumeroFicha(tx, fabrico_id);
 
             const ficha = await tx.fichaTecnica.create({
@@ -405,6 +407,11 @@ export class FichaTecnicaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
+                // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+                if (ficha.pedido_id) {
+                    await lockPedidos(tx, [ficha.pedido_id]);
+                }
+
                 if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
                     await tx.fichaTecnicaItem.deleteMany({
                         where: { ficha_tecnica_id: id },
@@ -556,6 +563,11 @@ export class FichaTecnicaService {
         }
 
         await this.prisma.$transaction(async (tx) => {
+            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+            if (ficha.pedido_id) {
+                await lockPedidos(tx, [ficha.pedido_id]);
+            }
+
             await tx.fichaTecnica.delete({
                 where: { id },
             });
