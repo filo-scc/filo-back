@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
-import { sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
+import { lockPedidos, sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { EtapaService } from "../etapa/etapa.service";
@@ -144,6 +144,10 @@ export class FichaTecnicaService {
 
         return this.prisma.$transaction(async (tx) => {
             await lockFabricoNumeracao(tx, fabrico_id);
+            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+            await lockPedidos(tx, [Number(data.pedido_id)]);
+            // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
+            await this.assertPedidoEditavel(Number(data.pedido_id), tx);
             const numero = await proximoNumeroFicha(tx, fabrico_id);
 
             const ficha = await tx.fichaTecnica.create({
@@ -406,6 +410,21 @@ export class FichaTecnicaService {
 
         try {
             return await this.prisma.$transaction(async (tx) => {
+                // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+                const pedidosEnvolvidos = [
+                    ...new Set(
+                        [ficha.pedido_id, data.pedido_id]
+                            .filter((pedidoId) => pedidoId !== undefined && pedidoId !== null)
+                            .map(Number),
+                    ),
+                ];
+
+                await lockPedidos(tx, pedidosEnvolvidos);
+                // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
+                for (const pedidoId of pedidosEnvolvidos) {
+                    await this.assertPedidoEditavel(pedidoId, tx);
+                }
+
                 if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
                     await tx.fichaTecnicaItem.deleteMany({
                         where: { ficha_tecnica_id: id },
@@ -466,8 +485,11 @@ export class FichaTecnicaService {
         }
     }
 
-    private async assertPedidoEditavel(pedidoId: number) {
-        const pedido = await this.prisma.pedido.findFirst({
+    private async assertPedidoEditavel(
+        pedidoId: number,
+        db: Prisma.TransactionClient | PrismaService = this.prisma,
+    ) {
+        const pedido = await db.pedido.findFirst({
             where: { id: pedidoId },
             select: { finalizado: true },
         });
@@ -557,6 +579,13 @@ export class FichaTecnicaService {
         }
 
         await this.prisma.$transaction(async (tx) => {
+            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
+            if (ficha.pedido_id) {
+                await lockPedidos(tx, [ficha.pedido_id]);
+                // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
+                await this.assertPedidoEditavel(ficha.pedido_id, tx);
+            }
+
             await tx.fichaTecnica.delete({
                 where: { id },
             });

@@ -208,6 +208,7 @@ describe("PedidoService", () => {
     describe("createCompleto", () => {
         const dtoBase = {
             cliente_id: 7,
+            idempotency_key: "chave-base",
             fichas: [
                 {
                     produto_id: 5,
@@ -225,6 +226,51 @@ describe("PedidoService", () => {
             ],
         };
 
+        it("deve exigir chave de idempotência sem consultar nem gravar nada", async () => {
+            const semChave = { ...dtoBase, idempotency_key: undefined };
+
+            await expect(service.createCompleto(semChave, usuario)).rejects.toThrow(
+                "Informe o header Idempotency-Key para criar o pedido",
+            );
+            await expect(service.createCompleto(semChave, usuario, "   ")).rejects.toThrow(
+                BadRequestException,
+            );
+            expect(mockPrismaService.pedido.findFirst).not.toHaveBeenCalled();
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+        });
+
+        it("deve aceitar a chave pelo header quando o body não traz", async () => {
+            prepararCenarioFeliz();
+            const semChave = { ...dtoBase, idempotency_key: undefined };
+
+            await service.createCompleto(semChave, usuario, "chave-header");
+
+            expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({ idempotency_key: "chave-header" }),
+            });
+        });
+
+        it("deve rejeitar duas fichas do mesmo produto sem gravar nada", async () => {
+            await expect(
+                service.createCompleto(
+                    {
+                        ...dtoBase,
+                        fichas: [
+                            { ...dtoBase.fichas[0] },
+                            { ...dtoBase.fichas[0], grade_versao_id: 4 },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.produto.updateMany).not.toHaveBeenCalled();
+        });
+
         const prepararCenarioFeliz = () => {
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany
@@ -238,7 +284,10 @@ describe("PedidoService", () => {
             mockPrismaService.etapa.findFirst
                 .mockResolvedValueOnce({ id: 2 })
                 .mockResolvedValueOnce({ id: 8 });
-            mockPrismaService.pedido.findFirst.mockResolvedValue({ numero: 6 });
+            // Consulta por idempotency_key não encontra pedido; consulta de numeração devolve o último.
+            mockPrismaService.pedido.findFirst.mockImplementation(async (args: any) =>
+                args?.where?.idempotency_key ? null : { numero: 6 },
+            );
             mockPrismaService.pedido.create.mockResolvedValue({ id: 100 });
             mockPrismaService.fichaTecnica.findFirst.mockResolvedValue({ numero: 4 });
             mockPrismaService.fichaTecnica.create.mockResolvedValue({ id: 200 });
@@ -360,6 +409,7 @@ describe("PedidoService", () => {
 
             await service.createCompleto(
                 {
+                    idempotency_key: "chave-teste",
                     fichas: [
                         {
                             produto_id: 5,
@@ -473,6 +523,7 @@ describe("PedidoService", () => {
             await expect(
                 service.createCompleto(
                     {
+                        idempotency_key: "chave-teste",
                         fichas: [
                             {
                                 produto_id: 5,
@@ -529,6 +580,7 @@ describe("PedidoService", () => {
             await expect(
                 service.createCompleto(
                     {
+                        idempotency_key: "chave-teste",
                         fichas: [{ produto_id: 5, quantidade: 30 }],
                     },
                     usuario,
@@ -580,6 +632,26 @@ describe("PedidoService", () => {
             finalizado: false,
             fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
         };
+
+        it("deve rejeitar ficha nova de produto que ja tem ficha no pedido", async () => {
+            await expect(
+                service.updateCompleto(
+                    100,
+                    {
+                        fichas: [
+                            { id: 200, produto_id: 5, quantidade: 30 },
+                            { produto_id: 5, quantidade: 0 },
+                        ],
+                    },
+                    usuario,
+                ),
+            ).rejects.toThrow(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalled();
+        });
 
         it("deve atualizar cliente, preço e totais em uma única transação", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
@@ -801,11 +873,11 @@ describe("PedidoService", () => {
             );
         });
 
-        it("deve persistir observacoes e etapa_atual_id em ficha existente sem matriz", async () => {
+        it("deve persistir observacoes e ignorar etapa_atual_id em ficha existente", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
             mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
-            mockPrismaService.etapa.findFirst.mockResolvedValue({ id: 40 });
+            mockPrismaService.etapa.findFirst.mockReset();
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
 
             await service.updateCompleto(
@@ -824,45 +896,40 @@ describe("PedidoService", () => {
                 usuario,
             );
 
-            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
-                where: { id: 40, fabrico_id: 1, ativa: true },
-                select: { id: true },
-            });
+            expect(mockPrismaService.etapa.findFirst).not.toHaveBeenCalled();
             expect(mockPrismaService.fichaTecnica.update).toHaveBeenCalledWith({
                 where: { id: 200 },
-                data: {
-                    observacoes: "Obs atualizada",
-                    etapa_atual_id: 40,
-                },
+                data: { observacoes: "Obs atualizada" },
             });
+            expect(mockPrismaService.fichaEtapa.create).not.toHaveBeenCalled();
             expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
         });
 
-        it("deve rejeitar etapa_atual_id de outro fabrico em ficha existente", async () => {
+        it("nao deve alterar a etapa de ficha existente quando so etapa_atual_id muda", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany.mockResolvedValue([{ id: 5, custo_total: 10 }]);
             mockPrismaService.etapa.findFirst.mockReset();
-            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, cliente_id: 7 });
 
-            await expect(
-                service.updateCompleto(
-                    100,
-                    {
-                        fichas: [
-                            {
-                                id: 200,
-                                produto_id: 5,
-                                quantidade: 30,
-                                etapa_atual_id: 99,
-                            },
-                        ],
-                    },
-                    usuario,
-                ),
-            ).rejects.toThrow(
-                "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
+            await service.updateCompleto(
+                100,
+                {
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                            etapa_atual_id: 99,
+                        },
+                    ],
+                },
+                usuario,
             );
+
+            expect(mockPrismaService.etapa.findFirst).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaEtapa.create).not.toHaveBeenCalled();
         });
 
         it("deve rejeitar grade_versao_id em ficha existente sem itens ou cores_ids", async () => {

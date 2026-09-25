@@ -8,7 +8,6 @@ import {
     Delete,
     ParseIntPipe,
     UseGuards,
-    NotFoundException,
 } from "@nestjs/common";
 import { ProdutoAviamentoService } from "./produto-aviamento.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";

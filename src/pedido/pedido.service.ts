@@ -120,9 +120,16 @@ export class PedidoService {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
         }
 
+        // Sem chave, um retry após timeout criaria outro pedido com todas as fichas duplicadas.
+        if (!chaveIdempotencia) {
+            throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
+        }
+
         for (const fichaDto of fichasDto) {
             this.assertSomaItensIgualQuantidade(fichaDto);
         }
+
+        this.assertUmaFichaPorProduto(fichasDto);
 
         if (data.cliente_id) {
             const cliente = await this.prisma.cliente.findFirst({
@@ -299,6 +306,8 @@ export class PedidoService {
             throw new BadRequestException("Há fichas técnicas duplicadas no payload");
         }
 
+        this.assertUmaFichaPorProduto(fichasDto);
+
         for (const fichaDto of fichasExistentesDto) {
             const temEdicaoDeMatriz =
                 Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
@@ -440,7 +449,6 @@ export class PedidoService {
                             quantidade?: number;
                             grade_versao_id?: number;
                             observacoes?: string;
-                            etapa_atual_id?: number | null;
                         } = {};
 
                         if (novaQuantidade !== fichaDb.quantidade) {
@@ -449,27 +457,6 @@ export class PedidoService {
 
                         if (fichaDto.observacoes !== undefined) {
                             updateData.observacoes = fichaDto.observacoes;
-                        }
-
-                        if (fichaDto.etapa_atual_id !== undefined) {
-                            if (fichaDto.etapa_atual_id !== null) {
-                                const etapa = await tx.etapa.findFirst({
-                                    where: {
-                                        id: Number(fichaDto.etapa_atual_id),
-                                        fabrico_id: fabricoId,
-                                        ativa: true,
-                                    },
-                                    select: { id: true },
-                                });
-
-                                if (!etapa) {
-                                    throw new BadRequestException(
-                                        "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
-                                    );
-                                }
-                            }
-
-                            updateData.etapa_atual_id = fichaDto.etapa_atual_id;
                         }
 
                         if (temEdicaoDeMatriz) {
@@ -628,6 +615,17 @@ export class PedidoService {
             }
 
             throw new InternalServerErrorException("Erro ao editar o pedido!");
+        }
+    }
+
+    // Um pedido tem no máximo uma ficha por produto; grade e preço são resolvidos por produto.
+    private assertUmaFichaPorProduto(fichasDto: CreatePedidoFichaDto[]) {
+        const produtoIds = fichasDto.map((ficha) => Number(ficha.produto_id));
+
+        if (produtoIds.length !== new Set(produtoIds).size) {
+            throw new BadRequestException(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
         }
     }
 

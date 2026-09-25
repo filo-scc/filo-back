@@ -20,7 +20,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("ADMIN", "PROPRIETARIO", "GERENTE")
+@Roles("PROPRIETARIO", "GERENTE")
 @Controller("cores")
 export class CorController {
     constructor(private readonly corService: CorService) {}

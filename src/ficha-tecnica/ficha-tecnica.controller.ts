@@ -8,7 +8,6 @@ import {
     UseGuards,
     Put,
     ParseIntPipe,
-    Req,
 } from "@nestjs/common";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
