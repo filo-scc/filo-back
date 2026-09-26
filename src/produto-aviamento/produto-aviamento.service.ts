@@ -1,8 +1,15 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProdutoAviamentoDto } from "./dto/create-produto-aviamento.dto";
 import { UpdateProdutoAviamentoDto } from "./dto/update-produto-aviamento.dto";
 import { ProdutoService } from "../produto/produto.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoAviamentoService {
@@ -11,45 +18,79 @@ export class ProdutoAviamentoService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(createProdutoAviamentoDto: CreateProdutoAviamentoDto) {
-        const produtoExiste = await this.prisma.produto.findUnique({
-            where: { id: createProdutoAviamentoDto.produto_id },
-        });
-        if (!produtoExiste) throw new NotFoundException("Produto não encontrado");
-
-        const aviamentoExiste = await this.prisma.aviamento.findUnique({
-            where: { id: createProdutoAviamentoDto.aviamento_id },
-        });
-        if (!aviamentoExiste) throw new NotFoundException("Aviamento não encontrado");
-
-        const relacaoExiste = await this.prisma.produtoAviamento.findFirst({
-            where: {
-                produto_id: createProdutoAviamentoDto.produto_id,
-                aviamento_id: createProdutoAviamentoDto.aviamento_id,
-            },
-        });
-        if (relacaoExiste) {
-            throw new ConflictException("Esse aviamento já está vinculado a este produto");
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico do relacionamento");
         }
-
-        return this.prisma.$transaction(async (tx) => {
-            await this.produtoService.bloquearProdutosParaRecalculo(
-                [createProdutoAviamentoDto.produto_id],
-                tx,
-            );
-            const vinculo = await tx.produtoAviamento.create({
-                data: createProdutoAviamentoDto,
-            });
-            await this.produtoService.recalcularCustoTotal(
-                createProdutoAviamentoDto.produto_id,
-                tx,
-            );
-            return vinculo;
-        });
     }
 
-    async findAll() {
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
+    }
+
+    async create(
+        createProdutoAviamentoDto: CreateProdutoAviamentoDto & { fabrico_id?: number },
+        user: AuthenticatedUser,
+    ) {
+        this.assertFabricoImutavel(createProdutoAviamentoDto.fabrico_id, this.getFabricoId(user));
+
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosDto } = createProdutoAviamentoDto;
+
+        try {
+            const produtoExiste = await this.prisma.produto.findFirst({
+                where: { id: dadosDto.produto_id, fabrico_id: this.getFabricoId(user) },
+            });
+            if (!produtoExiste) {
+                throw new NotFoundException("Produto não encontrado");
+            }
+
+            const aviamentoExiste = await this.prisma.aviamento.findFirst({
+                where: { id: dadosDto.aviamento_id, fabrico_id: this.getFabricoId(user) },
+            });
+            if (!aviamentoExiste) {
+                throw new NotFoundException("Aviamento não encontrado");
+            }
+
+            const relacaoExiste = await this.prisma.produtoAviamento.findFirst({
+                where: {
+                    produto_id: dadosDto.produto_id,
+                    aviamento_id: dadosDto.aviamento_id,
+                },
+            });
+            if (relacaoExiste) {
+                throw new ConflictException("Esse aviamento já está vinculado a este produto");
+            }
+
+            return await this.prisma.$transaction(async (tx) => {
+                await this.produtoService.bloquearProdutosParaRecalculo([dadosDto.produto_id], tx);
+                const vinculo = await tx.produtoAviamento.create({
+                    data: dadosDto,
+                });
+                await this.produtoService.recalcularCustoTotal(dadosDto.produto_id, tx);
+                return vinculo;
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Esse aviamento já está vinculado a este produto");
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
+            }
+            throw error;
+        }
+    }
+
+    async findAll(user: AuthenticatedUser) {
         return this.prisma.produtoAviamento.findMany({
+            where: {
+                produto: { fabrico_id: this.getFabricoId(user) },
+                aviamento: { fabrico_id: this.getFabricoId(user) },
+            },
             include: {
                 produto: true,
                 aviamento: true,
@@ -57,9 +98,13 @@ export class ProdutoAviamentoService {
         });
     }
 
-    async findOne(id: number) {
-        const relacao = await this.prisma.produtoAviamento.findUnique({
-            where: { id },
+    async findOne(id: number, user: AuthenticatedUser) {
+        const relacao = await this.prisma.produtoAviamento.findFirst({
+            where: {
+                id,
+                produto: { fabrico_id: this.getFabricoId(user) },
+                aviamento: { fabrico_id: this.getFabricoId(user) },
+            },
             include: {
                 produto: true,
                 aviamento: true,
@@ -75,9 +120,10 @@ export class ProdutoAviamentoService {
         return relacao;
     }
 
-    async findAllByProduto(produto_id: number) {
-        const produtoExiste = await this.prisma.produto.findUnique({
-            where: { id: produto_id },
+    async findAllByProduto(produto_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
+        const produtoExiste = await this.prisma.produto.findFirst({
+            where: { id: produto_id, fabrico_id: fabricoId },
         });
 
         if (!produtoExiste) {
@@ -85,14 +131,15 @@ export class ProdutoAviamentoService {
         }
 
         return this.prisma.produtoAviamento.findMany({
-            where: { produto_id },
+            where: { produto_id, aviamento: { fabrico_id: fabricoId } },
             include: { aviamento: true },
         });
     }
 
-    async findAllByAviamento(aviamento_id: number) {
-        const aviamentoExiste = await this.prisma.aviamento.findUnique({
-            where: { id: aviamento_id },
+    async findAllByAviamento(aviamento_id: number, user: AuthenticatedUser) {
+        const fabricoId = this.getFabricoId(user);
+        const aviamentoExiste = await this.prisma.aviamento.findFirst({
+            where: { id: aviamento_id, fabrico_id: fabricoId },
         });
 
         if (!aviamentoExiste) {
@@ -100,58 +147,88 @@ export class ProdutoAviamentoService {
         }
 
         return this.prisma.produtoAviamento.findMany({
-            where: { aviamento_id },
+            where: { aviamento_id, produto: { fabrico_id: fabricoId } },
             include: { produto: true },
         });
     }
 
-    async update(id: number, payload: UpdateProdutoAviamentoDto) {
-        const vinculoExistente = await this.findOne(id);
-        const quantidadeInformada = payload.quantidade !== undefined;
-        const custoInformado = payload.custo !== undefined;
+    async update(
+        id: number,
+        payload: UpdateProdutoAviamentoDto & { fabrico_id?: number },
+        user: AuthenticatedUser,
+    ) {
+        const fabricoId = this.getFabricoId(user);
+        this.assertFabricoImutavel(payload.fabrico_id, fabricoId);
+
+        const vinculoExistente = await this.findOne(id, user);
+        const { fabrico_id: _fabricoIdIgnorado, ...dadosPayload } = payload;
+
+        const quantidadeInformada = dadosPayload.quantidade !== undefined;
+        const custoInformado = dadosPayload.custo !== undefined;
 
         const quantidadeMudou =
             quantidadeInformada &&
-            Number(payload.quantidade) !== Number(vinculoExistente.quantidade);
+            Number(dadosPayload.quantidade) !== Number(vinculoExistente.quantidade);
 
         const dadosAtualizados: { quantidade?: number; custo?: number | null } = {};
 
         if (quantidadeInformada) {
-            dadosAtualizados.quantidade = payload.quantidade;
+            dadosAtualizados.quantidade = dadosPayload.quantidade;
         }
         if (custoInformado) {
-            dadosAtualizados.custo = payload.custo;
+            dadosAtualizados.custo = dadosPayload.custo;
         } else if (quantidadeMudou) {
             dadosAtualizados.custo = null;
         }
 
-        return this.prisma.$transaction(async (tx) => {
-            await this.produtoService.bloquearProdutosParaRecalculo(
-                [vinculoExistente.produto_id],
-                tx,
-            );
-            const vinculo = await tx.produtoAviamento.update({
-                where: { id },
-                data: dadosAtualizados,
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+                await this.produtoService.bloquearProdutosParaRecalculo(
+                    [vinculoExistente.produto_id],
+                    tx,
+                );
+                const vinculo = await tx.produtoAviamento.update({
+                    where: { id },
+                    data: dadosAtualizados,
+                });
+                await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
+                return vinculo;
             });
-            await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
-            return vinculo;
-        });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException("Esse aviamento já está vinculado a este produto");
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
+            }
+            throw error;
+        }
     }
 
-    async remove(id: number) {
-        const vinculoExistente = await this.findOne(id);
+    async remove(id: number, user: AuthenticatedUser) {
+        const vinculoExistente = await this.findOne(id, user);
 
-        return this.prisma.$transaction(async (tx) => {
-            await this.produtoService.bloquearProdutosParaRecalculo(
-                [vinculoExistente.produto_id],
-                tx,
-            );
-            const vinculo = await tx.produtoAviamento.delete({
-                where: { id },
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+                await this.produtoService.bloquearProdutosParaRecalculo(
+                    [vinculoExistente.produto_id],
+                    tx,
+                );
+                const vinculo = await tx.produtoAviamento.delete({
+                    where: { id },
+                });
+                await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
+                return vinculo;
             });
-            await this.produtoService.recalcularCustoTotal(vinculoExistente.produto_id, tx);
-            return vinculo;
-        });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
+            }
+            throw error;
+        }
     }
 }

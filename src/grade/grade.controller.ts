@@ -15,6 +15,8 @@ import { UpdateGradeDto } from "./dto/update-grade.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
@@ -29,13 +31,13 @@ export class GradeController {
     }
 
     @Get()
-    findAll() {
-        return this.gradeService.findAll();
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.gradeService.findAll(user);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.gradeService.findOne(id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.gradeService.findOne(id, user);
     }
 
     @Roles("ADMIN")

@@ -2,6 +2,7 @@ import { ConcluirFichasCronService } from "./concluir-fichas-cron";
 
 describe("ConcluirFichasCronService", () => {
     const tx = {
+        $queryRaw: jest.fn(),
         fichaEtapa: { updateMany: jest.fn() },
         fichaTecnica: { updateMany: jest.fn(), count: jest.fn() },
         pedido: { updateMany: jest.fn() },
@@ -73,6 +74,26 @@ describe("ConcluirFichasCronService", () => {
             data: { finalizado: false },
         });
         expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("trava os pedidos em ordem crescente antes de concluir fichas e contar pendências", async () => {
+        prisma.fichaTecnica.findMany.mockResolvedValue([
+            { id: 60, pedido_id: 9 },
+            { id: 61, pedido_id: 3 },
+        ]);
+        tx.fichaTecnica.count.mockResolvedValue(1);
+        tx.pedido.updateMany.mockResolvedValue({ count: 0 });
+
+        await service.handleConcluirFichasAntigas();
+
+        const pedidosTravados = tx.$queryRaw.mock.calls.map(([sql]) => sql.values[0]);
+        expect(pedidosTravados.slice(0, 2)).toEqual([3, 9]);
+
+        const ultimaTravaInicial = tx.$queryRaw.mock.invocationCallOrder[1];
+        expect(ultimaTravaInicial).toBeLessThan(
+            tx.fichaTecnica.updateMany.mock.invocationCallOrder[0],
+        );
+        expect(ultimaTravaInicial).toBeLessThan(tx.fichaTecnica.count.mock.invocationCallOrder[0]);
     });
 
     it("não inicia outra verificação enquanto uma execução está em andamento", async () => {

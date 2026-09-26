@@ -324,6 +324,7 @@ model FichaTecnica {
 
   ficha_parceiro FichaParceiro[]
 
+  @@unique([fabrico_id, numero])
   @@index([fabrico_id, produzida_em])
   @@map("fichas-tecnicas")
 }
@@ -589,6 +590,7 @@ model Pedido {
   quantidade Int @default(0)
   valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
+  idempotency_key String? @db.VarChar(128)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -599,6 +601,7 @@ model Pedido {
   fichas_tecnicas FichaTecnica[]
 
   @@unique([fabrico_id, numero])
+  @@unique([fabrico_id, idempotency_key])
   @@map("pedidos")
 }
 

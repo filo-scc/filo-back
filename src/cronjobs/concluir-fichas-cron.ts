@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
-import { sincronizarFinalizacaoPedido } from "../pedido/pedido-finalizacao";
+import { lockPedidos, sincronizarFinalizacaoPedido } from "../pedido/pedido-finalizacao";
 
 @Injectable()
 export class ConcluirFichasCronService implements OnModuleInit {
@@ -56,6 +56,9 @@ export class ConcluirFichasCronService implements OnModuleInit {
 
             if (idsFichas.length > 0) {
                 await this.prisma.$transaction(async (tx) => {
+                    // Mesma ordem do updateCompleto: pedido antes das fichas.
+                    await lockPedidos(tx, pedidoIds);
+
                     await tx.fichaTecnica.updateMany({
                         where: { id: { in: idsFichas }, concluida: false },
                         data: { concluida: true },

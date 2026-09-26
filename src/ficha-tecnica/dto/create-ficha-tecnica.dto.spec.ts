@@ -4,7 +4,6 @@ import { UpdateFichaTecnicaDto } from "./update-ficha-tecnica.dto";
 
 const dadosValidos = {
     produto_id: 1,
-    concluida: false,
     pedido_id: 1,
     quantidade: 10,
 };

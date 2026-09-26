@@ -2,7 +2,6 @@ import { Type } from "class-transformer";
 import {
     ArrayMinSize,
     IsArray,
-    IsBoolean,
     IsDateString,
     IsInt,
     IsOptional,
@@ -19,12 +18,8 @@ export class UpdatePedidoFichaDto extends CreatePedidoFichaDto {
 
 export class UpdatePedidoCompletoDto {
     @IsOptional()
-    @IsBoolean()
-    finalizado?: boolean;
-
-    @IsOptional()
     @IsDateString()
-    data_prevista?: string;
+    data_prevista?: string | null;
 
     @IsOptional()
     @IsString()

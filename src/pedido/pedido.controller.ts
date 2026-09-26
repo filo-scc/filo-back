@@ -7,6 +7,7 @@ import {
     Param,
     Delete,
     Put,
+    Headers,
     UseGuards,
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
@@ -28,20 +29,21 @@ export class PedidoController {
 
     @Post()
     async create(@Body() createPedidoDto: CreatePedidoDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.create(createPedidoDto, user.fabrico_id!);
+        return this.pedidoService.create(createPedidoDto, user);
     }
 
     @Post("completo")
     async createCompleto(
         @Body() createPedidoCompletoDto: CreatePedidoCompletoDto,
         @CurrentUser() user: AuthenticatedUser,
+        @Headers("idempotency-key") idempotencyKey?: string,
     ) {
-        return this.pedidoService.createCompleto(createPedidoCompletoDto, user.fabrico_id!);
+        return this.pedidoService.createCompleto(createPedidoCompletoDto, user, idempotencyKey);
     }
 
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.findAll(user.fabrico_id!);
+        return this.pedidoService.findAll(user);
     }
 
     @Get("/cliente/:cliente_id")
@@ -49,7 +51,7 @@ export class PedidoController {
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.findAllCliente(cliente_id, user.fabrico_id!);
+        return this.pedidoService.findAllCliente(cliente_id, user);
     }
 
     @Put("completo/:id")
@@ -58,17 +60,17 @@ export class PedidoController {
         @Body() data: UpdatePedidoCompletoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.updateCompleto(id, data, user.fabrico_id!);
+        return this.pedidoService.updateCompleto(id, data, user);
     }
 
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.getById(id, user.fabrico_id!);
+        return this.pedidoService.getById(id, user);
     }
 
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.delete(id, user.fabrico_id!);
+        return this.pedidoService.delete(id, user);
     }
 
     @Put(":id")
@@ -77,6 +79,6 @@ export class PedidoController {
         @Body() data: UpdatePedidoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.update(id, data, user.fabrico_id!);
+        return this.pedidoService.update(id, data, user);
     }
 }

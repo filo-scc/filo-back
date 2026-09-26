@@ -8,7 +8,6 @@ import {
     UseGuards,
     Put,
     ParseIntPipe,
-    Req,
 } from "@nestjs/common";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
@@ -16,6 +15,8 @@ import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
@@ -24,36 +25,39 @@ export class FichaTecnicaController {
     constructor(private readonly fichaTecnicaService: FichaTecnicaService) {}
 
     @Post()
-    create(@Body() data: CreateFichaTecnicaDto, @Req() req: Request) {
-        return this.fichaTecnicaService.create(data, (req as any).user.fabrico_id);
+    create(@Body() data: CreateFichaTecnicaDto, @CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.create(data, user);
     }
 
     @Get()
-    findAllByFabricoId(@Req() req: Request) {
-        return this.fichaTecnicaService.findAllByFabricoId((req as any).user.fabrico_id);
+    findAllByFabricoId(@CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.findAllByFabricoId(user.fabrico_id!);
     }
 
     @Get("/etapa/:id")
-    findAllByEtapaId(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
-        return this.fichaTecnicaService.findAllByEtapaId(id, (req as any).user.fabrico_id);
+    findAllByEtapaId(
+        @Param("id", ParseIntPipe) id: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.fichaTecnicaService.findAllByEtapaId(id, user.fabrico_id!);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
-        return this.fichaTecnicaService.findOne(+id, (req as any).user.fabrico_id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.findOne(+id, user.fabrico_id!);
     }
 
     @Put(":id")
     update(
         @Param("id", ParseIntPipe) id: number,
         @Body() data: UpdateFichaTecnicaDto,
-        @Req() req: Request,
+        @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.fichaTecnicaService.update(+id, data, (req as any).user.fabrico_id);
+        return this.fichaTecnicaService.update(+id, data, user);
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
-        return this.fichaTecnicaService.remove(id, (req as any).user.fabrico_id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.remove(id, user);
     }
 }
