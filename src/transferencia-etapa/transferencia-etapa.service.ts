@@ -1,11 +1,47 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
+import { ProdutoService } from "src/produto/produto.service";
+import { FichaTecnicaService } from "src/ficha-tecnica/ficha-tecnica.service";
+import { lockPedidos } from "src/pedido/pedido-finalizacao";
 import { TransferirEtapaDto } from "./dto/transferir-etapa.dto";
 
 @Injectable()
 export class TransferenciaEtapaService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly produtoService: ProdutoService,
+        private readonly fichaTecnicaService: FichaTecnicaService,
+    ) {}
+
+    private validarPerdas(
+        perdas: {
+            defeitos_costura: number;
+            defeitos_tecido: number;
+            retiradas: number;
+            sobras: number;
+        },
+        quantidade: number,
+    ) {
+        const valores = Object.values(perdas).map(Number);
+
+        if (valores.some((v) => !Number.isInteger(v) || v < 0)) {
+            throw new BadRequestException(
+                "As perdas devem ser números inteiros maiores ou iguais a zero",
+            );
+        }
+
+        if (valores.reduce((total, v) => total + v, 0) > quantidade) {
+            throw new BadRequestException(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        }
+    }
 
     async transferir(dto: TransferirEtapaDto, fabricoId: number) {
         const {
@@ -16,21 +52,20 @@ export class TransferenciaEtapaService {
             parceiros = [],
         } = dto;
 
-        if (relatorio) {
-            const totalPerdas =
-                relatorio.defeitos_costura +
-                relatorio.defeitos_tecido +
-                relatorio.retiradas +
-                relatorio.sobras;
-            if (totalPerdas > relatorio.quantidade) {
-                throw new BadRequestException(
-                    "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
-                );
-            }
-        }
-
         return this.prisma.$transaction(
             async (tx) => {
+                const fichaBase = await tx.fichaTecnica.findFirst({
+                    where: { id: ficha_tecnica_id, fabrico_id: fabricoId },
+                    select: { pedido_id: true },
+                });
+                if (!fichaBase) {
+                    throw new NotFoundException("Ficha técnica não encontrada");
+                }
+
+                if (fichaBase.pedido_id) {
+                    await lockPedidos(tx, [fichaBase.pedido_id]);
+                }
+
                 await tx.$queryRaw`SELECT id FROM "fichas-tecnicas" WHERE id = ${ficha_tecnica_id} FOR UPDATE`;
 
                 const ficha = await tx.fichaTecnica.findFirst({
@@ -38,6 +73,12 @@ export class TransferenciaEtapaService {
                 });
                 if (!ficha) {
                     throw new NotFoundException("Ficha técnica não encontrada");
+                }
+
+                if (ficha.pedido_id !== fichaBase.pedido_id) {
+                    throw new ConflictException(
+                        "A ficha técnica foi alterada por outra operação. Tente novamente",
+                    );
                 }
 
                 if (ficha.concluida) {
@@ -64,6 +105,36 @@ export class TransferenciaEtapaService {
                         "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
                     );
                 }
+
+                // A quantidade canônica vem da matriz (FichaTecnicaItem). Se a matriz ainda
+                // não foi preenchida (soma 0), mantém a quantidade atual da ficha.
+                const matriz = await tx.fichaTecnicaItem.aggregate({
+                    where: { ficha_tecnica_id },
+                    _sum: { quantidade: true },
+                });
+                const somaMatriz = Number(matriz?._sum?.quantidade ?? 0);
+                const quantidadeAtual = Number(ficha.quantidade ?? 0);
+                const quantidadeCanonica = somaMatriz > 0 ? somaMatriz : quantidadeAtual;
+
+                if (
+                    relatorio?.quantidade !== undefined &&
+                    Number(relatorio.quantidade) !== quantidadeCanonica
+                ) {
+                    throw new BadRequestException(
+                        "A quantidade da ficha técnica é definida pela matriz de itens e não pode ser alterada na transferência de etapa",
+                    );
+                }
+
+                this.validarPerdas(
+                    {
+                        defeitos_costura:
+                            relatorio?.defeitos_costura ?? ficha.defeitos_costura ?? 0,
+                        defeitos_tecido: relatorio?.defeitos_tecido ?? ficha.defeitos_tecido ?? 0,
+                        retiradas: relatorio?.retiradas ?? ficha.retiradas ?? 0,
+                        sobras: relatorio?.sobras ?? ficha.sobras ?? 0,
+                    },
+                    quantidadeCanonica,
+                );
 
                 const [etapaOrigem, etapaDestino] = await Promise.all([
                     tx.etapa.findFirst({ where: { id: etapa_origem_id, fabrico_id: fabricoId } }),
@@ -152,6 +223,10 @@ export class TransferenciaEtapaService {
                     });
                 }
 
+                if (parceiros.length > 0) {
+                    await this.produtoService.bloquearProdutosParaRecalculo([ficha.produto_id], tx);
+                }
+
                 // 4. Vínculos: ParceiroProduto (preco) + FichaTecnicaParceiro (valor/quantidade)
                 for (const p of parceiros) {
                     const parceiro = await tx.parceiro.findFirst({
@@ -180,7 +255,7 @@ export class TransferenciaEtapaService {
 
                     const parceiroUnico = parceiros.length === 1;
                     const quantidadeEfetiva = parceiroUnico
-                        ? (relatorio?.quantidade ?? ficha.quantidade)
+                        ? quantidadeCanonica
                         : (p.quantidade ?? 0);
                     const valor = parceiroUnico
                         ? Number((quantidadeEfetiva * p.preco).toFixed(2))
@@ -208,14 +283,20 @@ export class TransferenciaEtapaService {
                     });
                 }
 
-                // 5. Atualiza a etapa atual da ficha (+ relatório de acabamento, se enviado)
-                return tx.fichaTecnica.update({
+                if (parceiros.length > 0) {
+                    await this.produtoService.recalcularCustoTotal(ficha.produto_id, tx);
+                }
+
+                // 5. Atualiza a etapa atual da ficha (+ perdas do relatório, se enviado)
+                const fichaAtualizada = await tx.fichaTecnica.update({
                     where: { id: ficha_tecnica_id },
                     data: {
                         etapa_atual_id: etapa_destino_id,
+                        ...(quantidadeCanonica !== quantidadeAtual
+                            ? { quantidade: quantidadeCanonica }
+                            : {}),
                         ...(relatorio
                             ? {
-                                  quantidade: relatorio.quantidade,
                                   defeitos_costura: relatorio.defeitos_costura,
                                   defeitos_tecido: relatorio.defeitos_tecido,
                                   retiradas: relatorio.retiradas,
@@ -229,6 +310,10 @@ export class TransferenciaEtapaService {
                         ficha_parceiro: { include: { parceiro: true } },
                     },
                 });
+                if (ficha.pedido_id) {
+                    await this.fichaTecnicaService.sincronizarPedido(tx, ficha.pedido_id);
+                }
+                return fichaAtualizada;
             },
             { maxWait: 15000, timeout: 30000 },
         );

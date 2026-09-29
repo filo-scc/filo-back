@@ -527,7 +527,7 @@ export class FichaTecnicaService {
         }
     }
 
-    private async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
+    async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
         await tx.$queryRaw`SELECT id FROM "pedidos" WHERE id = ${pedidoId} FOR UPDATE`;
 
         const pedido = await tx.pedido.findUnique({

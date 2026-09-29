@@ -1,14 +1,22 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { TransferenciaEtapaService } from "./transferencia-etapa.service";
+import { lockPedidos } from "src/pedido/pedido-finalizacao";
+
+jest.mock("src/pedido/pedido-finalizacao", () => ({
+    lockPedidos: jest.fn(),
+}));
 
 const { PrismaClientKnownRequestError } = Prisma;
 
 describe("TransferenciaEtapaService", () => {
     let service: TransferenciaEtapaService;
     let prisma: any;
+    let produtoService: any;
+    let fichaTecnicaService: any;
 
     const fabricoId = 30;
+    const pedidoId = 20;
     const dtoBase = {
         ficha_tecnica_id: 10,
         etapa_origem_id: 1,
@@ -16,6 +24,8 @@ describe("TransferenciaEtapaService", () => {
     };
 
     beforeEach(() => {
+        jest.clearAllMocks();
+
         prisma = {
             $queryRaw: jest.fn(),
             $transaction: jest.fn(async (callback) => callback(prisma)),
@@ -25,6 +35,7 @@ describe("TransferenciaEtapaService", () => {
                 updateMany: jest.fn(),
                 update: jest.fn(),
             },
+            fichaTecnicaItem: { aggregate: jest.fn() },
             etapa: { findFirst: jest.fn() },
             fichaEtapa: {
                 findFirst: jest.fn(),
@@ -38,15 +49,24 @@ describe("TransferenciaEtapaService", () => {
             fichaParceiro: { upsert: jest.fn() },
         };
 
-        service = new TransferenciaEtapaService(prisma);
+        produtoService = {
+            bloquearProdutosParaRecalculo: jest.fn(),
+            recalcularCustoTotal: jest.fn(),
+        };
+        fichaTecnicaService = { sincronizarPedido: jest.fn() };
+
+        service = new TransferenciaEtapaService(prisma, produtoService, fichaTecnicaService);
 
         prisma.fichaTecnica.findFirst.mockResolvedValue({
             id: 10,
             fabrico_id: fabricoId,
             produto_id: 5,
+            pedido_id: pedidoId,
             quantidade: 100,
             etapa_atual_id: 1,
         });
+        prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade: null } });
+
         prisma.etapa.findFirst
             .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId, ativa: true, ordem: 1 })
             .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId, ativa: true, ordem: 2 })
@@ -158,22 +178,21 @@ describe("TransferenciaEtapaService", () => {
         expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
     });
 
-    it("rejeita quando a soma das perdas excede a quantidade, antes de abrir a transação", async () => {
-        const dtoComPerdasInvalidas = {
+    it("rejeita quando a soma das perdas excede a quantidade da ficha, antes de qualquer escrita", async () => {
+        const dto = {
             ...dtoBase,
-            relatorio: {
-                quantidade: 10,
-                defeitos_costura: 5,
-                defeitos_tecido: 5,
-                retiradas: 5,
-                sobras: 0,
-            },
+            relatorio: { defeitos_costura: 50, defeitos_tecido: 30, retiradas: 20, sobras: 5 },
         };
 
-        await expect(service.transferir(dtoComPerdasInvalidas as any, fabricoId)).rejects.toThrow(
-            BadRequestException,
+        await expect(service.transferir(dto as any, fabricoId)).rejects.toThrow(
+            new BadRequestException(
+                "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            ),
         );
-        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+        expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+        expect(fichaTecnicaService.sincronizarPedido).not.toHaveBeenCalled();
     });
 
     it("falha intermediária: erro ao processar parceiro impede a atualização final da ficha", async () => {
@@ -307,32 +326,23 @@ describe("TransferenciaEtapaService", () => {
         });
     });
 
-    it("atualiza o relatório de acabamento junto com a etapa quando informado", async () => {
-        const dtoComRelatorio = {
+    it("atualiza somente as perdas do relatório e NÃO altera a quantidade da ficha", async () => {
+        const dto = {
             ...dtoBase,
-            relatorio: {
-                quantidade: 90,
-                defeitos_costura: 2,
-                defeitos_tecido: 1,
-                retiradas: 0,
-                sobras: 3,
-            },
+            relatorio: { defeitos_costura: 2, defeitos_tecido: 1, retiradas: 0, sobras: 3 },
         };
 
-        await service.transferir(dtoComRelatorio as any, fabricoId);
+        await service.transferir(dto as any, fabricoId);
 
-        expect(prisma.fichaTecnica.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({
-                    etapa_atual_id: 2,
-                    quantidade: 90,
-                    defeitos_costura: 2,
-                    defeitos_tecido: 1,
-                    retiradas: 0,
-                    sobras: 3,
-                }),
-            }),
-        );
+        const { data } = prisma.fichaTecnica.update.mock.calls[0][0];
+        expect(data).toEqual({
+            etapa_atual_id: 2,
+            defeitos_costura: 2,
+            defeitos_tecido: 1,
+            retiradas: 0,
+            sobras: 3,
+        });
+        expect(data).not.toHaveProperty("quantidade");
     });
 
     it("não marca produzida_em quando a etapa destino não é a última etapa ativa", async () => {
@@ -345,5 +355,149 @@ describe("TransferenciaEtapaService", () => {
         await service.transferir(dtoBase as any, fabricoId);
 
         expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
+    });
+    it("rejeita relatorio.quantidade divergente da quantidade da ficha (fonte é a matriz)", async () => {
+        const dto = {
+            ...dtoBase,
+            relatorio: {
+                quantidade: 90,
+                defeitos_costura: 2,
+                defeitos_tecido: 1,
+                retiradas: 0,
+                sobras: 3,
+            },
+        };
+
+        await expect(service.transferir(dto as any, fabricoId)).rejects.toThrow(
+            BadRequestException,
+        );
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+        expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+    });
+
+    it("quantidade acompanha a soma da matriz e o pedido é sincronizado", async () => {
+        prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade: 90 } });
+
+        await service.transferir(dtoBase as any, fabricoId);
+
+        expect(prisma.fichaTecnica.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({ etapa_atual_id: 2, quantidade: 90 }),
+            }),
+        );
+        expect(fichaTecnicaService.sincronizarPedido).toHaveBeenCalledWith(prisma, pedidoId);
+    });
+
+    it("matriz zerada (ainda não preenchida) mantém a quantidade atual da ficha", async () => {
+        prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade: 0 } });
+
+        await service.transferir(dtoBase as any, fabricoId);
+
+        const { data } = prisma.fichaTecnica.update.mock.calls[0][0];
+        expect(data).not.toHaveProperty("quantidade");
+    });
+
+    it("parceiro único usa a quantidade derivada da matriz para calcular o valor", async () => {
+        prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade: 90 } });
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 7, fabrico_id: fabricoId });
+
+        await service.transferir(
+            { ...dtoBase, parceiros: [{ parceiro_id: 7, preco: 2 }] } as any,
+            fabricoId,
+        );
+
+        expect(prisma.fichaParceiro.upsert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                create: expect.objectContaining({ quantidade: 90, valor: 180 }),
+            }),
+        );
+    });
+
+    it("com parceiros: trava o produto, grava o preço, recalcula o custo e só depois sincroniza o pedido", async () => {
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 7, fabrico_id: fabricoId });
+
+        await service.transferir(
+            { ...dtoBase, parceiros: [{ parceiro_id: 7, preco: 2.5 }] } as any,
+            fabricoId,
+        );
+
+        expect(produtoService.bloquearProdutosParaRecalculo).toHaveBeenCalledWith([5], prisma);
+        expect(produtoService.recalcularCustoTotal).toHaveBeenCalledWith(5, prisma);
+
+        const ordem = (fn: jest.Mock) => fn.mock.invocationCallOrder[0];
+        expect(ordem(produtoService.bloquearProdutosParaRecalculo)).toBeLessThan(
+            ordem(prisma.parceiroProduto.upsert),
+        );
+        expect(ordem(prisma.parceiroProduto.upsert)).toBeLessThan(
+            ordem(produtoService.recalcularCustoTotal),
+        );
+        expect(ordem(produtoService.recalcularCustoTotal)).toBeLessThan(
+            ordem(fichaTecnicaService.sincronizarPedido),
+        );
+    });
+
+    it("sem parceiros: não trava nem recalcula o produto", async () => {
+        await service.transferir(dtoBase as any, fabricoId);
+
+        expect(produtoService.bloquearProdutosParaRecalculo).not.toHaveBeenCalled();
+        expect(produtoService.recalcularCustoTotal).not.toHaveBeenCalled();
+    });
+
+    it("trava o pedido antes da ficha (pedido -> ficha)", async () => {
+        await service.transferir(dtoBase as any, fabricoId);
+
+        expect(lockPedidos).toHaveBeenCalledWith(prisma, [pedidoId]);
+        expect((lockPedidos as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+            prisma.$queryRaw.mock.invocationCallOrder[0],
+        );
+    });
+
+    it("rejeita quando o pedido da ficha mudou entre a leitura e a trava", async () => {
+        prisma.fichaTecnica.findFirst
+            .mockReset()
+            .mockResolvedValueOnce({
+                id: 10,
+                fabrico_id: fabricoId,
+                produto_id: 5,
+                pedido_id: pedidoId,
+                quantidade: 100,
+                etapa_atual_id: 1,
+            })
+            .mockResolvedValueOnce({
+                id: 10,
+                fabrico_id: fabricoId,
+                produto_id: 5,
+                pedido_id: 99,
+                quantidade: 100,
+                etapa_atual_id: 1,
+            });
+
+        await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+            ConflictException,
+        );
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+    });
+
+    it("falha no recálculo do custo impede a atualização da ficha e a sincronização do pedido", async () => {
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 7, fabrico_id: fabricoId });
+        produtoService.recalcularCustoTotal.mockRejectedValue(new Error("falha no recálculo"));
+
+        await expect(
+            service.transferir(
+                { ...dtoBase, parceiros: [{ parceiro_id: 7, preco: 2.5 }] } as any,
+                fabricoId,
+            ),
+        ).rejects.toThrow("falha no recálculo");
+
+        expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+        expect(fichaTecnicaService.sincronizarPedido).not.toHaveBeenCalled();
+    });
+
+    it("falha na sincronização do pedido propaga o erro (a transação inteira reverte)", async () => {
+        fichaTecnicaService.sincronizarPedido.mockRejectedValue(new Error("falha no pedido"));
+
+        await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+            "falha no pedido",
+        );
     });
 });

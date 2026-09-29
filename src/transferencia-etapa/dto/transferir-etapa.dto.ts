@@ -31,7 +31,8 @@ class ParceiroTransferenciaDto {
 class RelatorioAcabamentoDto {
     @IsInt()
     @Min(0)
-    quantidade: number;
+    @IsOptional()
+    quantidade?: number;
 
     @IsInt()
     @Min(0)
