@@ -1522,6 +1522,23 @@ describe("PedidoService", () => {
             expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
         });
 
+        it("deve travar o pedido antes de reler e revalidar a finalização no update", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                id: 1,
+                fabrico_id: 1,
+                finalizado: true,
+            });
+
+            await expect(service.update(1, { observacoes: "x" }, fabricoId)).rejects.toThrow(
+                ConflictException,
+            );
+
+            const ordemTrava = mockPrismaService.$queryRaw.mock.invocationCallOrder[0];
+            const ordemLeitura = mockPrismaService.pedido.findFirst.mock.invocationCallOrder[0];
+            expect(ordemTrava).toBeLessThan(ordemLeitura);
+            expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+        });
+
         it("deve lançar erro se pedido não existir no fabrico", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(null);
 
@@ -1589,6 +1606,21 @@ describe("PedidoService", () => {
 
             await expect(service.delete(1, fabricoId)).rejects.toThrow(ConflictException);
             expect(mockPrismaService.pedido.delete).not.toHaveBeenCalled();
+        });
+
+        it("deve travar o pedido antes de reler e revalidar a finalização no delete", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                id: 1,
+                fabrico_id: 1,
+                finalizado: true,
+            });
+
+            await expect(service.delete(1, fabricoId)).rejects.toThrow(ConflictException);
+
+            const ordemTrava = mockPrismaService.$queryRaw.mock.invocationCallOrder[0];
+            const ordemLeitura = mockPrismaService.pedido.findFirst.mock.invocationCallOrder[0];
+            expect(ordemTrava).toBeLessThan(ordemLeitura);
+            expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
         });
 
         it("deve lançar erro se pedido não existir no fabrico", async () => {

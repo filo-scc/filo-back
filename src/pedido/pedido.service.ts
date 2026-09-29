@@ -1257,31 +1257,27 @@ export class PedidoService {
     }
 
     async delete(id: number, fabricoId: number) {
-        const pedido = await this.prisma.pedido.findFirst({
-            where: { id, fabrico_id: fabricoId },
+        // Trava e relê o pedido: o cron pode finalizá-lo entre uma leitura fora da transação e o delete.
+        await this.prisma.$transaction(async (tx) => {
+            await this.lockPedidoDoFabrico(tx, id, fabricoId);
+
+            const pedido = await tx.pedido.findFirst({
+                where: { id, fabrico_id: fabricoId },
+            });
+
+            if (!pedido) {
+                throw new NotFoundException("Pedido não encontrado!");
+            }
+
+            this.assertPedidoEditavel(pedido);
+
+            await tx.pedido.delete({ where: { id: pedido.id } });
         });
 
-        if (!pedido) {
-            throw new NotFoundException("Pedido não encontrado!");
-        }
-
-        this.assertPedidoEditavel(pedido);
-
-        await this.prisma.pedido.delete({ where: { id: pedido.id } });
         return `O pedido com o id ${id} foi deletado com sucesso`;
     }
 
     async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
-        const pedido = await this.prisma.pedido.findFirst({
-            where: { id, fabrico_id: fabricoId },
-        });
-
-        if (!pedido) {
-            throw new NotFoundException("Pedido não encontrado!");
-        }
-
-        this.assertPedidoEditavel(pedido);
-
         if (data.cliente_id !== undefined && data.cliente_id !== null) {
             const cliente = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -1292,17 +1288,36 @@ export class PedidoService {
             }
         }
 
-        return await this.prisma.pedido.update({
-            where: { id: pedido.id },
-            data: {
-                data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
-                observacoes: data.observacoes,
-                cliente_id: data.cliente_id,
-                valor_total:
-                    data.valor_total !== undefined ? toMoneyOrNull(data.valor_total) : undefined,
-                custo_total:
-                    data.custo_total !== undefined ? toMoneyOrNull(data.custo_total) : undefined,
-            },
+        // Trava e relê o pedido: o cron pode finalizá-lo entre uma leitura fora da transação e o update.
+        return this.prisma.$transaction(async (tx) => {
+            await this.lockPedidoDoFabrico(tx, id, fabricoId);
+
+            const pedido = await tx.pedido.findFirst({
+                where: { id, fabrico_id: fabricoId },
+            });
+
+            if (!pedido) {
+                throw new NotFoundException("Pedido não encontrado!");
+            }
+
+            this.assertPedidoEditavel(pedido);
+
+            return tx.pedido.update({
+                where: { id: pedido.id },
+                data: {
+                    data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
+                    observacoes: data.observacoes,
+                    cliente_id: data.cliente_id,
+                    valor_total:
+                        data.valor_total !== undefined
+                            ? toMoneyOrNull(data.valor_total)
+                            : undefined,
+                    custo_total:
+                        data.custo_total !== undefined
+                            ? toMoneyOrNull(data.custo_total)
+                            : undefined,
+                },
+            });
         });
     }
 
