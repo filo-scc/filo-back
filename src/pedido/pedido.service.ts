@@ -121,6 +121,18 @@ export class PedidoService {
             throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
         }
 
+        // Replay antes das validações que dependem de estado mutável (cliente, produto ativo):
+        // um retry idêntico de um pedido já criado precisa devolver o pedido, não um erro.
+        const existente = await this.buscarPedidoPorIdempotencia(
+            this.prisma,
+            fabricoId,
+            chaveIdempotencia,
+        );
+
+        if (existente) {
+            return existente;
+        }
+
         for (const fichaDto of fichasDto) {
             this.assertSomaItensIgualQuantidade(fichaDto);
         }
@@ -145,18 +157,6 @@ export class PedidoService {
 
         if (produtos.length !== produtoIds.length) {
             throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
-        }
-
-        if (chaveIdempotencia) {
-            const existente = await this.buscarPedidoPorIdempotencia(
-                this.prisma,
-                fabricoId,
-                chaveIdempotencia,
-            );
-
-            if (existente) {
-                return existente;
-            }
         }
 
         try {

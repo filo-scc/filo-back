@@ -530,6 +530,24 @@ describe("PedidoService", () => {
             );
         });
 
+        it("deve devolver o pedido já criado mesmo se o produto foi desativado antes do retry", async () => {
+            const existente = { id: 100, numero: 7, fichas_tecnicas: [] };
+            // Produto desativado depois da criação: a consulta de produtos ativos voltaria vazia.
+            mockPrismaService.produto.findMany.mockResolvedValue([]);
+            mockPrismaService.cliente.findFirst.mockResolvedValue(null);
+            mockPrismaService.pedido.findFirst.mockResolvedValue(existente);
+
+            const resultado = await service.createCompleto(
+                { ...dtoBase, idempotency_key: "req-perdida" },
+                fabricoId,
+            );
+
+            expect(resultado).toEqual(existente);
+            expect(mockPrismaService.produto.findMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.cliente.findFirst).not.toHaveBeenCalled();
+            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+        });
+
         it("deve devolver o pedido criado se outro request gravar a mesma chave durante a transação", async () => {
             prepararCenarioFeliz();
             const existente = { id: 100, numero: 7 };
