@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
+import { lockPedidos, sincronizarFinalizacaoPedido } from "../pedido/pedido-finalizacao";
 
 @Injectable()
 export class ConcluirFichasCronService implements OnModuleInit {
@@ -42,24 +43,38 @@ export class ConcluirFichasCronService implements OnModuleInit {
                     produzida_em: { lte: setentaEDuasHorasAtras },
                     fabrico: { ativo: true },
                 },
-                select: { id: true },
+                select: { id: true, pedido_id: true },
             });
             const idsFichas = fichasParaConcluir.map((ficha) => ficha.id);
+            const pedidoIds = [
+                ...new Set(
+                    fichasParaConcluir
+                        .map((ficha) => ficha.pedido_id)
+                        .filter((pedidoId): pedidoId is number => pedidoId != null),
+                ),
+            ];
 
             if (idsFichas.length > 0) {
-                await this.prisma.$transaction([
-                    this.prisma.fichaTecnica.updateMany({
+                await this.prisma.$transaction(async (tx) => {
+                    // Mesma ordem do updateCompleto: pedido antes das fichas.
+                    await lockPedidos(tx, pedidoIds);
+
+                    await tx.fichaTecnica.updateMany({
                         where: { id: { in: idsFichas }, concluida: false },
                         data: { concluida: true },
-                    }),
-                    this.prisma.fichaEtapa.updateMany({
+                    });
+                    await tx.fichaEtapa.updateMany({
                         where: {
                             ficha_tecnica_id: { in: idsFichas },
                             data_fim: null,
                         },
                         data: { data_fim: agora },
-                    }),
-                ]);
+                    });
+
+                    for (const pedidoId of pedidoIds) {
+                        await sincronizarFinalizacaoPedido(tx, pedidoId);
+                    }
+                });
             }
 
             this.logger.log(

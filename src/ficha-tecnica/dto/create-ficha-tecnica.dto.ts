@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsInt, IsOptional, IsString, Min } from "class-validator";
 
 export class CreateFichaTecnicaDto {
     @IsInt()
@@ -11,9 +11,6 @@ export class CreateFichaTecnicaDto {
     @IsOptional()
     @IsString()
     observacoes?: string;
-
-    @IsBoolean()
-    concluida: boolean;
 
     @IsInt()
     pedido_id: number;

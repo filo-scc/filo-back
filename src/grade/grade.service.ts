@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateGradeDto } from "./dto/create-grade.dto";
 import { UpdateGradeDto } from "./dto/update-grade.dto";
 import { normalizeText } from "src/common/utils/string-normalizer";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class GradeService {
@@ -133,9 +134,14 @@ export class GradeService {
         }
     }
 
-    async findAll() {
+    async findAll(user?: AuthenticatedUser) {
+        const where =
+            !user || user.cargo === "ADMIN"
+                ? undefined
+                : { fabrico_grades: { some: { fabrico_id: user?.fabrico_id ?? -1, ativo: true } } };
         try {
             return this.prisma.grade.findMany({
+                ...(where ? { where } : {}),
                 include: {
                     items: {
                         include: { tamanho: true },
@@ -162,10 +168,19 @@ export class GradeService {
         }
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, user?: AuthenticatedUser) {
+        const where =
+            !user || user.cargo === "ADMIN"
+                ? { id }
+                : {
+                      id,
+                      fabrico_grades: {
+                          some: { fabrico_id: user?.fabrico_id ?? -1, ativo: true },
+                      },
+                  };
         try {
-            const grade = await this.prisma.grade.findUnique({
-                where: { id },
+            const query: any = {
+                where,
                 include: {
                     items: {
                         include: { tamanho: true },
@@ -184,7 +199,10 @@ export class GradeService {
                         include: { fabrico: true },
                     },
                 },
-            });
+            };
+            const grade = user
+                ? await this.prisma.grade.findFirst(query)
+                : await this.prisma.grade.findUnique(query);
 
             if (!grade) {
                 throw new NotFoundException("Grade não encontrada");
@@ -231,6 +249,9 @@ export class GradeService {
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                throw new ConflictException("Conflito ao atualizar grade");
+            }
             throw error;
         }
     }
@@ -239,9 +260,18 @@ export class GradeService {
         await this.findOne(id);
 
         try {
-            const grade = await this.prisma.grade.update({
-                where: { id },
-                data: { ativo: false },
+            const grade = await this.prisma.$transaction(async (tx) => {
+                const gradeAtualizada = await tx.grade.update({
+                    where: { id },
+                    data: { ativo: false },
+                });
+
+                await tx.gradeVersao.updateMany({
+                    where: { grade_id: id },
+                    data: { ativo: false },
+                });
+
+                return gradeAtualizada;
             });
 
             return {

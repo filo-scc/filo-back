@@ -1,7 +1,8 @@
 import { IsBoolean, IsInt, IsOptional, IsString, Min } from "class-validator";
 export class CreateEtapaDto {
+    @IsOptional()
     @IsInt()
-    fabrico_id: number;
+    fabrico_id?: number;
 
     @IsString()
     nome: string;

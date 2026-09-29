@@ -1,0 +1,12 @@
+[
+  { "query": "Compare o novo DTO de pedido do backend com o payload enviado pelo filo-front.", "should_trigger": true },
+  { "query": "Este endpoint mudou o enum e o formato do erro; verifique compatibilidade de deploy.", "should_trigger": true },
+  { "query": "O frontend passou a receber Decimal como string. Revise o contrato ponta a ponta.", "should_trigger": true },
+  { "query": "Analise se front antigo e backend novo conseguem conviver durante a publicação.", "should_trigger": true },
+  { "query": "A resposta de ficha agora aceita null. Confira todos os consumidores.", "should_trigger": true },
+  { "query": "Revise a transação interna deste service sem alteração de endpoint ou consumidor.", "should_trigger": false },
+  { "query": "Confira se a migration cria lock e possui backfill seguro.", "should_trigger": false },
+  { "query": "Audite se um gerente consegue ler dados de outra fábrica.", "should_trigger": false },
+  { "query": "Formate este componente React e organize os imports.", "should_trigger": false },
+  { "query": "Crie o email HTML com as novidades da versão.", "should_trigger": false }
+]

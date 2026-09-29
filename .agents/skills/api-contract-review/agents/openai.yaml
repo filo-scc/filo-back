@@ -1,0 +1,7 @@
+interface:
+    display_name: "API Contract Review"
+    short_description: "Compara contratos entre backend e frontend"
+    default_prompt: "Use $api-contract-review para comparar esta mudança entre o backend e seus consumidores no frontend."
+
+policy:
+    allow_implicit_invocation: true

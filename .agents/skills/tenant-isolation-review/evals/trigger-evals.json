@@ -1,0 +1,82 @@
+[
+    {
+        "query": "Revise src/pedido/pedido.service.ts: o controller recebe fabrico_id pela rota e quero garantir que um gerente da fábrica A não consiga listar pedidos da B.",
+        "should_trigger": true
+    },
+    {
+        "query": "Estamos adicionando um endpoint batch que conecta fichas, cores e etapas por IDs. Audite todas as relações para impedir mistura entre fábricas.",
+        "should_trigger": true
+    },
+    {
+        "query": "Depois de logout e login em outra fábrica, pedidos antigos aparecem por alguns segundos. Verifique cache e isolamento de sessão no filo-front.",
+        "should_trigger": true
+    },
+    {
+        "query": "Pode conferir se este cronjob que conclui fichas processa cada fabrico separadamente e repete o filtro no updateMany?",
+        "should_trigger": true
+    },
+    {
+        "query": "O upload usa o ID da ficha enviado no body para formar o caminho no Supabase. Quero uma auditoria de acesso cruzado entre tenants.",
+        "should_trigger": true
+    },
+    {
+        "query": "Analise se findUnique({ id }) neste delete permite que PROPRIETARIO de uma confecção remova um cliente de outra.",
+        "should_trigger": true
+    },
+    {
+        "query": "A grade é global, mas FabricoGrade controla o uso. Veja se vincular uma versão ao produto respeita a fábrica autenticada.",
+        "should_trigger": true
+    },
+    {
+        "query": "Estamos investigando possível vazamento no relatório CSV: ao filtrar por parceiro, aparecem registros de outro fabrico.",
+        "should_trigger": true
+    },
+    {
+        "query": "Desenhe testes A/B para todos os endpoints de ficha técnica, incluindo leitura, update, delete e relações derivadas.",
+        "should_trigger": true
+    },
+    {
+        "query": "A API retorna erros diferentes para ficha inexistente e ficha de outra fábrica. Isso permite enumerar registros?",
+        "should_trigger": true
+    },
+    {
+        "query": "Revise a expiração do access token e a rotação do refresh token depois que a senha do usuário muda.",
+        "should_trigger": false
+    },
+    {
+        "query": "A migration adiciona uma coluna NOT NULL em Pedido com 2 milhões de linhas. Avalie lock, backfill e rollback.",
+        "should_trigger": false
+    },
+    {
+        "query": "Compare o DTO CreatePedidoDto com o tipo usado pelo frontend e identifique diferenças de enum e nulabilidade.",
+        "should_trigger": false
+    },
+    {
+        "query": "Verifique se duas transferências simultâneas do mesmo cartão do Kanban podem sobrescrever o histórico.",
+        "should_trigger": false
+    },
+    {
+        "query": "Formate o arquivo pedido.controller.ts com Prettier e corrija apenas os avisos de lint desse arquivo.",
+        "should_trigger": false
+    },
+    {
+        "query": "Faça uma revisão geral do PR 94 procurando bugs, regressões e testes ausentes, sem foco específico em multi-tenant.",
+        "should_trigger": false
+    },
+    {
+        "query": "O cálculo do custo total perde centavos depois de converter Decimal para number. Revise precisão e arredondamento.",
+        "should_trigger": false
+    },
+    {
+        "query": "Crie testes unitários para validar que quantidade zero e finalizado false não desaparecem no DTO de atualização.",
+        "should_trigger": false
+    },
+    {
+        "query": "Sincronize o PR de release de develop para master e atualize a descrição com os commits novos.",
+        "should_trigger": false
+    },
+    {
+        "query": "Explique como funciona o decorator @Roles e monte uma matriz ADMIN, PROPRIETARIO e GERENTE para editar usuários.",
+        "should_trigger": false
+    }
+]

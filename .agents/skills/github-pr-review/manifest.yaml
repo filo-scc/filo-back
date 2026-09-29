@@ -1,0 +1,131 @@
+schema_version: "1.0"
+identity:
+  name: github-pr-review
+  display_name: GitHub PR Review
+  summary: Revisa pull requests do FILO em duas passagens e produz um relatório local rastreável ao head analisado.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories: [filo-back, filo-front]
+  canonical_repository: filo-back
+  objective: Encontrar regressões atribuíveis ao pull request, contestar falsos positivos e consolidar evidências e checks em relatório local.
+  non_objectives:
+    - Implementar correções, aprovar, comentar, fazer merge, push ou deploy.
+    - Transformar dívida preexistente não agravada em finding do PR.
+    - Substituir revisões especializadas exigidas pelas áreas de risco.
+invocation:
+  mode: explicit
+  triggers:
+    - Pedido explícito para revisar um PR por número ou URL canônica do GitHub.
+    - Pedido explícito com o comando legado gh pr checkout seguido de número positivo.
+  anti_triggers:
+    - Pedido para implementar uma correção ou criar uma PR.
+    - Explicação de commit ou diff sem solicitação de revisão completa.
+    - Auditoria especializada sem pull request identificado.
+input:
+  mode: contextual
+  parameters:
+    - name: pr
+      type: positive-integer-or-github-pr-url
+      required: true
+      origin: Pedido explícito do usuário.
+      validation: Aceitar um único número positivo ou URL https://github.com/owner/repo/pull/numero; rejeitar conflito e texto executável não validado.
+      default: null
+      example: https://github.com/filo-scc/filo-back/pull/80
+      description: Pull request que será revisado.
+    - name: repository
+      type: enum
+      required: false
+      origin: URL do PR, remoto Git ou escolha do usuário.
+      validation: Deve resolver inequivocamente para filo-back ou filo-front.
+      default: repositório inferido
+      example: filo-back
+      description: Repositório alvo quando não puder ser inferido pela entrada.
+    - name: inspection
+      type: enum
+      required: false
+      origin: Pedido do usuário e capacidade do ambiente.
+      validation: isolated é o padrão; current exige gh pr checkout validado ou pedido explícito para usar o checkout atual.
+      default: isolated
+      example: isolated
+      description: Estratégia para obter o head sem sobrescrever o trabalho local.
+  artifacts:
+    - AGENTS.md do repositório revisado
+    - diff completo, base/head SHA, commits e arquivos do PR
+    - protocolos e contratos exigidos pelas áreas afetadas
+  preconditions:
+    - Repositório, PR, base e head são verificáveis.
+    - Alterações locais foram inspecionadas e serão preservadas.
+    - GitHub e rede necessários foram autorizados pelo pedido.
+output:
+  format: markdown
+  artifact: review-pr-<numero>.md
+  required_sections:
+    - Identidade imutável e escopo do PR
+    - Resumo e cobertura de risco
+    - Checks executados e omitidos
+    - Findings mantidos e candidatos descartados
+    - Limitações e validação manual
+  no_findings: Produzir o relatório completo e concluir `Nenhum finding mantido`.
+  insufficient_evidence: Parar sem documento concluído quando PR, diff, base ou head não puder ser verificado.
+  limitations:
+    - Registrar checks, repositório relacionado ou cenário manual não disponível.
+    - Invalidar a conclusão se o head mudar durante a revisão.
+  prohibited_claims:
+    - Não afirmar que lint ou build verde prova correção funcional.
+    - Não atribuir ao PR problema preexistente não agravado.
+workflow:
+  required_steps:
+    - Validar e normalizar PR, repositório e modo antes de efeitos.
+    - Preservar alterações locais e fixar metadados e SHAs.
+    - Executar primeira passagem de descoberta no diff e contexto.
+    - Contestar cada candidato na segunda passagem e aplicar especialistas necessários.
+    - Confirmar head, executar checks seguros e produzir relatório sem marcadores.
+  improvisation: O agente pode escolher estratégia isolada e checks proporcionais, mas não trocar silenciosamente a branch atual nem publicar no GitHub.
+permissions:
+  tools:
+    - { name: filesystem-read, access: allow, enforcement: documented }
+    - { name: grep-glob, access: allow, enforcement: documented }
+    - { name: shell-readonly, access: allow, enforcement: documented }
+    - { name: github-read, access: allow, enforcement: human-gated }
+    - { name: worktree-local, access: allow, enforcement: human-gated }
+    - { name: report-local-write, access: allow, enforcement: documented }
+    - { name: source-code-edit, access: deny, enforcement: documented }
+    - { name: github-write, access: deny, enforcement: documented }
+  bash:
+    - git status --short
+    - gh pr view e gh pr diff para o PR validado
+    - git fetch e git worktree para inspeção isolada autorizada
+    - checks não destrutivos previstos no AGENTS.md
+  network: allow
+  external_write: deny
+resources:
+  references:
+    - references/review-protocol.md
+    - references/backend-review.md
+    - references/frontend-review.md
+    - references/cross-repo-contract.md
+    - references/contract-examples.md
+  scripts: []
+  assets: [assets/review-template.md]
+composition:
+  complements:
+    - tenant-isolation-review, authorization-review, data-integrity-review, prisma-migration-review, api-contract-review e kanban-transition-review conforme o risco
+  does_not_replace:
+    - decisão humana de correção, aceite de risco e merge
+    - revisão especializada cujo gatilho corresponda ao diff
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: ../../evals/github-pr-review/cases.json
+  minimum_categories: { positive: 5, negative: 5, adversarial: 3, prompt_injection: 1, insufficient_evidence: 1 }
+  minimum_trigger_cases: 10
+examples:
+  positive: Use $github-pr-review para revisar https://github.com/filo-scc/filo-back/pull/80 em modo isolado.
+  negative: Implemente a correção deste bug e abra uma pull request.
+  output: "# Revisão do PR 80 — filo-back\nHead revisado: `<sha>`\n\n## Resumo executivo\nFindings verificáveis ou `Nenhum finding mantido`."
