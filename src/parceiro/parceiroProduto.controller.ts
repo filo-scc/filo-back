@@ -13,11 +13,11 @@ import {
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
-import { CurrentUser } from "../common/decorators/current-user.decorator";
-import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 import { ParceiroProdutoService } from "./parceiroProduto.service";
 import { CreateParceiroProdutoDto } from "./dto/create-parceiroproduto.dto";
 import { UpdateParceiroProdutoDto } from "./dto/update-parceiroproduto.dto";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 
 @Controller("parceiros-produtos")
 @UseGuards(JwtAuthGuard, RolesGuard)

@@ -56,7 +56,7 @@ describe("ClienteProdutoService", () => {
         ).resolves.toEqual({ cliente_id: 1, produto_id: 2 });
 
         expect(prisma.produto.findFirst).toHaveBeenCalledWith({
-            where: { id: 2, fabrico_id: FABRICO_ID },
+            where: { id: 2, fabrico_id: FABRICO_ID, ativo: true },
         });
         expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
             where: { id: 1, fabrico_id: FABRICO_ID },
