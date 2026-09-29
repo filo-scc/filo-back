@@ -214,6 +214,19 @@ describe("TransferenciaEtapaService", () => {
         expect(prisma.fichaEtapa.create).toHaveBeenCalled();
     });
 
+    it("rejeita destino já percorrido pela ficha (etapas reordenadas) sem escrever nada", async () => {
+        // A→B percorrido; depois A foi reordenada para depois de B e a ficha tenta B→A.
+        prisma.fichaEtapa.findUnique.mockResolvedValueOnce({ id: 90 });
+
+        await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+            ConflictException,
+        );
+
+        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+        expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+    });
+
     it("concorrência: trata P2002 ao criar FichaEtapa buscando o registro já criado pela transação vencedora", async () => {
         prisma.fichaEtapa.create.mockRejectedValue(
             new PrismaClientKnownRequestError("duplicado", {

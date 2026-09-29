@@ -157,6 +157,21 @@ export class TransferenciaEtapaService {
                     );
                 }
 
+                // A ficha nunca volta a uma etapa já percorrida, mesmo que a ordem das etapas
+                // tenha sido alterada depois; reaproveitar o registro fechado a deixaria sem etapa aberta.
+                const destinoJaPercorrido = await tx.fichaEtapa.findUnique({
+                    where: {
+                        ficha_tecnica_id_etapa_id: { ficha_tecnica_id, etapa_id: etapa_destino_id },
+                    },
+                    select: { id: true },
+                });
+
+                if (destinoJaPercorrido) {
+                    throw new ConflictException(
+                        "A ficha técnica já passou pela etapa de destino e não pode voltar a ela",
+                    );
+                }
+
                 // 1. Finaliza a etapa anterior (só age se ainda estiver aberta)
                 const fichaEtapaAberta = await tx.fichaEtapa.findFirst({
                     where: { ficha_tecnica_id, etapa_id: etapa_origem_id, data_fim: null },
