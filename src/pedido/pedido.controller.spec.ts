@@ -1,3 +1,4 @@
+import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PedidoController } from "./pedido.controller";
 import { PedidoService } from "./pedido.service";
@@ -52,7 +53,7 @@ describe("PedidoController", () => {
 
         await controller.create(dto as any, usuario);
 
-        expect(mockPedidoService.create).toHaveBeenCalledWith(dto, usuario);
+        expect(mockPedidoService.create).toHaveBeenCalledWith(dto, usuario.fabrico_id);
     });
 
     it("deve criar pedido completo com fabrico do usuário autenticado", async () => {
@@ -61,7 +62,11 @@ describe("PedidoController", () => {
 
         await controller.createCompleto(dto as any, usuario);
 
-        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, usuario, undefined);
+        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(
+            dto,
+            usuario.fabrico_id,
+            undefined,
+        );
     });
 
     it("deve criar pedido completo com chave de idempotência do header", async () => {
@@ -70,7 +75,11 @@ describe("PedidoController", () => {
 
         await controller.createCompleto(dto as any, usuario, "req-9");
 
-        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(dto, usuario, "req-9");
+        expect(mockPedidoService.createCompleto).toHaveBeenCalledWith(
+            dto,
+            usuario.fabrico_id,
+            "req-9",
+        );
     });
 
     it("deve editar pedido completo com fabrico do usuário autenticado", async () => {
@@ -79,7 +88,7 @@ describe("PedidoController", () => {
 
         await controller.updateCompleto(4, dto as any, usuario);
 
-        expect(mockPedidoService.updateCompleto).toHaveBeenCalledWith(4, dto, usuario);
+        expect(mockPedidoService.updateCompleto).toHaveBeenCalledWith(4, dto, usuario.fabrico_id);
     });
 
     it("deve listar apenas pedidos do fabrico do usuário", async () => {
@@ -87,7 +96,7 @@ describe("PedidoController", () => {
 
         await controller.findAll(usuario);
 
-        expect(mockPedidoService.findAll).toHaveBeenCalledWith(usuario);
+        expect(mockPedidoService.findAll).toHaveBeenCalledWith(usuario.fabrico_id);
     });
 
     it("deve buscar pedido por id no fabrico do usuário", async () => {
@@ -95,7 +104,7 @@ describe("PedidoController", () => {
 
         await controller.getById(5, usuario);
 
-        expect(mockPedidoService.getById).toHaveBeenCalledWith(5, usuario);
+        expect(mockPedidoService.getById).toHaveBeenCalledWith(5, usuario.fabrico_id);
     });
 
     it("deve listar pedidos do cliente no fabrico do usuário", async () => {
@@ -103,6 +112,13 @@ describe("PedidoController", () => {
 
         await controller.findAllCliente(7, usuario);
 
-        expect(mockPedidoService.findAllCliente).toHaveBeenCalledWith(7, usuario);
+        expect(mockPedidoService.findAllCliente).toHaveBeenCalledWith(7, usuario.fabrico_id);
+    });
+
+    it("deve lançar ForbiddenException quando usuário não tem fabrico vinculado", () => {
+        const usuarioSemFabrico = { ...usuario, fabrico_id: null } as unknown as AuthenticatedUser;
+
+        expect(() => controller.findAll(usuarioSemFabrico)).toThrow(ForbiddenException);
+        expect(mockPedidoService.findAll).not.toHaveBeenCalled();
     });
 });
