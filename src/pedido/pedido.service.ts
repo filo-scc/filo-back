@@ -14,15 +14,6 @@ import { CreatePedidoCompletoDto, CreatePedidoFichaDto } from "./dto/create-pedi
 import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
-import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
-import { lineTotal, moneyOrZero, sumMoney, toMoneyOrNull } from "src/common/utils/money";
-import {
-    isIdempotencyConflict,
-    lockFabricoNumeracao,
-    normalizeIdempotencyKey,
-    proximoNumeroFicha,
-    proximoNumeroPedido,
-} from "src/common/utils/concurrency";
 
 const PALETA_13_CORES = [
     "#7FA9B8",
@@ -40,11 +31,6 @@ const PALETA_13_CORES = [
     "#7E8F4E",
 ];
 
-const PEDIDO_COMPLETO_INCLUDE = {
-    cliente: true,
-    fichas_tecnicas: { include: { fichas_etapas: true } },
-} as const;
-
 @Injectable()
 export class PedidoService {
     constructor(
@@ -52,9 +38,7 @@ export class PedidoService {
         private readonly produtoService: ProdutoService,
     ) {}
 
-    async create(data: CreatePedidoDto, user: AuthenticatedUser): Promise<Pedido> {
-        const fabricoId = user.fabrico_id!;
-
+    async create(data: CreatePedidoDto, fabricoId: number): Promise<Pedido> {
         if (data.cliente_id) {
             const clienteExists = await this.prisma.cliente.findFirst({
                 where: { id: data.cliente_id, fabrico_id: fabricoId },
@@ -65,33 +49,34 @@ export class PedidoService {
             }
         }
 
+        const ultimoPedido = await this.prisma.pedido.findFirst({
+            where: {
+                fabrico_id: fabricoId,
+                numero: { not: null },
+            },
+            orderBy: {
+                numero: "desc",
+            },
+        });
+
+        const numero = (ultimoPedido?.numero ?? 0) + 1;
+
         const corPedido = data.usarCorPaleta ? await this.getCorPaleta(fabricoId) : "#FFFFFF";
 
         try {
-            return await this.prisma.$transaction(async (tx) => {
-                await lockFabricoNumeracao(tx, fabricoId);
-                const numero = await proximoNumeroPedido(tx, fabricoId);
-
-                return tx.pedido.create({
-                    data: {
-                        finalizado: false,
-                        data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
-                        observacoes: data.observacoes,
-                        cliente_id: data.cliente_id,
-                        fabrico_id: fabricoId,
-                        numero: numero,
-                        cor: corPedido,
-                        quantidade: data.quantidade,
-                        valor_total:
-                            data.valor_total !== undefined
-                                ? toMoneyOrNull(data.valor_total)
-                                : undefined,
-                        custo_total:
-                            data.custo_total !== undefined
-                                ? toMoneyOrNull(data.custo_total)
-                                : undefined,
-                    },
-                });
+            return await this.prisma.pedido.create({
+                data: {
+                    finalizado: false,
+                    data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
+                    observacoes: data.observacoes,
+                    cliente_id: data.cliente_id,
+                    fabrico_id: fabricoId,
+                    numero: numero,
+                    cor: corPedido,
+                    quantidade: data.quantidade,
+                    valor_total: data.valor_total,
+                    custo_total: data.custo_total,
+                },
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -103,33 +88,46 @@ export class PedidoService {
     }
 
     /**
+     * Multiplica quantidade x valor evitando o erro clássico de ponto flutuante. Descobre a escala decimal do
+     * valor, converte para inteiro (arredondando ROUND_HALF_UP) e só então divide
+     * de volta, preservando a precisão exata do resultado matemático.
+     */
+    private multiplicarPreciso(quantidade: number, valor: number): number {
+        const valorStr = valor.toString();
+        const pontoIndex = valorStr.indexOf(".");
+        const casasDecimais = pontoIndex === -1 ? 0 : valorStr.length - pontoIndex - 1;
+        const fator = Math.pow(10, casasDecimais);
+        const valorInteiro = Math.round(valor * fator);
+
+        return (quantidade * valorInteiro) / fator;
+    }
+
+    /**
      * Cria o pedido junto com as fichas técnicas e todos os vínculos derivados
      * (itens da matriz, etapa inicial, parceiros e cliente-produto) em uma única
      * transação: ou tudo é persistido, ou nada é.
      */
     async createCompleto(
         data: CreatePedidoCompletoDto,
-        user: AuthenticatedUser,
+        fabricoId: number,
         idempotencyKey?: string,
     ) {
-        const fabricoId = user.fabrico_id!;
+        const key = idempotencyKey?.trim();
+        if (!key) {
+            throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
+        }
+        const existente = await this.prisma.pedido.findFirst({
+            where: { fabrico_id: fabricoId, idempotency_key: key },
+            include: { cliente: true, fichas_tecnicas: { include: { fichas_etapas: true } } },
+        });
+
+        if (existente?.id) return existente;
+
         const fichasDto = data.fichas ?? [];
-        const chaveIdempotencia = normalizeIdempotencyKey(idempotencyKey ?? data.idempotency_key);
 
         if (!fichasDto.length) {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
         }
-
-        // Sem chave, um retry após timeout criaria outro pedido com todas as fichas duplicadas.
-        if (!chaveIdempotencia) {
-            throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
-        }
-
-        for (const fichaDto of fichasDto) {
-            this.assertSomaItensIgualQuantidade(fichaDto);
-        }
-
-        this.assertUmaFichaPorProduto(fichasDto);
 
         if (data.cliente_id) {
             const cliente = await this.prisma.cliente.findFirst({
@@ -142,6 +140,13 @@ export class PedidoService {
         }
 
         const produtoIds = [...new Set(fichasDto.map((ficha) => Number(ficha.produto_id)))];
+
+        if (produtoIds.length !== fichasDto.length) {
+            throw new BadRequestException(
+                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
+            );
+        }
+
         const produtos = await this.prisma.produto.findMany({
             where: { id: { in: produtoIds }, fabrico_id: fabricoId },
             select: { id: true, grade_versao_id: true },
@@ -151,39 +156,35 @@ export class PedidoService {
             throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
         }
 
-        if (chaveIdempotencia) {
-            const existente = await this.buscarPedidoPorIdempotencia(
-                this.prisma,
-                fabricoId,
-                chaveIdempotencia,
-            );
-
-            if (existente) {
-                return existente;
-            }
-        }
-
         try {
             return await this.prisma.$transaction(
                 async (tx) => {
-                    await lockFabricoNumeracao(tx, fabricoId);
+                    // Revalidamos a existência da chave de idempotência já dentro da
+                    // transação: protege contra outro request concorrente que grave a
+                    // mesma chave entre a checagem inicial e a abertura desta transação.
+                    const existenteNaTransacao = await tx.pedido.findFirst({
+                        where: { fabrico_id: fabricoId, idempotency_key: key },
+                        include: {
+                            cliente: true,
+                            fichas_tecnicas: { include: { fichas_etapas: true } },
+                        },
+                    });
 
-                    if (chaveIdempotencia) {
-                        const existente = await this.buscarPedidoPorIdempotencia(
-                            tx,
-                            fabricoId,
-                            chaveIdempotencia,
-                        );
-
-                        if (existente) {
-                            return existente;
-                        }
+                    if (existenteNaTransacao?.id) {
+                        return existenteNaTransacao;
                     }
+
+                    // Revalidamos os produtos dentro da transação (fresh snapshot),
+                    // evitando condição de corrida com a checagem feita fora dela.
+                    const produtosNaTransacao = await tx.produto.findMany({
+                        where: { id: { in: produtoIds }, fabrico_id: fabricoId },
+                        select: { id: true, grade_versao_id: true },
+                    });
 
                     const gradePorProduto = await this.alinharGradesDosProdutos(
                         tx,
                         fichasDto,
-                        produtos,
+                        produtosNaTransacao,
                         fabricoId,
                     );
 
@@ -200,27 +201,37 @@ export class PedidoService {
                     );
 
                     const totais = await this.calcularTotais(tx, data, fichasDto, produtoIds);
-                    const numeroPedido = await proximoNumeroPedido(tx, fabricoId);
+
+                    const ultimoPedido = await tx.pedido.findFirst({
+                        where: { fabrico_id: fabricoId, numero: { not: null } },
+                        orderBy: { numero: "desc" },
+                        select: { numero: true },
+                    });
 
                     const pedido = await tx.pedido.create({
                         data: {
+                            idempotency_key: key,
                             finalizado: false,
                             data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                             observacoes: data.observacoes,
                             cliente_id: data.cliente_id ?? null,
                             fabrico_id: fabricoId,
-                            numero: numeroPedido,
+                            numero: (ultimoPedido?.numero ?? 0) + 1,
                             cor: data.usarCorPaleta
                                 ? await this.getCorPaleta(fabricoId, tx)
                                 : "#FFFFFF",
                             quantidade: totais.quantidade,
                             valor_total: totais.valor_total,
                             custo_total: totais.custo_total,
-                            ...(chaveIdempotencia ? { idempotency_key: chaveIdempotencia } : {}),
                         },
                     });
 
-                    let numeroFicha = await proximoNumeroFicha(tx, fabricoId);
+                    const ultimaFicha = await tx.fichaTecnica.findFirst({
+                        where: { fabrico_id: fabricoId },
+                        orderBy: { numero: "desc" },
+                        select: { numero: true },
+                    });
+                    let proximoNumeroFicha = (ultimaFicha?.numero ?? 0) + 1;
 
                     for (const fichaDto of fichasDto) {
                         const produtoId = Number(fichaDto.produto_id);
@@ -231,16 +242,19 @@ export class PedidoService {
                             fichaDto,
                             gradeVersaoId: gradePorProduto.get(produtoId)!,
                             etapaAtualId: etapasPorFicha.get(fichaDto) ?? null,
-                            numero: numeroFicha,
+                            numero: proximoNumeroFicha,
                             clienteId: data.cliente_id,
                         });
 
-                        numeroFicha += 1;
+                        proximoNumeroFicha += 1;
                     }
 
                     return tx.pedido.findUnique({
                         where: { id: pedido.id },
-                        include: PEDIDO_COMPLETO_INCLUDE,
+                        include: {
+                            cliente: true,
+                            fichas_tecnicas: { include: { fichas_etapas: true } },
+                        },
                     });
                 },
                 { maxWait: 15000, timeout: 60000 },
@@ -252,18 +266,6 @@ export class PedidoService {
 
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    if (chaveIdempotencia && isIdempotencyConflict(error)) {
-                        const existente = await this.buscarPedidoPorIdempotencia(
-                            this.prisma,
-                            fabricoId,
-                            chaveIdempotencia,
-                        );
-
-                        if (existente) {
-                            return existente;
-                        }
-                    }
-
                     throw new ConflictException("Já existe um pedido com dados conflitantes!");
                 }
 
@@ -281,24 +283,40 @@ export class PedidoService {
      * troca de cliente, inclusão, remoção, edição de matriz/parceiros
      * e ajuste de preço/referência do cliente.
      */
-    async updateCompleto(id: number, data: UpdatePedidoCompletoDto, user: AuthenticatedUser) {
-        const fabricoId = user.fabrico_id!;
+    async updateCompleto(id: number, data: UpdatePedidoCompletoDto, fabricoId: number) {
         const fichasDto = data.fichas ?? [];
 
         if (!fichasDto.length) {
             throw new BadRequestException("Informe ao menos uma ficha técnica para o pedido");
         }
 
-        for (const fichaDto of fichasDto) {
-            const temEdicaoDeMatriz =
-                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id, fabrico_id: fabricoId },
+            include: { fichas_tecnicas: true },
+        });
 
-            if (temEdicaoDeMatriz || fichaDto.id == null) {
-                this.assertSomaItensIgualQuantidade(fichaDto);
+        if (!pedido) {
+            throw new NotFoundException("Pedido não encontrado!");
+        }
+
+        if (pedido.finalizado) {
+            throw new ConflictException("Pedido finalizado não pode ser alterado ou excluído");
+        }
+
+        if (data.cliente_id) {
+            const cliente = await this.prisma.cliente.findFirst({
+                where: { id: data.cliente_id, fabrico_id: fabricoId },
+            });
+
+            if (!cliente) {
+                throw new NotFoundException("Cliente não encontrado!");
             }
         }
 
-        const fichasNovasDto = fichasDto.filter((ficha) => ficha.id == null);
+        const clienteIdEfetivo =
+            data.cliente_id !== undefined ? data.cliente_id : pedido.cliente_id;
+
+        const fichasNovas = fichasDto.filter((ficha) => ficha.id == null);
         const fichasExistentesDto = fichasDto.filter((ficha) => ficha.id != null);
         const idsExistentesPayload = fichasExistentesDto.map((ficha) => Number(ficha.id));
 
@@ -306,132 +324,88 @@ export class PedidoService {
             throw new BadRequestException("Há fichas técnicas duplicadas no payload");
         }
 
-        this.assertUmaFichaPorProduto(fichasDto);
+        const fichasDoPedido = pedido.fichas_tecnicas;
+        const mapaFichasPedido = new Map(fichasDoPedido.map((ficha) => [ficha.id, ficha]));
 
-        for (const fichaDto of fichasExistentesDto) {
-            const temEdicaoDeMatriz =
-                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-
-            if (fichaDto.grade_versao_id != null && !temEdicaoDeMatriz) {
+        for (const fichaId of idsExistentesPayload) {
+            if (!mapaFichasPedido.has(fichaId)) {
                 throw new BadRequestException(
-                    "Para alterar a grade da ficha, envie também itens ou cores_ids",
+                    "Uma ou mais fichas técnicas não pertencem a este pedido",
                 );
             }
         }
 
-        const produtoIdsNovos = [
-            ...new Set(fichasNovasDto.map((ficha) => Number(ficha.produto_id))),
+        // Duplicidade de produto considerando o resultado final (fichas existentes
+        // mantidas + fichas novas), não apenas duplicidade de id.
+        const produtoIdsFinais = [
+            ...idsExistentesPayload.map((fichaId) => mapaFichasPedido.get(fichaId)!.produto_id),
+            ...fichasNovas.map((ficha) => Number(ficha.produto_id)),
         ];
+
+        if (new Set(produtoIdsFinais).size !== produtoIdsFinais.length) {
+            throw new BadRequestException("Há fichas técnicas duplicadas no payload");
+        }
+
+        for (const fichaDto of fichasExistentesDto) {
+            if (
+                fichaDto.grade_versao_id &&
+                !(Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids))
+            ) {
+                throw new BadRequestException(
+                    "Informe os itens ou cores da ficha ao alterar a grade_versao_id",
+                );
+            }
+        }
+
+        const idsParaManter = new Set(idsExistentesPayload);
+        const idsParaRemover = fichasDoPedido
+            .filter((ficha) => !idsParaManter.has(ficha.id))
+            .map((ficha) => ficha.id);
+
+        const produtoIdsNovos = [...new Set(fichasNovas.map((ficha) => Number(ficha.produto_id)))];
+        let produtosNovos: { id: number; grade_versao_id: number | null }[] = [];
+
+        if (produtoIdsNovos.length) {
+            produtosNovos = await this.prisma.produto.findMany({
+                where: { id: { in: produtoIdsNovos }, fabrico_id: fabricoId },
+                select: { id: true, grade_versao_id: true },
+            });
+
+            if (produtosNovos.length !== produtoIdsNovos.length) {
+                throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
+            }
+        }
 
         try {
             return await this.prisma.$transaction(
                 async (tx) => {
-                    await lockFabricoNumeracao(tx, fabricoId);
-                    await this.lockPedidoDoFabrico(tx, id, fabricoId);
-
-                    const pedido = await tx.pedido.findFirst({
-                        where: { id, fabrico_id: fabricoId },
-                        include: { fichas_tecnicas: true },
-                    });
-
-                    if (!pedido) {
-                        throw new NotFoundException("Pedido não encontrado!");
-                    }
-
-                    this.assertPedidoEditavel(pedido);
-
-                    let produtosNovos: { id: number; grade_versao_id: number | null }[] = [];
-
-                    if (produtoIdsNovos.length) {
-                        produtosNovos = await tx.produto.findMany({
-                            where: { id: { in: produtoIdsNovos }, fabrico_id: fabricoId },
-                            select: { id: true, grade_versao_id: true },
-                        });
-
-                        if (produtosNovos.length !== produtoIdsNovos.length) {
-                            throw new NotFoundException(
-                                "Um ou mais produtos não pertencem a este fabrico",
-                            );
-                        }
-                    }
-
-                    // Omitido = mantém o cliente atual; null explícito = remove o vínculo.
-                    const clienteIdEfetivo =
-                        data.cliente_id !== undefined ? data.cliente_id : pedido.cliente_id;
-
-                    if (clienteIdEfetivo) {
-                        const cliente = await tx.cliente.findFirst({
-                            where: { id: clienteIdEfetivo, fabrico_id: fabricoId },
-                        });
-
-                        if (!cliente) {
-                            throw new NotFoundException("Cliente não encontrado!");
-                        }
-                    }
-
-                    const fichasNovas = fichasNovasDto;
-                    const fichasDoPedido = pedido.fichas_tecnicas;
-                    const mapaFichasPedido = new Map(
-                        fichasDoPedido.map((ficha) => [ficha.id, ficha]),
-                    );
-
-                    for (const fichaId of idsExistentesPayload) {
-                        if (!mapaFichasPedido.has(fichaId)) {
-                            throw new BadRequestException(
-                                "Uma ou mais fichas técnicas não pertencem a este pedido",
-                            );
-                        }
-                    }
-
                     for (const fichaDto of fichasExistentesDto) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
-                        if (Number(fichaDto.produto_id) !== fichaDb.produto_id) {
+                        if (
+                            fichaDto.produto_id !== undefined &&
+                            Number(fichaDto.produto_id) !== fichaDb.produto_id
+                        ) {
                             throw new BadRequestException(
-                                "Não é permitido alterar o produto da ficha",
+                                "Não é permitido alterar o produto de uma ficha técnica existente",
                             );
                         }
-                    }
 
-                    // Garante que helpers downstream nunca usem produto_id divergente do banco.
-                    const fichasExistentesNormalizadas = fichasExistentesDto.map((fichaDto) => {
-                        const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
-                        return { ...fichaDto, produto_id: fichaDb.produto_id };
-                    });
+                        if (Array.isArray(fichaDto.parceiros) && fichaDto.parceiros.length) {
+                            const produtoValido = await tx.produto.findFirst({
+                                where: { id: fichaDb.produto_id, fabrico_id: fabricoId },
+                            });
 
-                    const idsParaManter = new Set(idsExistentesPayload);
-                    const idsParaRemover = fichasDoPedido
-                        .filter((ficha) => !idsParaManter.has(ficha.id))
-                        .map((ficha) => ficha.id);
+                            if (!produtoValido) {
+                                throw new NotFoundException("Produto não pertence a este fabrico");
+                            }
+                        }
 
-                    for (const fichaDto of fichasExistentesNormalizadas) {
-                        await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
-                    }
-
-                    const etapasPorFicha = fichasNovas.length
-                        ? await this.resolverEtapasDasFichas(tx, fichasNovas, fabricoId)
-                        : new Map<CreatePedidoFichaDto, number | null>();
-
-                    const gradePorProduto = fichasNovas.length
-                        ? await this.alinharGradesDosProdutos(
-                              tx,
-                              fichasNovas,
-                              produtosNovos,
-                              fabricoId,
-                          )
-                        : new Map<number, number>();
-
-                    if (idsParaRemover.length) {
-                        await tx.fichaEtapa.deleteMany({
-                            where: { ficha_tecnica_id: { in: idsParaRemover } },
-                        });
-                        await tx.fichaTecnica.deleteMany({
-                            where: { id: { in: idsParaRemover }, pedido_id: pedido.id },
-                        });
-                    }
-
-                    for (const fichaDto of fichasExistentesNormalizadas) {
-                        const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
+                        await this.sincronizarPrecosDeParceiros(
+                            tx,
+                            { ...fichaDto, produto_id: fichaDb.produto_id },
+                            fabricoId,
+                        );
 
                         if (clienteIdEfetivo) {
                             await this.vincularClienteProduto(
@@ -444,20 +418,6 @@ export class PedidoService {
 
                         const temEdicaoDeMatriz =
                             Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-                        const novaQuantidade = Number(fichaDto.quantidade) || 0;
-                        const updateData: {
-                            quantidade?: number;
-                            grade_versao_id?: number;
-                            observacoes?: string;
-                        } = {};
-
-                        if (novaQuantidade !== fichaDb.quantidade) {
-                            updateData.quantidade = novaQuantidade;
-                        }
-
-                        if (fichaDto.observacoes !== undefined) {
-                            updateData.observacoes = fichaDto.observacoes;
-                        }
 
                         if (temEdicaoDeMatriz) {
                             let gradeVersaoId = fichaDb.grade_versao_id;
@@ -481,7 +441,7 @@ export class PedidoService {
                                 where: { ficha_tecnica_id: fichaDb.id },
                             });
 
-                            await this.criarItensDaFicha(
+                            const quantidadeDerivada = await this.criarItensDaFicha(
                                 tx,
                                 fichaDb.id,
                                 gradeVersaoId,
@@ -489,25 +449,63 @@ export class PedidoService {
                                 fichaDto,
                             );
 
-                            updateData.quantidade = novaQuantidade;
-                            updateData.grade_versao_id = gradeVersaoId;
-                            fichaDb.grade_versao_id = gradeVersaoId;
-                        } else {
-                            await this.assertMatrizPersistidaCompativel(
-                                tx,
-                                fichaDb.id,
-                                novaQuantidade,
-                            );
-                        }
+                            if (
+                                fichaDto.quantidade !== undefined &&
+                                Number(fichaDto.quantidade) !== quantidadeDerivada
+                            ) {
+                                throw new BadRequestException(
+                                    `A quantidade informada (${fichaDto.quantidade}) não corresponde à soma dos itens da matriz (${quantidadeDerivada})`,
+                                );
+                            }
 
-                        if (Object.keys(updateData).length) {
                             await tx.fichaTecnica.update({
                                 where: { id: fichaDb.id },
-                                data: updateData,
+                                data: {
+                                    quantidade: quantidadeDerivada,
+                                    grade_versao_id: gradeVersaoId,
+                                },
                             });
 
-                            if (updateData.quantidade !== undefined) {
-                                fichaDb.quantidade = updateData.quantidade;
+                            fichaDb.quantidade = quantidadeDerivada;
+                            fichaDb.grade_versao_id = gradeVersaoId;
+                        } else {
+                            // Sem reenvio de matriz: se a quantidade foi informada,
+                            // validamos contra a soma real dos itens já persistidos
+                            // e só gravamos se ela de fato mudou. Observações são
+                            // persistidas independentemente, e etapa_atual_id em
+                            // ficha existente é sempre ignorado.
+                            const dataFichaUpdate: Record<string, unknown> = {};
+
+                            if (fichaDto.quantidade !== undefined) {
+                                const agregando = await tx.fichaTecnicaItem.aggregate({
+                                    where: { ficha_tecnica_id: fichaDb.id },
+                                    _sum: { quantidade: true },
+                                    _count: { _all: true },
+                                });
+
+                                const somaAtual = agregando._sum.quantidade ?? 0;
+
+                                if (Number(fichaDto.quantidade) !== somaAtual) {
+                                    throw new BadRequestException(
+                                        `A quantidade informada (${fichaDto.quantidade}) não corresponde à soma dos itens da matriz (${somaAtual})`,
+                                    );
+                                }
+
+                                if (Number(fichaDto.quantidade) !== fichaDb.quantidade) {
+                                    dataFichaUpdate.quantidade = Number(fichaDto.quantidade);
+                                    fichaDb.quantidade = Number(fichaDto.quantidade);
+                                }
+                            }
+
+                            if (fichaDto.observacoes !== undefined) {
+                                dataFichaUpdate.observacoes = fichaDto.observacoes;
+                            }
+
+                            if (Object.keys(dataFichaUpdate).length) {
+                                await tx.fichaTecnica.update({
+                                    where: { id: fichaDb.id },
+                                    data: dataFichaUpdate,
+                                });
                             }
                         }
 
@@ -519,13 +517,48 @@ export class PedidoService {
                         }
                     }
 
+                    const etapasPorFicha = fichasNovas.length
+                        ? await this.resolverEtapasDasFichas(tx, fichasNovas, fabricoId)
+                        : new Map<CreatePedidoFichaDto, number | null>();
+
+                    let produtosNovosNaTransacao = produtosNovos;
+
+                    if (fichasNovas.length && produtoIdsNovos.length) {
+                        produtosNovosNaTransacao = await tx.produto.findMany({
+                            where: { id: { in: produtoIdsNovos }, fabrico_id: fabricoId },
+                            select: { id: true, grade_versao_id: true },
+                        });
+                    }
+
+                    const gradePorProduto = fichasNovas.length
+                        ? await this.alinharGradesDosProdutos(
+                              tx,
+                              fichasNovas,
+                              produtosNovosNaTransacao,
+                              fabricoId,
+                          )
+                        : new Map<number, number>();
+
+                    if (idsParaRemover.length) {
+                        await tx.fichaEtapa.deleteMany({
+                            where: { ficha_tecnica_id: { in: idsParaRemover } },
+                        });
+                        await tx.fichaTecnica.deleteMany({
+                            where: { id: { in: idsParaRemover }, pedido_id: pedido.id },
+                        });
+                    }
+
                     if (fichasNovas.length) {
                         for (const fichaDto of fichasNovas) {
                             await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
                         }
 
-                        const numeroInicialFicha = await proximoNumeroFicha(tx, fabricoId);
-                        let numeroFicha = numeroInicialFicha;
+                        const ultimaFicha = await tx.fichaTecnica.findFirst({
+                            where: { fabrico_id: fabricoId },
+                            orderBy: { numero: "desc" },
+                            select: { numero: true },
+                        });
+                        let proximoNumeroFicha = (ultimaFicha?.numero ?? 0) + 1;
 
                         for (const fichaDto of fichasNovas) {
                             const produtoId = Number(fichaDto.produto_id);
@@ -536,16 +569,16 @@ export class PedidoService {
                                 fichaDto,
                                 gradeVersaoId: gradePorProduto.get(produtoId)!,
                                 etapaAtualId: etapasPorFicha.get(fichaDto) ?? null,
-                                numero: numeroFicha,
+                                numero: proximoNumeroFicha,
                                 clienteId: clienteIdEfetivo,
                             });
 
-                            numeroFicha += 1;
+                            proximoNumeroFicha += 1;
                         }
                     }
 
                     const fichasParaTotais: CreatePedidoFichaDto[] = [
-                        ...fichasExistentesNormalizadas.map((fichaDto) => {
+                        ...fichasExistentesDto.map((fichaDto) => {
                             const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                             return {
@@ -557,44 +590,87 @@ export class PedidoService {
                         ...fichasNovas,
                     ];
 
-                    const produtoIdsTotais = [
-                        ...new Set(fichasParaTotais.map((ficha) => Number(ficha.produto_id))),
+                    const produtoIdsSemPreco = [
+                        ...new Set(
+                            fichasParaTotais
+                                .filter((ficha) => ficha.preco_padrao === undefined)
+                                .map((ficha) => Number(ficha.produto_id)),
+                        ),
                     ];
+
+                    let precosPersistidos = new Map<number, number>();
+
+                    if (clienteIdEfetivo && produtoIdsSemPreco.length) {
+                        const registros = await tx.clienteProduto.findMany({
+                            where: {
+                                cliente_id: clienteIdEfetivo,
+                                produto_id: { in: produtoIdsSemPreco },
+                            },
+                            select: { produto_id: true, preco_padrao: true },
+                        });
+
+                        precosPersistidos = new Map(
+                            registros.map((registro) => [
+                                registro.produto_id,
+                                Number(registro.preco_padrao ?? 0),
+                            ]),
+                        );
+                    }
+
+                    const fichasComPrecoResolvido = fichasParaTotais.map((ficha) => ({
+                        ...ficha,
+                        preco_padrao:
+                            ficha.preco_padrao !== undefined
+                                ? ficha.preco_padrao
+                                : (precosPersistidos.get(Number(ficha.produto_id)) ?? 0),
+                    }));
+
+                    const produtoIdsTotais = [
+                        ...new Set(
+                            fichasComPrecoResolvido.map((ficha) => Number(ficha.produto_id)),
+                        ),
+                    ];
+
                     const totais = await this.calcularTotais(
                         tx,
                         { cliente_id: clienteIdEfetivo },
-                        fichasParaTotais,
+                        fichasComPrecoResolvido,
                         produtoIdsTotais,
                     );
 
+                    const dadosPedidoUpdate: Record<string, unknown> = {
+                        quantidade: totais.quantidade,
+                        valor_total: totais.valor_total,
+                        custo_total: totais.custo_total,
+                    };
+
+                    if (data.cliente_id !== undefined) {
+                        dadosPedidoUpdate.cliente_id = data.cliente_id;
+                    }
+
+                    if (data.data_prevista !== undefined) {
+                        dadosPedidoUpdate.data_prevista = data.data_prevista
+                            ? new Date(data.data_prevista)
+                            : null;
+                    }
+
+                    if (data.observacoes !== undefined) {
+                        dadosPedidoUpdate.observacoes = data.observacoes;
+                    }
+
                     await tx.pedido.update({
                         where: { id: pedido.id },
-                        data: {
-                            ...(data.cliente_id !== undefined
-                                ? { cliente_id: data.cliente_id }
-                                : {}),
-                            ...(data.data_prevista !== undefined
-                                ? {
-                                      data_prevista: data.data_prevista
-                                          ? new Date(data.data_prevista)
-                                          : null,
-                                  }
-                                : {}),
-                            ...(data.observacoes !== undefined
-                                ? { observacoes: data.observacoes }
-                                : {}),
-                            quantidade: totais.quantidade,
-                            valor_total: totais.valor_total,
-                            custo_total: totais.custo_total,
-                        },
+                        data: dadosPedidoUpdate,
                     });
 
-                    // finalizado acompanha as fichas (ex.: nova FT pendente reabre o pedido).
                     await sincronizarFinalizacaoPedido(tx, pedido.id);
 
                     return tx.pedido.findUnique({
                         where: { id: pedido.id },
-                        include: PEDIDO_COMPLETO_INCLUDE,
+                        include: {
+                            cliente: true,
+                            fichas_tecnicas: { include: { fichas_etapas: true } },
+                        },
                     });
                 },
                 { maxWait: 15000, timeout: 60000 },
@@ -618,48 +694,6 @@ export class PedidoService {
         }
     }
 
-    // Um pedido tem no máximo uma ficha por produto; grade e preço são resolvidos por produto.
-    private assertUmaFichaPorProduto(fichasDto: CreatePedidoFichaDto[]) {
-        const produtoIds = fichasDto.map((ficha) => Number(ficha.produto_id));
-
-        if (produtoIds.length !== new Set(produtoIds).size) {
-            throw new BadRequestException(
-                "Não é permitido mais de uma ficha técnica do mesmo produto no pedido",
-            );
-        }
-    }
-
-    private assertPedidoEditavel(pedido: { finalizado: boolean }) {
-        if (pedido.finalizado) {
-            throw new ConflictException("Pedido finalizado não pode ser alterado ou excluído");
-        }
-    }
-
-    private async lockPedidoDoFabrico(
-        tx: Prisma.TransactionClient,
-        pedidoId: number,
-        fabricoId: number,
-    ) {
-        const locked = await tx.$queryRaw<{ id: number }[]>(
-            Prisma.sql`SELECT id FROM "pedidos" WHERE id = ${pedidoId} AND fabrico_id = ${fabricoId} FOR UPDATE`,
-        );
-
-        if (!locked.length) {
-            throw new NotFoundException("Pedido não encontrado!");
-        }
-    }
-
-    private buscarPedidoPorIdempotencia(
-        db: Prisma.TransactionClient | PrismaService,
-        fabricoId: number,
-        chaveIdempotencia: string,
-    ) {
-        return db.pedido.findFirst({
-            where: { fabrico_id: fabricoId, idempotency_key: chaveIdempotencia },
-            include: PEDIDO_COMPLETO_INCLUDE,
-        });
-    }
-
     private async persistirFichaNova(
         tx: Prisma.TransactionClient,
         params: {
@@ -681,20 +715,34 @@ export class PedidoService {
                 fabrico_id: params.fabricoId,
                 grade_versao_id: params.gradeVersaoId,
                 etapa_atual_id: params.etapaAtualId,
-                quantidade: Number(params.fichaDto.quantidade) || 0,
+                quantidade: 0,
                 concluida: false,
                 observacoes: params.fichaDto.observacoes,
                 numero: params.numero,
             },
         });
 
-        await this.criarItensDaFicha(
+        const quantidadeDerivada = await this.criarItensDaFicha(
             tx,
             ficha.id,
             params.gradeVersaoId,
             params.fabricoId,
             params.fichaDto,
         );
+
+        if (
+            params.fichaDto.quantidade !== undefined &&
+            Number(params.fichaDto.quantidade) !== quantidadeDerivada
+        ) {
+            throw new BadRequestException(
+                `A quantidade informada (${params.fichaDto.quantidade}) não corresponde à soma dos itens da matriz (${quantidadeDerivada})`,
+            );
+        }
+
+        await tx.fichaTecnica.update({
+            where: { id: ficha.id },
+            data: { quantidade: quantidadeDerivada },
+        });
 
         if (params.etapaAtualId) {
             await this.registrarEtapaInicial(tx, ficha.id, params.etapaAtualId, params.fabricoId);
@@ -706,12 +754,15 @@ export class PedidoService {
             await this.vincularClienteProduto(tx, params.clienteId, produtoId, params.fichaDto);
         }
 
-        return ficha;
+        return { ...ficha, quantidade: quantidadeDerivada };
     }
 
     /**
      * A ficha técnica herda a grade do produto. Quando o usuário escolhe outra
      * versão durante o cadastro, o produto é atualizado antes das fichas serem criadas.
+     * A validação acontece em duas etapas: primeiro se a versão de grade em si é
+     * válida/ativa, depois se ela está de fato liberada para este fabrico via
+     * FabricoGrade.
      */
     private async alinharGradesDosProdutos(
         tx: Prisma.TransactionClient,
@@ -719,16 +770,6 @@ export class PedidoService {
         produtos: { id: number; grade_versao_id: number | null }[],
         fabricoId: number,
     ): Promise<Map<number, number>> {
-        const produtoIds = [...new Set(fichasDto.map((ficha) => Number(ficha.produto_id)))];
-        const produtosDoFabrico = await tx.produto.findMany({
-            where: { id: { in: produtoIds }, fabrico_id: fabricoId },
-            select: { id: true },
-        });
-
-        if (produtosDoFabrico.length !== produtoIds.length) {
-            throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
-        }
-
         const gradePorProduto = new Map<number, number | null>(
             produtos.map((produto) => [produto.id, produto.grade_versao_id]),
         );
@@ -744,51 +785,37 @@ export class PedidoService {
                 throw new BadRequestException("Produto não possui grade definida");
             }
 
-            await this.assertGradeVersaoLiberadaParaFabrico(tx, gradeDesejada, fabricoId);
+            const gradeInfo = await tx.gradeVersao.findFirst({
+                where: { id: gradeDesejada, ativo: true },
+                select: { id: true, grade_id: true },
+            });
 
-            if (gradeDesejada !== gradeAtual) {
-                const atualizados = await tx.produto.updateMany({
-                    where: { id: produtoId, fabrico_id: fabricoId },
-                    data: { grade_versao_id: gradeDesejada },
-                });
-
-                if (atualizados.count === 0) {
-                    throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
-                }
+            if (!gradeInfo) {
+                throw new BadRequestException(
+                    "Versão de grade inválida, inativa ou não liberada para este fabrico",
+                );
             }
+
+            const fabricoGradeValido = await tx.fabricoGrade.findFirst({
+                where: { fabrico_id: fabricoId, grade_id: gradeInfo.grade_id, ativo: true },
+                select: { id: true },
+            });
+
+            if (!fabricoGradeValido) {
+                throw new BadRequestException(
+                    "A grade informada não está liberada para este fabrico",
+                );
+            }
+
+            await tx.produto.update({
+                where: { id: produtoId },
+                data: { grade_versao_id: gradeDesejada },
+            });
 
             gradePorProduto.set(produtoId, gradeDesejada);
         }
 
         return gradePorProduto as Map<number, number>;
-    }
-
-    private async assertGradeVersaoLiberadaParaFabrico(
-        tx: Prisma.TransactionClient,
-        gradeVersaoId: number,
-        fabricoId: number,
-    ) {
-        const gradeVersao = await tx.gradeVersao.findFirst({
-            where: { id: gradeVersaoId, ativo: true },
-            select: { id: true, grade_id: true },
-        });
-
-        if (!gradeVersao) {
-            throw new BadRequestException("Versão de grade inválida ou inativa");
-        }
-
-        const liberacao = await tx.fabricoGrade.findFirst({
-            where: {
-                fabrico_id: fabricoId,
-                grade_id: gradeVersao.grade_id,
-                ativo: true,
-            },
-            select: { id: true },
-        });
-
-        if (!liberacao) {
-            throw new BadRequestException("A grade informada não está liberada para este fabrico");
-        }
     }
 
     private async resolverEtapasDasFichas(
@@ -833,85 +860,40 @@ export class PedidoService {
      * selecionada recebe uma linha por tamanho da grade, com quantidade zero
      * quando o usuário não preencheu aquela combinação.
      */
-    private assertSomaItensIgualQuantidade(fichaDto: CreatePedidoFichaDto) {
-        const quantidade = Number(fichaDto.quantidade) || 0;
-        const itensDto = fichaDto.itens ?? [];
-        const temMatriz = Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-
-        if (quantidade > 0 && !temMatriz) {
-            throw new BadRequestException(
-                "Informe a matriz (itens ou cores_ids) quando a quantidade da ficha for positiva",
-            );
-        }
-
-        if (!temMatriz) {
-            return;
-        }
-
-        const somaItens = itensDto.reduce(
-            (total, item) => total + (Number(item.quantidade) || 0),
-            0,
-        );
-
-        if (somaItens !== quantidade) {
-            throw new BadRequestException(
-                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
-            );
-        }
-    }
-
-    private async assertMatrizPersistidaCompativel(
-        tx: Prisma.TransactionClient,
-        fichaId: number,
-        quantidade: number,
-    ) {
-        const agregado = await tx.fichaTecnicaItem.aggregate({
-            where: { ficha_tecnica_id: fichaId },
-            _sum: { quantidade: true },
-            _count: { _all: true },
-        });
-
-        const soma = Number(agregado._sum.quantidade ?? 0);
-        const totalItens = agregado._count._all;
-
-        if (quantidade > 0 && totalItens === 0) {
-            throw new BadRequestException(
-                "A ficha com quantidade positiva precisa ter matriz de itens",
-            );
-        }
-
-        if (soma !== quantidade) {
-            throw new BadRequestException(
-                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
-            );
-        }
-    }
-
     private async criarItensDaFicha(
         tx: Prisma.TransactionClient,
         fichaId: number,
         gradeVersaoId: number,
         fabricoId: number,
         fichaDto: CreatePedidoFichaDto,
-    ) {
-        this.assertSomaItensIgualQuantidade(fichaDto);
-
+    ): Promise<number> {
         const itensDto = fichaDto.itens ?? [];
+        const quantidadeDeclarada = Number(fichaDto.quantidade) || 0;
+        if (itensDto.length === 0) {
+            throw new BadRequestException("A matriz de itens não pode ser vazia.");
+        }
+
+        const somaMatriz = itensDto.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
+        if (somaMatriz !== quantidadeDeclarada) {
+            throw new BadRequestException(
+                `A soma dos itens (${somaMatriz}) difere da quantidade total informada (${quantidadeDeclarada}).`,
+            );
+        }
+
         const coresIds = [
             ...new Set([
                 ...(fichaDto.cores_ids ?? []).map(Number),
                 ...itensDto.map((item) => Number(item.cor_id)),
             ]),
         ];
-        const quantidade = Number(fichaDto.quantidade) || 0;
 
         if (!coresIds.length) {
-            if (quantidade > 0) {
+            if (quantidadeDeclarada > 0) {
                 throw new BadRequestException(
-                    "Informe a matriz (itens ou cores_ids) quando a quantidade da ficha for positiva",
+                    "A ficha técnica informa quantidade maior que zero, mas não possui matriz de cores/tamanhos",
                 );
             }
-            return;
+            return 0;
         }
 
         const coresValidas = await tx.cor.findMany({
@@ -958,17 +940,6 @@ export class PedidoService {
             quantidadePorChave.set(chave, Number(item.quantidade) || 0);
         }
 
-        const somaMatriz = [...quantidadePorChave.values()].reduce(
-            (total, valor) => total + valor,
-            0,
-        );
-
-        if (somaMatriz !== quantidade) {
-            throw new BadRequestException(
-                "A soma das quantidades da matriz deve ser igual à quantidade da ficha técnica",
-            );
-        }
-
         await tx.fichaTecnicaItem.createMany({
             data: coresIds.flatMap((corId) =>
                 gradeItens.map((gradeItem) => ({
@@ -979,6 +950,7 @@ export class PedidoService {
                 })),
             ),
         });
+        return [...quantidadePorChave.values()].reduce((total, q) => total + q, 0);
     }
 
     private async registrarEtapaInicial(
@@ -1025,15 +997,6 @@ export class PedidoService {
         const produtoId = Number(fichaDto.produto_id);
         const parceiroIds = [...new Set(parceiros.map((parceiro) => Number(parceiro.parceiro_id)))];
 
-        const produto = await tx.produto.findFirst({
-            where: { id: produtoId, fabrico_id: fabricoId },
-            select: { id: true },
-        });
-
-        if (!produto) {
-            throw new NotFoundException("Um ou mais produtos não pertencem a este fabrico");
-        }
-
         const parceirosValidos = await tx.parceiro.findMany({
             where: { id: { in: parceiroIds }, fabrico_id: fabricoId },
             select: { id: true },
@@ -1046,7 +1009,7 @@ export class PedidoService {
         await this.produtoService.bloquearProdutosParaRecalculo([produtoId], tx);
 
         for (const parceiro of parceiros) {
-            const preco = toMoneyOrNull(parceiro.preco);
+            const preco = parceiro.preco ?? null;
             const parceiroId = Number(parceiro.parceiro_id);
 
             await tx.parceiroProduto.upsert({
@@ -1077,7 +1040,7 @@ export class PedidoService {
         const parceiroUnico = parceiros.length === 1;
 
         for (const parceiro of parceiros) {
-            const preco = toMoneyOrNull(parceiro.preco);
+            const preco = parceiro.preco ?? null;
 
             await tx.fichaParceiro.create({
                 data: {
@@ -1087,7 +1050,7 @@ export class PedidoService {
                     quantidade: parceiroUnico ? quantidadeFicha : undefined,
                     valor:
                         parceiroUnico && preco !== null
-                            ? lineTotal(quantidadeFicha, preco)
+                            ? this.multiplicarPreciso(quantidadeFicha, preco)
                             : undefined,
                 },
             });
@@ -1100,21 +1063,16 @@ export class PedidoService {
         produtoId: number,
         fichaDto: CreatePedidoFichaDto,
     ) {
-        const nomeInformado = fichaDto.nome_para_cliente !== undefined;
-        const precoInformado = fichaDto.preco_padrao !== undefined;
-        const nomeParaCliente = nomeInformado ? (fichaDto.nome_para_cliente ?? "") : "";
-        const precoPadrao = precoInformado ? toMoneyOrNull(fichaDto.preco_padrao) : null;
+        // Só inclui no "update" os campos realmente reenviados: quando o campo não
+        // foi informado (undefined), preservamos o que já está persistido.
+        const updateData: Record<string, unknown> = {};
 
-        // Omitir o campo no payload = manter o valor já persistido.
-        // null explícito em preco_padrao = limpar o preço cadastrado.
-        const update: { nome_para_cliente?: string; preco_padrao?: Prisma.Decimal | null } = {};
-
-        if (nomeInformado) {
-            update.nome_para_cliente = nomeParaCliente;
+        if (fichaDto.nome_para_cliente !== undefined) {
+            updateData.nome_para_cliente = fichaDto.nome_para_cliente;
         }
 
-        if (precoInformado) {
-            update.preco_padrao = precoPadrao;
+        if (fichaDto.preco_padrao !== undefined) {
+            updateData.preco_padrao = fichaDto.preco_padrao;
         }
 
         await tx.clienteProduto.upsert({
@@ -1122,10 +1080,10 @@ export class PedidoService {
             create: {
                 produto_id: produtoId,
                 cliente_id: clienteId,
-                nome_para_cliente: nomeParaCliente,
-                preco_padrao: precoPadrao,
+                nome_para_cliente: fichaDto.nome_para_cliente ?? "",
+                preco_padrao: fichaDto.preco_padrao ?? undefined,
             },
-            update,
+            update: updateData,
         });
     }
 
@@ -1141,7 +1099,7 @@ export class PedidoService {
         });
 
         const custoPorProduto = new Map(
-            produtos.map((produto) => [produto.id, moneyOrZero(produto.custo_total)]),
+            produtos.map((produto) => [produto.id, Number(produto.custo_total ?? 0)]),
         );
 
         const quantidade = fichasDto.reduce(
@@ -1149,15 +1107,16 @@ export class PedidoService {
             0,
         );
 
-        const custoTotal = sumMoney(
-            fichasDto.map((ficha) => {
-                const custoUnitario = custoPorProduto.get(Number(ficha.produto_id));
-                return lineTotal(Number(ficha.quantidade) || 0, custoUnitario);
-            }),
-        );
+        const custoTotal = fichasDto.reduce((total, ficha) => {
+            const custoUnitario = custoPorProduto.get(Number(ficha.produto_id)) ?? 0;
+            return total + this.multiplicarPreciso(Number(ficha.quantidade) || 0, custoUnitario);
+        }, 0);
 
         const valorTotal = data.cliente_id
-            ? await this.calcularValorTotalDoCliente(tx, data.cliente_id, fichasDto)
+            ? fichasDto.reduce((total, ficha) => {
+                  const preco = Number(ficha.preco_padrao ?? 0);
+                  return total + this.multiplicarPreciso(Number(ficha.quantidade) || 0, preco);
+              }, 0)
             : null;
 
         return {
@@ -1167,60 +1126,7 @@ export class PedidoService {
         };
     }
 
-    /**
-     * Usa o preco_padrao do payload quando informado (inclusive null explícito).
-     * Quando omitido, recupera o preço já cadastrado em ClienteProduto.
-     */
-    private async calcularValorTotalDoCliente(
-        tx: Prisma.TransactionClient,
-        clienteId: number,
-        fichasDto: CreatePedidoFichaDto[],
-    ) {
-        const produtosSemPrecoNoPayload = [
-            ...new Set(
-                fichasDto
-                    .filter((ficha) => ficha.preco_padrao === undefined)
-                    .map((ficha) => Number(ficha.produto_id)),
-            ),
-        ];
-
-        const precoPersistidoPorProduto = new Map<number, Prisma.Decimal | null>();
-
-        if (produtosSemPrecoNoPayload.length) {
-            const registros = await tx.clienteProduto.findMany({
-                where: {
-                    cliente_id: clienteId,
-                    produto_id: { in: produtosSemPrecoNoPayload },
-                },
-                select: { produto_id: true, preco_padrao: true },
-            });
-
-            for (const registro of registros) {
-                precoPersistidoPorProduto.set(
-                    registro.produto_id,
-                    registro.preco_padrao !== null && registro.preco_padrao !== undefined
-                        ? moneyOrZero(registro.preco_padrao)
-                        : null,
-                );
-            }
-        }
-
-        return sumMoney(
-            fichasDto.map((ficha) => {
-                const produtoId = Number(ficha.produto_id);
-                const precoUnitario =
-                    ficha.preco_padrao !== undefined
-                        ? ficha.preco_padrao
-                        : precoPersistidoPorProduto.get(produtoId);
-
-                return lineTotal(Number(ficha.quantidade) || 0, precoUnitario);
-            }),
-        );
-    }
-
-    async findAll(user: AuthenticatedUser) {
-        const fabricoId = user.fabrico_id!;
-
+    async findAll(fabricoId: number) {
         return this.prisma.pedido.findMany({
             where: { fabrico_id: fabricoId },
             include: {
@@ -1232,9 +1138,7 @@ export class PedidoService {
         });
     }
 
-    async getById(id: number, user: AuthenticatedUser) {
-        const fabricoId = user.fabrico_id!;
-
+    async getById(id: number, fabricoId: number) {
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -1246,9 +1150,7 @@ export class PedidoService {
         return pedido;
     }
 
-    async delete(id: number, user: AuthenticatedUser) {
-        const fabricoId = user.fabrico_id!;
-
+    async delete(id: number, fabricoId: number) {
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -1257,15 +1159,15 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
-        this.assertPedidoEditavel(pedido);
+        if (pedido.finalizado) {
+            throw new BadRequestException("Pedidos finalizados não podem ser deletados.");
+        }
 
         await this.prisma.pedido.delete({ where: { id: pedido.id } });
         return `O pedido com o id ${id} foi deletado com sucesso`;
     }
 
-    async update(id: number, data: UpdatePedidoDto, user: AuthenticatedUser): Promise<Pedido> {
-        const fabricoId = user.fabrico_id!;
-
+    async update(id: number, data: UpdatePedidoDto, fabricoId: number): Promise<Pedido> {
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
         });
@@ -1274,7 +1176,9 @@ export class PedidoService {
             throw new NotFoundException("Pedido não encontrado!");
         }
 
-        this.assertPedidoEditavel(pedido);
+        if (pedido.finalizado) {
+            throw new BadRequestException("Pedido finalizado não pode ser atualizado.");
+        }
 
         if (data.cliente_id !== undefined && data.cliente_id !== null) {
             const cliente = await this.prisma.cliente.findFirst({
@@ -1292,17 +1196,13 @@ export class PedidoService {
                 data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
                 observacoes: data.observacoes,
                 cliente_id: data.cliente_id,
-                valor_total:
-                    data.valor_total !== undefined ? toMoneyOrNull(data.valor_total) : undefined,
-                custo_total:
-                    data.custo_total !== undefined ? toMoneyOrNull(data.custo_total) : undefined,
+                valor_total: data.valor_total,
+                custo_total: data.custo_total,
             },
         });
     }
 
-    async findAllCliente(cliente_id: number, user: AuthenticatedUser) {
-        const fabricoId = user.fabrico_id!;
-
+    async findAllCliente(cliente_id: number, fabricoId: number) {
         return this.prisma.pedido.findMany({
             where: { cliente_id, fabrico_id: fabricoId },
         });

@@ -8,6 +8,7 @@ import {
     Put,
     UseGuards,
     ParseIntPipe,
+    Req,
 } from "@nestjs/common";
 import { FichaTecnicaItemService } from "./ficha-tecnica-item.service";
 import { UpdateFichaTecnicaItemDto } from "./dto/update-ficha-tecnica-item.dto";
@@ -28,18 +29,26 @@ export class FichaTecnicaItemController {
     constructor(private readonly fichaTecnicaItemService: FichaTecnicaItemService) {}
 
     @Get(":ficha_tecnica_id/itens")
-    findAllByFichaTecnicaID(@Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number) {
-        return this.fichaTecnicaItemService.findAllByFichaTecnicaID(ficha_tecnica_id);
+    findAllByFichaTecnicaID(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Req() req: Request,
+    ) {
+        return this.fichaTecnicaItemService.findAllByFichaTecnicaID(
+            ficha_tecnica_id,
+            (req as any).user.fabrico_id,
+        );
     }
 
     @Post(":ficha_tecnica_id/itens")
     createManyByFichaTecnicaID(
         @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
         @Body() data: ReplaceFichaTecnicaItensDto,
+        @Req() req: Request,
     ) {
         return this.fichaTecnicaItemService.createManyByFichaTecnicaID(
             ficha_tecnica_id,
             data.itens,
+            (req as any).user.fabrico_id,
         );
     }
 
@@ -47,31 +56,51 @@ export class FichaTecnicaItemController {
     create(
         @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
         @Body() data: CreateFichaTecnicaItemDto,
+        @Req() req: Request,
     ) {
-        return this.fichaTecnicaItemService.create(ficha_tecnica_id, data);
+        return this.fichaTecnicaItemService.create(
+            ficha_tecnica_id,
+            data,
+            (req as any).user.fabrico_id,
+        );
     }
 
     @Put("itens/:id")
-    update(@Param("id", ParseIntPipe) id: number, @Body() data: UpdateFichaTecnicaItemDto) {
-        return this.fichaTecnicaItemService.update(id, data);
+    update(
+        @Param("id", ParseIntPipe) id: number,
+        @Body() data: UpdateFichaTecnicaItemDto,
+        @Req() req: Request,
+    ) {
+        return this.fichaTecnicaItemService.update(id, data, (req as any).user.fabrico_id);
     }
 
     @Delete("itens/:id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaItemService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @Req() req: Request) {
+        return this.fichaTecnicaItemService.remove(id, (req as any).user.fabrico_id);
     }
 
     @Delete(":ficha_tecnica_id/itens")
-    clearByFichaTecnicaID(@Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number) {
-        return this.fichaTecnicaItemService.clearByFichaTecnicaID(ficha_tecnica_id);
+    clearByFichaTecnicaID(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Req() req: Request,
+    ) {
+        return this.fichaTecnicaItemService.clearByFichaTecnicaID(
+            ficha_tecnica_id,
+            (req as any).user.fabrico_id,
+        );
     }
 
     @Post(":ficha_tecnica_id/cores")
     gerarItensPorCor(
         @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
         @Body() data: CreateFichaTecnicaCorDto,
+        @Req() req: Request,
     ) {
-        return this.fichaTecnicaItemService.gerarItensPorCor(ficha_tecnica_id, data.cor_id);
+        return this.fichaTecnicaItemService.gerarItensPorCor(
+            ficha_tecnica_id,
+            data.cor_id,
+            (req as any).user.fabrico_id,
+        );
     }
 
     @Post(":ficha_tecnica_id/cores/batch")
@@ -79,10 +108,12 @@ export class FichaTecnicaItemController {
         @Param("ficha_tecnica_id", ParseIntPipe)
         ficha_tecnica_id: number,
         @Body() dto: AddCoresBatchDto,
+        @Req() req: Request,
     ) {
         return this.fichaTecnicaItemService.gerarItensPorCoresBatch(
             ficha_tecnica_id,
             dto.cores_ids,
+            (req as any).user.fabrico_id,
         );
     }
 
@@ -91,15 +122,25 @@ export class FichaTecnicaItemController {
         @Param("ficha_tecnica_id", ParseIntPipe)
         ficha_tecnica_id: number,
         @Body() dto: RemoveCoresBatchDto,
+        @Req() req: Request,
     ) {
-        return this.fichaTecnicaItemService.removerCoresBatch(ficha_tecnica_id, dto.cores_ids);
+        return this.fichaTecnicaItemService.removerCoresBatch(
+            ficha_tecnica_id,
+            dto.cores_ids,
+            (req as any).user.fabrico_id,
+        );
     }
 
     @Post(":ficha_tecnica_id/cores/sync")
     syncCoresBatch(
         @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
         @Body() dto: SyncCoresBatchDto,
+        @Req() req: Request,
     ) {
-        return this.fichaTecnicaItemService.syncCoresBatch(ficha_tecnica_id, dto.cores_ids);
+        return this.fichaTecnicaItemService.syncCoresBatch(
+            ficha_tecnica_id,
+            dto.cores_ids,
+            (req as any).user.fabrico_id,
+        );
     }
 }

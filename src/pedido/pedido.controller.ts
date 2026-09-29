@@ -9,6 +9,7 @@ import {
     Put,
     Headers,
     UseGuards,
+    ForbiddenException,
 } from "@nestjs/common";
 import { PedidoService } from "./pedido.service";
 import { CreatePedidoDto } from "./dto/create-pedido.dto";
@@ -27,9 +28,17 @@ import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 export class PedidoController {
     constructor(private readonly pedidoService: PedidoService) {}
 
+    private resolverFabricoId(user: AuthenticatedUser): number {
+        if (user.fabrico_id == null) {
+            throw new ForbiddenException("Usuário não está vinculado a um fabrico");
+        }
+
+        return user.fabrico_id;
+    }
+
     @Post()
     async create(@Body() createPedidoDto: CreatePedidoDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.create(createPedidoDto, user);
+        return this.pedidoService.create(createPedidoDto, this.resolverFabricoId(user));
     }
 
     @Post("completo")
@@ -38,12 +47,16 @@ export class PedidoController {
         @CurrentUser() user: AuthenticatedUser,
         @Headers("idempotency-key") idempotencyKey?: string,
     ) {
-        return this.pedidoService.createCompleto(createPedidoCompletoDto, user, idempotencyKey);
+        return this.pedidoService.createCompleto(
+            createPedidoCompletoDto,
+            this.resolverFabricoId(user),
+            idempotencyKey,
+        );
     }
 
     @Get()
     findAll(@CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.findAll(user);
+        return this.pedidoService.findAll(this.resolverFabricoId(user));
     }
 
     @Get("/cliente/:cliente_id")
@@ -51,7 +64,7 @@ export class PedidoController {
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.findAllCliente(cliente_id, user);
+        return this.pedidoService.findAllCliente(cliente_id, this.resolverFabricoId(user));
     }
 
     @Put("completo/:id")
@@ -60,17 +73,17 @@ export class PedidoController {
         @Body() data: UpdatePedidoCompletoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.updateCompleto(id, data, user);
+        return this.pedidoService.updateCompleto(id, data, this.resolverFabricoId(user));
     }
 
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.getById(id, user);
+        return this.pedidoService.getById(id, this.resolverFabricoId(user));
     }
 
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-        return this.pedidoService.delete(id, user);
+        return this.pedidoService.delete(id, this.resolverFabricoId(user));
     }
 
     @Put(":id")
@@ -79,6 +92,6 @@ export class PedidoController {
         @Body() data: UpdatePedidoDto,
         @CurrentUser() user: AuthenticatedUser,
     ) {
-        return this.pedidoService.update(id, data, user);
+        return this.pedidoService.update(id, data, this.resolverFabricoId(user));
     }
 }

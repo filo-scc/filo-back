@@ -12,12 +12,12 @@ describe("FichaParceiroService", () => {
     beforeEach(() => {
         consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
         prisma = {
-            fichaTecnica: { findUnique: jest.fn() },
-            parceiro: { findUnique: jest.fn() },
+            fichaTecnica: { findFirst: jest.fn() },
+            parceiro: { findUnique: jest.fn(), findFirst: jest.fn() },
             fichaParceiro: {
                 create: jest.fn(),
                 findMany: jest.fn(),
-                findUnique: jest.fn(),
+                findFirst: jest.fn(),
                 update: jest.fn(),
                 delete: jest.fn(),
             },
@@ -30,12 +30,12 @@ describe("FichaParceiroService", () => {
     });
 
     it("cria vínculo entre ficha e parceiro do mesmo fabrico", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
-        prisma.parceiro.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1 });
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 2, fabrico_id: 10 });
         prisma.fichaParceiro.create.mockResolvedValue({ ficha_id: 1, parceiro_id: 2 });
 
         await expect(
-            service.create({ ficha_id: 1, parceiro_id: 2, valor: 12, quantidade: 3 }, 10),
+            service.create({ ficha_id: 1, parceiro_id: 2, valor: 12, quantidade: 3 } as any, 10),
         ).resolves.toEqual({ ficha_id: 1, parceiro_id: 2 });
         expect(prisma.fichaParceiro.create).toHaveBeenCalledWith({
             data: {
@@ -49,9 +49,9 @@ describe("FichaParceiroService", () => {
     });
 
     it("rejeita ficha inexistente ou de outro fabrico", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 11 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue(null);
 
-        await expect(service.create({ ficha_id: 1, parceiro_id: 2 }, 10)).rejects.toThrow(
+        await expect(service.create({ ficha_id: 1, parceiro_id: 2 } as any, 10)).rejects.toThrow(
             new NotFoundException(
                 "Ficha Técnica não encontrada ou o fabrico não possui essa ficha",
             ),
@@ -59,17 +59,17 @@ describe("FichaParceiroService", () => {
     });
 
     it("rejeita parceiro inexistente ou de outro fabrico", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1 });
         prisma.parceiro.findUnique.mockResolvedValue(null);
 
-        await expect(service.create({ ficha_id: 1, parceiro_id: 2 }, 10)).rejects.toThrow(
+        await expect(service.create({ ficha_id: 1, parceiro_id: 2 } as any, 10)).rejects.toThrow(
             new NotFoundException("Parceiro não encontrado ou o fabrico não possui esse parceiro"),
         );
     });
 
     it("traduz vínculo duplicado ao criar", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
-        prisma.parceiro.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1 });
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 2, fabrico_id: 10 });
         prisma.fichaParceiro.create.mockRejectedValue(
             new PrismaClientKnownRequestError("duplicado", {
                 code: "P2002",
@@ -77,32 +77,33 @@ describe("FichaParceiroService", () => {
             }),
         );
 
-        await expect(service.create({ ficha_id: 1, parceiro_id: 2 }, 10)).rejects.toThrow(
+        await expect(service.create({ ficha_id: 1, parceiro_id: 2 } as any, 10)).rejects.toThrow(
             new ConflictException("Este parceiro já está vinculado a esta ficha técnica"),
         );
     });
 
     it("traduz erro inesperado ao criar", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
-        prisma.parceiro.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1 });
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 2, fabrico_id: 10 });
         prisma.fichaParceiro.create.mockRejectedValue(new Error("db"));
 
-        await expect(service.create({ ficha_id: 1, parceiro_id: 2 }, 10)).rejects.toThrow(
+        await expect(service.create({ ficha_id: 1, parceiro_id: 2 } as any, 10)).rejects.toThrow(
             new InternalServerErrorException("Erro ao vincular parceiro à ficha técnica"),
         );
     });
 
-    it("lista todos os vínculos", async () => {
+    it("lista todos os vínculos do fabrico", async () => {
         prisma.fichaParceiro.findMany.mockResolvedValue([{ id: 1 }]);
 
-        await expect(service.getAll()).resolves.toEqual([{ id: 1 }]);
+        await expect(service.getAll(10)).resolves.toEqual([{ id: 1 }]);
         expect(prisma.fichaParceiro.findMany).toHaveBeenCalledWith({
+            where: { ficha: { fabrico_id: 10 } },
             include: { ficha: true, parceiro: true },
         });
     });
 
     it("busca um vínculo existente validando o fabrico", async () => {
-        prisma.fichaParceiro.findUnique.mockResolvedValue({
+        prisma.fichaParceiro.findFirst.mockResolvedValue({
             ficha_id: 1,
             parceiro_id: 2,
             ficha: { fabrico_id: 10 },
@@ -116,7 +117,7 @@ describe("FichaParceiroService", () => {
     });
 
     it("rejeita vínculo inexistente ou fora do fabrico", async () => {
-        prisma.fichaParceiro.findUnique.mockResolvedValue(null);
+        prisma.fichaParceiro.findFirst.mockResolvedValue(null);
 
         await expect(service.findOne(1, 2, 10)).rejects.toThrow(
             new NotFoundException(
@@ -129,7 +130,9 @@ describe("FichaParceiroService", () => {
         jest.spyOn(service, "findOne").mockResolvedValue({ ficha_id: 1, parceiro_id: 2 } as any);
         prisma.fichaParceiro.update.mockResolvedValue({ valor: 20 });
 
-        await expect(service.update(1, 2, { valor: 20 }, 10)).resolves.toEqual({ valor: 20 });
+        await expect(service.update(1, 2, { valor: 20 } as any, 10)).resolves.toEqual({
+            valor: 20,
+        });
         expect(prisma.fichaParceiro.update).toHaveBeenCalledWith({
             where: { ficha_id_parceiro_id: { ficha_id: 1, parceiro_id: 2 } },
             data: { operacao: undefined, valor: 20, quantidade: undefined },
@@ -146,7 +149,7 @@ describe("FichaParceiroService", () => {
     });
 
     it("lista parceiros por ficha validando fabrico", async () => {
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 1, fabrico_id: 10 });
+        prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1 });
         prisma.fichaParceiro.findMany.mockResolvedValue([{ parceiro: { id: 2 } }]);
 
         await expect(service.getFichaParceiroByFicha(1, 10)).resolves.toEqual([
@@ -158,8 +161,17 @@ describe("FichaParceiroService", () => {
         });
     });
 
+    it("rejeita ficha inexistente ao listar parceiros por ficha", async () => {
+        prisma.fichaTecnica.findFirst.mockResolvedValue(null);
+
+        await expect(service.getFichaParceiroByFicha(1, 10)).rejects.toThrow(
+            new NotFoundException("Ficha técnica não encontrada ou o fabrico não a possui"),
+        );
+        expect(prisma.fichaParceiro.findMany).not.toHaveBeenCalled();
+    });
+
     it("lista fichas por parceiro validando fabrico", async () => {
-        prisma.parceiro.findUnique.mockResolvedValue({ id: 2, fabrico_id: 10 });
+        prisma.parceiro.findFirst.mockResolvedValue({ id: 2 });
         prisma.fichaParceiro.findMany.mockResolvedValue([{ ficha: { id: 1 } }]);
 
         await expect(service.getFichaParceiroByParceiro(2, 10)).resolves.toEqual([
@@ -169,5 +181,14 @@ describe("FichaParceiroService", () => {
             where: { parceiro_id: 2 },
             include: { ficha: true },
         });
+    });
+
+    it("rejeita parceiro inexistente ao listar fichas por parceiro", async () => {
+        prisma.parceiro.findFirst.mockResolvedValue(null);
+
+        await expect(service.getFichaParceiroByParceiro(2, 10)).rejects.toThrow(
+            new NotFoundException("Parceiro não encontrado ou o fabrico não a possui"),
+        );
+        expect(prisma.fichaParceiro.findMany).not.toHaveBeenCalled();
     });
 });

@@ -29,19 +29,22 @@ export class FichaTecnicaController {
         return this.fichaTecnicaService.create(data, user);
     }
 
-    @Get("/fabrico/:id")
-    findAllByFabricoId(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findAllByFabricoId(id);
+    @Get()
+    findAllByFabricoId(@CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.findAllByFabricoId(user.fabrico_id!);
     }
 
     @Get("/etapa/:id")
-    findAllByEtapaId(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findAllByEtapaId(id);
+    findAllByEtapaId(
+        @Param("id", ParseIntPipe) id: number,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.fichaTecnicaService.findAllByEtapaId(id, user.fabrico_id!);
     }
 
     @Get(":id")
-    findOne(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.findOne(+id);
+    findOne(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.findOne(+id, user.fabrico_id!);
     }
 
     @Put(":id")
@@ -54,7 +57,7 @@ export class FichaTecnicaController {
     }
 
     @Delete(":id")
-    remove(@Param("id", ParseIntPipe) id: number) {
-        return this.fichaTecnicaService.remove(id);
+    remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fichaTecnicaService.remove(id, user);
     }
 }

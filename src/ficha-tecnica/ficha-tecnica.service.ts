@@ -96,7 +96,7 @@ export class FichaTecnicaService {
 
     async create(data: CreateFichaTecnicaDto, user: AuthenticatedUser) {
         const produto_id = Number(data.produto_id);
-        const fabrico_id = Number(user.fabrico_id);
+        const fabrico_id = this.findfabricoIdFromUser(user);
 
         this.validateProductionReport(data);
 
@@ -121,6 +121,26 @@ export class FichaTecnicaService {
 
         if (!produto) {
             throw new NotFoundException("Produto não encontrado para este fabrico");
+        }
+
+        const pedido = await this.prisma.pedido.findFirst({
+            where: { id: data.pedido_id, fabrico_id: fabrico_id },
+            select: { id: true },
+        });
+        if (!pedido) {
+            throw new NotFoundException("Pedido não encontrado para este fabrico");
+        }
+
+        if (data.etapa_atual_id) {
+            const etapa_atual = await this.etapaService.getById(
+                Number(data.etapa_atual_id),
+                fabrico_id,
+            );
+            if (etapa_atual.fabrico_id !== fabrico_id) {
+                throw new BadRequestException(
+                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
+                );
+            }
         }
 
         if (!produto.grade_versao_id) {
@@ -168,10 +188,10 @@ export class FichaTecnicaService {
         });
     }
 
-    async findAllByFabricoId(id: number) {
+    async findAllByFabricoId(fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { fabrico_id: Number(id), concluida: false },
+                where: { fabrico_id: Number(fabrico_id), concluida: false },
                 include: {
                     produto: {
                         include: {
@@ -223,10 +243,10 @@ export class FichaTecnicaService {
         }
     }
 
-    async findAllByEtapaId(id: number) {
+    async findAllByEtapaId(id: number, fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { etapa_atual_id: Number(id) },
+                where: { etapa_atual_id: Number(id), fabrico_id: fabrico_id },
                 include: {
                     produto: true,
                     etapa_atual: true,
@@ -255,9 +275,9 @@ export class FichaTecnicaService {
         }
     }
 
-    async findOne(id: number) {
-        const fichaBase = await this.prisma.fichaTecnica.findUnique({
-            where: { id },
+    async findOne(id: number, fabrico_id: number) {
+        const fichaBase = await this.prisma.fichaTecnica.findFirst({
+            where: { id, fabrico_id: fabrico_id },
             select: { produto_id: true },
         });
 
@@ -265,8 +285,8 @@ export class FichaTecnicaService {
             throw new NotFoundException("ficha não encontrada");
         }
 
-        const ficha = await this.prisma.fichaTecnica.findUnique({
-            where: { id },
+        const ficha = await this.prisma.fichaTecnica.findFirst({
+            where: { id, fabrico_id: fabrico_id },
             include: {
                 produto: {
                     include: {
@@ -327,12 +347,8 @@ export class FichaTecnicaService {
     }
 
     async update(id: number, data: UpdateFichaTecnicaDto, user: AuthenticatedUser) {
-        const ficha = await this.findOne(id);
         const fabricoId = this.findfabricoIdFromUser(user);
-
-        if (ficha.fabrico_id !== Number(fabricoId)) {
-            throw new NotFoundException("Ficha não encontrada");
-        }
+        const ficha = await this.findOne(id, fabricoId);
 
         if (ficha.pedido_id) {
             await this.assertPedidoEditavel(ficha.pedido_id);
@@ -394,6 +410,15 @@ export class FichaTecnicaService {
                 where: {
                     id: novaGradeVersaoId,
                     ativo: true,
+                    grade: {
+                        ativo: true,
+                        fabrico_grades: {
+                            some: {
+                                fabrico_id: fabricoId,
+                                ativo: true,
+                            },
+                        },
+                    },
                 },
                 select: {
                     id: true,
@@ -464,7 +489,7 @@ export class FichaTecnicaService {
                     },
                 });
 
-                if (data.quantidade !== undefined && ficha.pedido_id) {
+                if (ficha.pedido_id) {
                     await this.sincronizarPedido(tx, ficha.pedido_id);
                     await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
                 }
@@ -503,7 +528,7 @@ export class FichaTecnicaService {
         }
     }
 
-    private async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
+    async sincronizarPedido(tx: Prisma.TransactionClient, pedidoId: number) {
         await tx.$queryRaw`SELECT id FROM "pedidos" WHERE id = ${pedidoId} FOR UPDATE`;
 
         const pedido = await tx.pedido.findUnique({
@@ -571,8 +596,9 @@ export class FichaTecnicaService {
         });
     }
 
-    async remove(id: number) {
-        const ficha = await this.findOne(id);
+    async remove(id: number, user: AuthenticatedUser) {
+        const fabricoId = this.findfabricoIdFromUser(user);
+        const ficha = await this.findOne(id, fabricoId);
 
         if (ficha.pedido_id) {
             await this.assertPedidoEditavel(ficha.pedido_id);
