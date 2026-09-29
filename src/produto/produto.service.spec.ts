@@ -38,6 +38,12 @@ describe("ProdutoService", () => {
             gradeVersao: {
                 findFirst: jest.fn(),
             },
+            tipoProduto: {
+                findFirst: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+            tecido: {
+                findFirst: jest.fn().mockResolvedValue({ id: 1 }),
+            },
             etapa: {
                 findMany: jest.fn(),
             },
@@ -106,6 +112,45 @@ describe("ProdutoService", () => {
             await expect(service.create({ nome: "Camiseta" } as any, mockUser)).rejects.toThrow(
                 new NotFoundException("Relacionamento inválido"),
             );
+        });
+
+        it("valida tipo de produto e tecido no fabrico do usuário", async () => {
+            prisma.produto.create.mockResolvedValue({ id: 1 });
+
+            await service.create(
+                { nome: "Camiseta", tipo_produto_id: 3, tecido_id: 4 } as any,
+                mockUser,
+            );
+
+            expect(prisma.tipoProduto.findFirst).toHaveBeenCalledWith({
+                where: { id: 3, fabrico_id: 10 },
+                select: { id: true },
+            });
+            expect(prisma.tecido.findFirst).toHaveBeenCalledWith({
+                where: { id: 4, fabrico_id: 10 },
+                select: { id: true },
+            });
+        });
+
+        it("rejeita tipo de produto de outro fabrico", async () => {
+            prisma.tipoProduto.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.create({ nome: "Camiseta", tipo_produto_id: 3 } as any, mockUser),
+            ).rejects.toThrow(new BadRequestException("Tipo de produto inválido"));
+            expect(prisma.produto.create).not.toHaveBeenCalled();
+        });
+
+        it("rejeita tecido de outro fabrico", async () => {
+            prisma.tecido.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.create(
+                    { nome: "Camiseta", tipo_produto_id: 3, tecido_id: 4 } as any,
+                    mockUser,
+                ),
+            ).rejects.toThrow(new BadRequestException("Tecido inválido"));
+            expect(prisma.produto.create).not.toHaveBeenCalled();
         });
     });
 
@@ -221,6 +266,16 @@ describe("ProdutoService", () => {
                 where: { id: 1 },
                 data: { nome: "Camiseta Polo", fabrico_id: 10 },
             });
+        });
+
+        it("rejeita troca para tecido de outro fabrico no update", async () => {
+            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            prisma.tecido.findFirst.mockResolvedValue(null);
+
+            await expect(service.update(1, { tecido_id: 4 }, mockUser)).rejects.toThrow(
+                new BadRequestException("Tecido inválido"),
+            );
+            expect(prisma.produto.update).not.toHaveBeenCalled();
         });
 
         it("não permite reativar produto nem alterar delete_at pelo payload comum", async () => {

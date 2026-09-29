@@ -233,52 +233,29 @@ describe("Isolamento E2E entre fabricos", () => {
     it("lista apenas registros do fabrico autenticado, mesmo com path/query falsificados", async () => {
         const matrix = [
             { path: "/clientes", own: tenantA.cliente.id, other: tenantB.cliente.id },
-            {
-                path: `/clientes/fabrico/${tenantB.fabrico.id}`,
-                own: tenantA.cliente.id,
-                other: tenantB.cliente.id,
-            },
             { path: "/pedidos", own: tenantA.pedido.id, other: tenantB.pedido.id },
-            {
-                path: `/pedidos/fabrico/${tenantB.fabrico.id}`,
-                own: tenantA.pedido.id,
-                other: tenantB.pedido.id,
-            },
             { path: "/produtos", own: tenantA.produto.id, other: tenantB.produto.id },
-            {
-                path: `/produtos/fabrico/${tenantB.fabrico.id}`,
-                own: tenantA.produto.id,
-                other: tenantB.produto.id,
-            },
+            { path: "/produtos/fabrico", own: tenantA.produto.id, other: tenantB.produto.id },
             { path: "/tecidos", own: tenantA.tecido.id, other: tenantB.tecido.id },
             {
-                path: `/tecidos/fabrico/${tenantB.fabrico.id}`,
+                path: `/tecidos/fabrico/${tenantA.fabrico.id}`,
                 own: tenantA.tecido.id,
                 other: tenantB.tecido.id,
             },
             { path: "/aviamentos", own: tenantA.aviamento.id, other: tenantB.aviamento.id },
             {
-                path: `/aviamentos/fabrico/${tenantB.fabrico.id}`,
+                path: `/aviamentos/fabrico/${tenantA.fabrico.id}`,
                 own: tenantA.aviamento.id,
                 other: tenantB.aviamento.id,
             },
             { path: "/parceiros", own: tenantA.parceiro.id, other: tenantB.parceiro.id },
-            {
-                path: `/parceiros/fabrico/${tenantB.fabrico.id}`,
-                own: tenantA.parceiro.id,
-                other: tenantB.parceiro.id,
-            },
             { path: "/etapas", own: tenantA.etapa.id, other: tenantB.etapa.id },
             {
-                path: `/etapas/fabrico/${tenantB.fabrico.id}`,
+                path: `/etapas/fabrico/${tenantA.fabrico.id}`,
                 own: tenantA.etapa.id,
                 other: tenantB.etapa.id,
             },
-            {
-                path: `/fichas-tecnicas/fabrico/${tenantB.fabrico.id}`,
-                own: tenantA.ficha.id,
-                other: tenantB.ficha.id,
-            },
+            { path: "/fichas-tecnicas", own: tenantA.ficha.id, other: tenantB.ficha.id },
         ];
 
         for (const item of matrix) {
@@ -289,6 +266,23 @@ describe("Isolamento E2E entre fabricos", () => {
 
             expect(ids(response.body)).toContain(item.own);
             expect(ids(response.body)).not.toContain(item.other);
+        }
+
+        const forgedPaths = [
+            `/clientes/fabrico/${tenantB.fabrico.id}`,
+            `/pedidos/fabrico/${tenantB.fabrico.id}`,
+            `/produtos/fabrico/${tenantB.fabrico.id}`,
+            `/tecidos/fabrico/${tenantB.fabrico.id}`,
+            `/aviamentos/fabrico/${tenantB.fabrico.id}`,
+            `/parceiros/fabrico/${tenantB.fabrico.id}`,
+            `/etapas/fabrico/${tenantB.fabrico.id}`,
+            `/fichas-tecnicas/fabrico/${tenantB.fabrico.id}`,
+        ];
+
+        for (const path of forgedPaths) {
+            const response = await request(app.getHttpServer()).get(path).set(auth(tokenA));
+
+            expect([400, 403, 404]).toContain(response.status);
         }
 
         const users = await request(app.getHttpServer())
@@ -436,7 +430,7 @@ describe("Isolamento E2E entre fabricos", () => {
                 concluida: false,
                 quantidade: 1,
             })
-            .expect(400);
+            .expect(404);
 
         await request(app.getHttpServer())
             .post("/fichas-tecnicas")
@@ -448,7 +442,7 @@ describe("Isolamento E2E entre fabricos", () => {
                 concluida: false,
                 quantidade: 1,
             })
-            .expect(400);
+            .expect(404);
 
         await request(app.getHttpServer())
             .post("/produto-aviamento")
@@ -473,7 +467,7 @@ describe("Isolamento E2E entre fabricos", () => {
             .expect(404);
     });
 
-    it("ignora fabrico_id falsificado no body e mantém fluxos válidos do próprio fabrico", async () => {
+    it("ignora ou rejeita fabrico_id falsificado no body e mantém fluxos válidos do próprio fabrico", async () => {
         const createdClienteName = `${runId}-cliente-body-fake`;
         await request(app.getHttpServer())
             .post("/clientes")
@@ -496,27 +490,37 @@ describe("Isolamento E2E entre fabricos", () => {
             clientesB.body.some((cliente: { nome: string }) => cliente.nome === createdClienteName),
         ).toBe(false);
 
+        const tecidoPayload = {
+            nome: `${runId}-tecido-body-fake`,
+            custo_unitario: 20,
+            unidade_de_medida: UnidadeDeMedida.METRO,
+        };
+        await request(app.getHttpServer())
+            .post("/tecidos")
+            .set(auth(tokenA))
+            .send({ ...tecidoPayload, fabrico_id: tenantB.fabrico.id })
+            .expect(400);
         const tecido = await request(app.getHttpServer())
             .post("/tecidos")
             .set(auth(tokenA))
-            .send({
-                nome: `${runId}-tecido-body-fake`,
-                custo_unitario: 20,
-                unidade_de_medida: UnidadeDeMedida.METRO,
-                fabrico_id: tenantB.fabrico.id,
-            })
+            .send(tecidoPayload)
             .expect(201);
         expect(tecido.body.fabrico_id).toBe(tenantA.fabrico.id);
 
+        const aviamentoPayload = {
+            nome: `${runId}-aviamento-body-fake`,
+            custo_unitario: 2,
+            unidade_de_medida: UnidadeDeMedida.UNIDADE,
+        };
+        await request(app.getHttpServer())
+            .post("/aviamentos")
+            .set(auth(tokenA))
+            .send({ ...aviamentoPayload, fabrico_id: tenantB.fabrico.id })
+            .expect(400);
         const aviamento = await request(app.getHttpServer())
             .post("/aviamentos")
             .set(auth(tokenA))
-            .send({
-                nome: `${runId}-aviamento-body-fake`,
-                custo_unitario: 2,
-                unidade_de_medida: UnidadeDeMedida.UNIDADE,
-                fabrico_id: tenantB.fabrico.id,
-            })
+            .send(aviamentoPayload)
             .expect(201);
         expect(aviamento.body.fabrico_id).toBe(tenantA.fabrico.id);
 
@@ -526,16 +530,21 @@ describe("Isolamento E2E entre fabricos", () => {
             .send({ nome: `${runId}-parceiro-body-fake`, fabrico_id: tenantB.fabrico.id })
             .expect(201);
 
+        const produtoPayload = {
+            nome: `${runId}-produto-body-fake`,
+            tipo_produto_id: tenantA.tipoProduto.id,
+            tecido_id: tecido.body.id,
+            grade_versao_id: sharedIds.gradeVersaoId,
+        };
+        await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...produtoPayload, fabrico_id: tenantB.fabrico.id })
+            .expect(400);
         const produto = await request(app.getHttpServer())
             .post("/produtos")
             .set(auth(tokenA))
-            .send({
-                nome: `${runId}-produto-body-fake`,
-                tipo_produto_id: tenantA.tipoProduto.id,
-                tecido_id: tecido.body.id,
-                fabrico_id: tenantB.fabrico.id,
-                grade_versao_id: sharedIds.gradeVersaoId,
-            })
+            .send(produtoPayload)
             .expect(201);
         expect(produto.body.fabrico_id).toBe(tenantA.fabrico.id);
 
@@ -586,25 +595,30 @@ describe("Isolamento E2E entre fabricos", () => {
                 fabrico_id: tenantB.fabrico.id,
             })
             .expect(200);
-        await request(app.getHttpServer())
-            .put(`/tecidos/${tenantA.tecido.id}`)
-            .set(auth(tokenA))
-            .send({ nome: `${runId}-tecido-valid-update`, fabrico_id: tenantB.fabrico.id })
-            .expect(200);
-        await request(app.getHttpServer())
-            .put(`/aviamentos/${tenantA.aviamento.id}`)
-            .set(auth(tokenA))
-            .send({ nome: `${runId}-aviamento-valid-update`, fabrico_id: tenantB.fabrico.id })
-            .expect(200);
+        const updatesComFabricoValidado = [
+            { path: `/tecidos/${tenantA.tecido.id}`, nome: `${runId}-tecido-valid-update` },
+            {
+                path: `/aviamentos/${tenantA.aviamento.id}`,
+                nome: `${runId}-aviamento-valid-update`,
+            },
+            { path: `/etapas/${tenantA.etapa.id}`, nome: `${runId}-etapa-valid-update` },
+        ];
+        for (const item of updatesComFabricoValidado) {
+            await request(app.getHttpServer())
+                .put(item.path)
+                .set(auth(tokenA))
+                .send({ nome: item.nome, fabrico_id: tenantB.fabrico.id })
+                .expect(400);
+            await request(app.getHttpServer())
+                .put(item.path)
+                .set(auth(tokenA))
+                .send({ nome: item.nome })
+                .expect(200);
+        }
         await request(app.getHttpServer())
             .put(`/parceiros/${tenantA.parceiro.id}`)
             .set(auth(tokenA))
             .send({ nome: `${runId}-parceiro-valid-update`, fabrico_id: tenantB.fabrico.id })
-            .expect(200);
-        await request(app.getHttpServer())
-            .put(`/etapas/${tenantA.etapa.id}`)
-            .set(auth(tokenA))
-            .send({ nome: `${runId}-etapa-valid-update`, fabrico_id: tenantB.fabrico.id })
             .expect(200);
         await request(app.getHttpServer())
             .put(`/pedidos/${tenantA.pedido.id}`)

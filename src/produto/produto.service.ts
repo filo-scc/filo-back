@@ -36,6 +36,33 @@ export class ProdutoService {
         return user.fabrico_id;
     }
 
+    private async assertRelacionamentosDoFabrico(
+        dados: { tipo_produto_id?: number; tecido_id?: number },
+        fabricoId: number,
+    ) {
+        if (dados.tipo_produto_id !== undefined) {
+            const tipoProduto = await this.prisma.tipoProduto.findFirst({
+                where: { id: dados.tipo_produto_id, fabrico_id: fabricoId },
+                select: { id: true },
+            });
+
+            if (!tipoProduto) {
+                throw new BadRequestException("Tipo de produto inválido");
+            }
+        }
+
+        if (dados.tecido_id !== undefined && dados.tecido_id !== null) {
+            const tecido = await this.prisma.tecido.findFirst({
+                where: { id: dados.tecido_id, fabrico_id: fabricoId },
+                select: { id: true },
+            });
+
+            if (!tecido) {
+                throw new BadRequestException("Tecido inválido");
+            }
+        }
+    }
+
     async bloquearProdutosParaRecalculo(
         produtoIds: number[],
         db: Prisma.TransactionClient,
@@ -149,6 +176,7 @@ export class ProdutoService {
             delete_at?: unknown;
         };
         this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
+        await this.assertRelacionamentosDoFabrico(data, userFabricoId);
 
         if (data.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -287,6 +315,7 @@ export class ProdutoService {
         this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
 
         const produto = await this.getActiveById(id, user);
+        await this.assertRelacionamentosDoFabrico(dados, userFabricoId);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
