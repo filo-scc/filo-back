@@ -1,28 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import {
-    BadRequestException,
-    ConflictException,
-    NotFoundException,
-    InternalServerErrorException,
-} from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
-import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 describe("PedidoService", () => {
     let service: PedidoService;
-
-    const usuario: AuthenticatedUser = {
-        id: 1,
-        email: "gerente@teste.com",
-        nome: "Gerente",
-        foto_de_perfil: null,
-        cargo: "GERENTE",
-        fabrico_id: 1,
-        fabrico: { id: 1, ativo: true },
-    };
 
     const mockPrismaService = {
         pedido: {
