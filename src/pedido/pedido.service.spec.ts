@@ -1022,6 +1022,38 @@ describe("PedidoService", () => {
             expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
         });
 
+        it.each([
+            ["concluída", { concluida: true, produzida_em: null }],
+            ["já produzida", { concluida: false, produzida_em: new Date("2026-09-20T10:00:00Z") }],
+        ])("deve recusar com 409 a omissão de ficha %s sem apagar nada", async (_, estado) => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue({
+                ...pedidoExistente,
+                fichas_tecnicas: [
+                    { id: 200, produto_id: 5, quantidade: 30, pedido_id: 100, ...estado },
+                    {
+                        id: 201,
+                        produto_id: 6,
+                        quantidade: 10,
+                        pedido_id: 100,
+                        concluida: false,
+                        produzida_em: null,
+                    },
+                ],
+            });
+
+            await expect(
+                service.updateCompleto(
+                    100,
+                    { fichas: [{ id: 201, produto_id: 6, quantidade: 10 }] },
+                    fabricoId,
+                ),
+            ).rejects.toThrow(ConflictException);
+
+            expect(mockPrismaService.fichaEtapa.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
+        });
+
         it("deve remover fichas ausentes do payload e criar as novas", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
             mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
@@ -1355,7 +1387,30 @@ describe("PedidoService", () => {
             expect(result).toEqual(pedido);
             expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith({
                 where: { id: 1, fabrico_id: 1 },
+                include: {
+                    cliente: true,
+                    fichas_tecnicas: { include: { fichas_etapas: true } },
+                },
             });
+        });
+
+        it("deve devolver também as fichas concluídas do pedido", async () => {
+            const pedido = {
+                id: 1,
+                fabrico_id: 1,
+                finalizado: false,
+                fichas_tecnicas: [
+                    { id: 10, concluida: true },
+                    { id: 11, concluida: false },
+                ],
+            };
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
+
+            const result = await service.getById(1, fabricoId);
+
+            expect(result.fichas_tecnicas.map((ficha) => ficha.id)).toEqual([10, 11]);
+            const args = mockPrismaService.pedido.findFirst.mock.calls[0][0];
+            expect(JSON.stringify(args)).not.toContain("concluida");
         });
 
         it("deve lançar NotFoundException se pedido não existir no fabrico", async () => {

@@ -403,6 +403,19 @@ export class PedidoService {
                         .filter((ficha) => !idsParaManter.has(ficha.id))
                         .map((ficha) => ficha.id);
 
+                    // Omitir uma ficha do payload a remove; produção registrada não pode sumir assim.
+                    const fichaProduzidaOmitida = fichasDoPedido.some(
+                        (ficha) =>
+                            !idsParaManter.has(ficha.id) &&
+                            (ficha.concluida || Boolean(ficha.produzida_em)),
+                    );
+
+                    if (fichaProduzidaOmitida) {
+                        throw new ConflictException(
+                            "Fichas técnicas concluídas ou já produzidas não podem ser removidas do pedido",
+                        );
+                    }
+
                     for (const fichaDto of fichasExistentesNormalizadas) {
                         await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
                     }
@@ -1230,8 +1243,10 @@ export class PedidoService {
     }
 
     async getById(id: number, fabricoId: number) {
+        // Inclui todas as fichas, concluídas ou não: detalhe e edição do pedido dependem delas.
         const pedido = await this.prisma.pedido.findFirst({
             where: { id, fabrico_id: fabricoId },
+            include: PEDIDO_COMPLETO_INCLUDE,
         });
 
         if (!pedido) {
