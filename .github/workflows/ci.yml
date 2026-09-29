@@ -51,9 +51,23 @@ jobs:
   test:
     name: Run Tests & Coverage
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filo_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filo_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     needs: validate-and-build
     env:
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/unused"
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/filo_e2e?schema=public"
       JWT_ACCESS_SECRET: "test_secret"
       JWT_REFRESH_SECRET: "test_secret"
 
@@ -78,9 +92,15 @@ jobs:
       - name: Gerar Prisma Client
         run: pnpm exec prisma generate
 
+      - name: Aplicar migrations no banco E2E
+        run: pnpm exec prisma migrate deploy
+
       - name: Executar Testes
         continue-on-error: false
         run: pnpm test:cov
+
+      - name: Executar Testes E2E
+        run: pnpm test:e2e
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
