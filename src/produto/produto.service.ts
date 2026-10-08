@@ -1,17 +1,24 @@
 import {
-    NotFoundException,
-    Injectable,
-    ConflictException,
     BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
 } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import { CreateProdutoDto } from "./dto/create-produto.dto";
 import { UpdateProduto } from "./dto/update-produto.dto";
-import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/prisma/prisma.service";
+import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Injectable()
 export class ProdutoService {
     constructor(private prisma: PrismaService) {}
+
+    private assertFabricoImutavel(fabricoInformado: number | undefined, fabricoId: number) {
+        if (fabricoInformado !== undefined && Number(fabricoInformado) !== fabricoId) {
+            throw new BadRequestException("Não é permitido alterar o fabrico do produto");
+        }
+    }
 
     private normalizarNome(valor: string | null | undefined) {
         return String(valor ?? "")
@@ -20,6 +27,40 @@ export class ProdutoService {
             .trim()
             .toLocaleLowerCase("pt-BR")
             .replace(/\s+/g, " ");
+    }
+
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user?.fabrico_id) {
+            throw new BadRequestException("Usuário não possui um fabrico associado");
+        }
+        return user.fabrico_id;
+    }
+
+    private async assertRelacionamentosDoFabrico(
+        dados: { tipo_produto_id?: number; tecido_id?: number },
+        fabricoId: number,
+    ) {
+        if (dados.tipo_produto_id !== undefined) {
+            const tipoProduto = await this.prisma.tipoProduto.findFirst({
+                where: { id: dados.tipo_produto_id, fabrico_id: fabricoId },
+                select: { id: true },
+            });
+
+            if (!tipoProduto) {
+                throw new BadRequestException("Tipo de produto inválido");
+            }
+        }
+
+        if (dados.tecido_id !== undefined && dados.tecido_id !== null) {
+            const tecido = await this.prisma.tecido.findFirst({
+                where: { id: dados.tecido_id, fabrico_id: fabricoId },
+                select: { id: true },
+            });
+
+            if (!tecido) {
+                throw new BadRequestException("Tecido inválido");
+            }
+        }
     }
 
     async bloquearProdutosParaRecalculo(
@@ -35,7 +76,6 @@ export class ProdutoService {
         }
     }
 
-    // No ProdutoService.ts
     async recalcularCustoTotal(produtoId: number, db?: Prisma.TransactionClient): Promise<number> {
         if (!db) {
             return this.prisma.$transaction((tx) => this.recalcularCustoTotal(produtoId, tx));
@@ -129,7 +169,15 @@ export class ProdutoService {
         }
     }
 
-    async create(data: CreateProdutoDto) {
+    async create(data: CreateProdutoDto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const payload = data as CreateProdutoDto & {
+            ativo?: unknown;
+            delete_at?: unknown;
+        };
+        this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
+        await this.assertRelacionamentosDoFabrico(data, userFabricoId);
+
         if (data.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
                 where: {
@@ -143,26 +191,76 @@ export class ProdutoService {
             }
         }
 
+        const {
+            fabrico_id: _fabricoIdIgnorado,
+            ativo: _ativoIgnorado,
+            delete_at: _deleteAtIgnorado,
+            ...dadosCreate
+        } = payload;
+
         try {
             return await this.prisma.produto.create({
-                data: { ...data },
+                data: {
+                    ...dadosCreate,
+                    fabrico_id: userFabricoId,
+                },
             });
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Já existe um produto com este nome para este fabrico");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um produto com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async findAll() {
-        return this.prisma.produto.findMany();
+    async findAll(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: userFabricoId,
+                ativo: true,
+            },
+            orderBy: { nome: "asc" },
+        });
     }
 
-    async getById(id: number) {
-        const produto = await this.prisma.produto.findUnique({
-            where: { id },
-            include: { tecido: true },
+    async findAllFabrico(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: userFabricoId,
+                ativo: true,
+            },
+            include: {
+                tecido: true,
+            },
+            orderBy: { nome: "asc" },
+        });
+    }
+
+    private async getByIdWithStatus(id: number, user: AuthenticatedUser, exigirAtivo: boolean) {
+        const userFabricoId = this.getFabricoId(user);
+        const produto = await this.prisma.produto.findFirst({
+            where: {
+                id,
+                fabrico_id: userFabricoId,
+                ...(exigirAtivo ? { ativo: true } : {}),
+            },
+            include: {
+                tecido: true,
+                fabrico: {
+                    select: {
+                        fabricacao_sob_demanda: true,
+                    },
+                },
+            },
         });
 
         if (!produto) {
@@ -172,24 +270,52 @@ export class ProdutoService {
         return produto;
     }
 
-    async delete(id: number) {
-        const produto = await this.prisma.produto.findUnique({ where: { id } });
-        if (produto) {
-            await this.prisma.produto.delete({ where: { id } });
-            return `O produto com o id ${id} foi deletado com sucesso`;
-        } else {
-            throw new NotFoundException("Produto não encontrado");
-        }
+    async getById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, false);
     }
 
-    async update(id: number, dados: UpdateProduto) {
-        const produto = await this.prisma.produto.findUnique({
-            where: { id },
+    async getActiveById(id: number, user: AuthenticatedUser) {
+        return this.getByIdWithStatus(id, user, true);
+    }
+
+    async softDelete(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const resultado = await this.prisma.produto.updateMany({
+            where: { id, fabrico_id: userFabricoId, ativo: true },
+            data: { ativo: false, delete_at: new Date() },
         });
 
-        if (!produto) {
+        if (resultado.count === 0) {
             throw new NotFoundException("Produto não encontrado");
         }
+        return `O produto com o id ${id} foi desativado com sucesso`;
+    }
+
+    async restore(id: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const resultado = await this.prisma.produto.updateMany({
+            where: { id, fabrico_id: userFabricoId, ativo: false },
+            data: { ativo: true, delete_at: null },
+        });
+
+        if (resultado.count === 0) {
+            throw new NotFoundException("Produto não encontrado");
+        }
+
+        return `O produto com o id ${id} foi restaurado com sucesso`;
+    }
+
+    async update(id: number, dados: UpdateProduto, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        const payload = dados as UpdateProduto & {
+            fabrico_id?: number;
+            ativo?: unknown;
+            delete_at?: unknown;
+        };
+        this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
+
+        const produto = await this.getActiveById(id, user);
+        await this.assertRelacionamentosDoFabrico(dados, userFabricoId);
 
         if (dados.grade_versao_id) {
             const grade = await this.prisma.gradeVersao.findFirst({
@@ -204,6 +330,13 @@ export class ProdutoService {
             }
         }
 
+        const {
+            fabrico_id: _fabricoIdIgnorado,
+            ativo: _ativoIgnorado,
+            delete_at: _deleteAtIgnorado,
+            ...dadosUpdate
+        } = payload;
+
         try {
             const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
                 "custo_tecido",
@@ -212,55 +345,53 @@ export class ProdutoService {
                 "custo_operacional",
                 "outros_custos",
                 "custo_total",
-                "fabrico_id",
             ];
-            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dados);
+            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dadosUpdate);
 
             if (deveRecalcular) {
                 await this.prisma.$transaction(async (tx) => {
                     await tx.produto.update({
-                        where: { id },
-                        data: { ...dados },
+                        where: { id: produto.id },
+                        data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
                     });
-                    await this.recalcularCustoTotal(id, tx);
+                    await this.recalcularCustoTotal(produto.id, tx);
                 });
             } else {
                 await this.prisma.produto.update({
-                    where: { id },
-                    data: { ...dados },
+                    where: { id: produto.id },
+                    data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
                 });
             }
 
             return `O produto com o id ${id} foi atualizado`;
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-                throw new ConflictException("Já existe um produto com este nome para este fabrico");
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um produto com este nome para este fabrico",
+                    );
+                }
+                if (error.code === "P2003") {
+                    throw new NotFoundException("Relacionamento inválido");
+                }
             }
             throw error;
         }
     }
 
-    async findAllFabrico(fabrico_id: number) {
-        const produtos = await this.prisma.produto.findMany({
-            where: { fabrico_id: fabrico_id },
-            include: {
-                tecido: true,
-            },
-        });
-        return produtos;
-    }
-
-    async getUnassociatedProductsForClient(cliente_id: number, fabrico_id: number) {
+    async getUnassociatedProductsForClient(clienteId: number, user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
         return this.prisma.produto.findMany({
             where: {
-                fabrico_id: fabrico_id,
-                // Filtra produtos que NÃO estão na tabela clienteProduto para este cliente
+                fabrico_id: userFabricoId,
+                ativo: true,
                 cliente_produto: {
                     none: {
-                        cliente_id: cliente_id,
+                        cliente_id: clienteId,
                     },
                 },
             },
+            orderBy: { nome: "asc" },
         });
     }
 }

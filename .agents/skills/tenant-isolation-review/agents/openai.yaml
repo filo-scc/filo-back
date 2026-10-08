@@ -1,0 +1,7 @@
+interface:
+    display_name: "Tenant Isolation Review"
+    short_description: "Audita isolamento de dados entre fábricas"
+    default_prompt: "Use $tenant-isolation-review para auditar este fluxo com uma matriz negativa entre duas fábricas."
+
+policy:
+    allow_implicit_invocation: true

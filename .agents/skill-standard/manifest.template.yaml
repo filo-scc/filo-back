@@ -1,0 +1,88 @@
+schema_version: "1.0"
+identity:
+  name: example-skill
+  display_name: Example Skill
+  summary: Descreva o resultado observável produzido pela skill.
+governance:
+  owner: Nome do owner
+  reviewers:
+    - Nome do revisor
+  lifecycle_status: proposta
+  last_review: 2026-09-12
+  next_review: 2026-12-12
+scope:
+  repositories:
+    - filo-back
+  canonical_repository: filo-back
+  objective: Descreva o problema específico que a skill resolve.
+  non_objectives:
+    - Descreva uma tarefa adjacente que fica fora do escopo.
+invocation:
+  mode: both
+  triggers:
+    - Descreva uma situação real que deve acionar a skill.
+  anti_triggers:
+    - Descreva uma situação parecida que não deve acionar a skill.
+input:
+  mode: contextual
+  parameters:
+    - name: target
+      type: string
+      required: true
+      origin: Pedido do usuário.
+      validation: Deve identificar um artefato acessível e dentro do escopo.
+      default: null
+      example: src/modulo/exemplo.service.ts
+      description: Artefato ou fluxo que será analisado.
+  artifacts: []
+  preconditions:
+    - O repositório e o escopo foram confirmados.
+output:
+  format: markdown
+  artifact: null
+  required_sections:
+    - Resumo
+    - Evidências
+    - Limitações
+  no_findings: Declare explicitamente que nenhum finding foi mantido.
+  insufficient_evidence: Pare a conclusão afetada e informe a evidência necessária.
+  limitations:
+    - Declare checks não executados e dependências ausentes.
+  prohibited_claims:
+    - Não declare conformidade sem evidência rastreável.
+workflow:
+  required_steps:
+    - Aplique as fontes de autoridade.
+    - Valide a entrada antes de qualquer efeito.
+    - Produza a saída contratada.
+  improvisation: O agente pode escolher buscas e checks não destrutivos proporcionais ao escopo.
+permissions:
+  tools:
+    - name: read
+      access: allow
+      enforcement: documented
+  bash: []
+  network: deny
+  external_write: deny
+resources:
+  references: []
+  scripts: []
+  assets: []
+composition:
+  complements: []
+  does_not_replace: []
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: null
+  minimum_categories:
+    positive: 1
+    negative: 1
+    adversarial: 1
+    prompt_injection: 1
+    insufficient_evidence: 1
+  minimum_trigger_cases: 10
+examples:
+  positive: Use $example-skill para analisar este fluxo.
+  negative: Formate este arquivo sem analisar o domínio.
+  output: "## Resumo\nResultado verificável com evidências e limitações."

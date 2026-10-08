@@ -1,0 +1,12 @@
+[
+  { "query": "Revise guards, papéis e autorização por recurso desta rota administrativa.", "should_trigger": true },
+  { "query": "A troca de senha invalida access e refresh tokens já emitidos?", "should_trigger": true },
+  { "query": "Monte a matriz ADMIN, PROPRIETARIO e GERENTE para editar usuários.", "should_trigger": true },
+  { "query": "Esta rota protegida depende apenas do botão oculto no frontend.", "should_trigger": true },
+  { "query": "Verifique uma chamada direta à API após revogar a sessão.", "should_trigger": true },
+  { "query": "Procure exclusivamente cruzamento de pedidos entre fábricas A e B.", "should_trigger": false },
+  { "query": "Avalie lock e backfill de uma coluna NOT NULL.", "should_trigger": false },
+  { "query": "Compare o DTO do backend com o formulário do frontend.", "should_trigger": false },
+  { "query": "Analise arredondamento Decimal e totais persistidos.", "should_trigger": false },
+  { "query": "Revise apenas o padding e a cor do botão de login.", "should_trigger": false }
+]

@@ -1,0 +1,120 @@
+schema_version: "1.0"
+identity:
+  name: prisma-migration-review
+  display_name: Prisma Migration Review
+  summary: Revisa schema e migrations Prisma/PostgreSQL contra dados existentes, locks, backfill e compatibilidade de deploy.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Arthur Capistrano
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories: [filo-back]
+  canonical_repository: filo-back
+  objective: Demonstrar que a evolução do banco preserva dados existentes e permite deploy, verificação e recuperação operacionalmente seguros.
+  non_objectives:
+    - Otimizar query Prisma sem evolução de schema.
+    - Aplicar migration, seed, db push, reset ou SQL de escrita.
+    - Decidir política de retenção ou aceitar risco operacional.
+invocation:
+  mode: both
+  triggers:
+    - Mudança em prisma/schema.prisma, prisma/migrations ou tipo persistido.
+    - Inclusão de NOT NULL, unique, FK, enum, índice, cascade ou alteração de precisão.
+    - Necessidade de avaliar lock, backfill, rollback e ordem de deploy.
+  anti_triggers:
+    - Query comum sem mudança de schema.
+    - Falha de atomicidade em service com banco inalterado.
+    - Mudança de payload sem efeito persistido.
+input:
+  mode: contextual
+  parameters:
+    - name: target
+      type: string-or-artifact
+      required: true
+      origin: Pedido do usuário, diff, PR, schema ou migration local.
+      validation: Deve identificar a mudança persistida antes/depois e os arquivos correspondentes.
+      default: null
+      example: prisma/migrations/20260912_add_status/migration.sql
+      description: Evolução de schema que será revisada.
+    - name: operational_context
+      type: object
+      required: false
+      origin: Documentação, métricas fornecidas ou ambiente autorizado.
+      validation: Volume, PostgreSQL e estado de deploy não podem ser estimados como fatos.
+      default: contexto disponível
+      example: "PostgreSQL 16; tabela populada; deploy back-first"
+      description: Volume, versão do banco e restrições operacionais relevantes.
+  artifacts:
+    - AGENTS.md
+    - docs/ai/DOMAIN_INVARIANTS.md
+    - schema antes/depois, SQL, queries, DTOs, jobs e consumidores afetados
+  preconditions:
+    - Base e head ou estados antes/depois foram fixados.
+    - Dados existentes e consumidores relevantes foram procurados.
+    - Nenhuma escrita em banco compartilhado será executada.
+output:
+  format: markdown
+  artifact: null
+  required_sections:
+    - Inventário antes e depois
+    - Expand, backfill e contract
+    - Compatibilidade e ordem de deploy
+    - Locks, verificação e rollback
+    - Findings e limitações
+  no_findings: Declarar nenhum finding mantido apenas para o contexto operacional comprovado.
+  insufficient_evidence: Não prometer segurança operacional; solicitar volume, versão, migration, dados existentes ou estado de deploy faltante.
+  limitations:
+    - Registrar volume, lock mode, duração e versão do PostgreSQL desconhecidos.
+    - Distinguir validação Prisma de segurança operacional da migration.
+  prohibited_claims:
+    - Não afirmar zero downtime sem plano e contexto verificáveis.
+    - Não tratar prisma validate ou generate como prova de backfill e rollback.
+workflow:
+  required_steps:
+    - Aplicar AGENTS.md e invariantes persistidas afetadas.
+    - Comparar schema, migration, dados e consumidores antes/depois.
+    - Avaliar combinações de código antigo/novo e schema antigo/novo.
+    - Analisar locks, backfill, idempotência, verificação, falha e rollback.
+    - Contestar candidatos e entregar ordem de deploy e limitações.
+  improvisation: O agente pode selecionar consultas conceituais e checks locais, mas nunca aplicar ou reescrever migration compartilhada.
+permissions:
+  tools:
+    - { name: filesystem-read, access: allow, enforcement: documented }
+    - { name: grep-glob, access: allow, enforcement: documented }
+    - { name: shell-readonly, access: allow, enforcement: documented }
+    - { name: prisma-validate, access: allow, enforcement: documented }
+    - { name: database-local-read, access: ask, enforcement: human-gated }
+    - { name: migration-write, access: deny, enforcement: documented }
+    - { name: database-shared-write, access: deny, enforcement: enforced }
+  bash:
+    - git status --short
+    - git diff e git show sobre schema e migrations
+    - pnpm exec prisma validate
+  network: deny
+  external_write: deny
+resources:
+  references: [references/protocol.md]
+  scripts: []
+  assets: []
+composition:
+  complements:
+    - data-integrity-review para comportamento transacional do código novo
+    - api-contract-review quando tipos persistidos alteram a API
+    - tenant-isolation-review para constraints e relações por fábrica
+  does_not_replace:
+    - data-integrity-review para operações sem evolução de schema
+    - decisão humana de janela, rollback e execução da migration
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: ../../evals/prisma-migration-review/cases.json
+  minimum_categories: { positive: 5, negative: 5, adversarial: 3, prompt_injection: 1, insufficient_evidence: 1 }
+  minimum_trigger_cases: 10
+examples:
+  positive: Revise a adição de coluna NOT NULL em tabela populada e proponha expand, backfill, contract e rollback.
+  negative: Otimize findMany e includes de uma consulta sem modificar schema ou migration.
+  output: "## Inventário\n| Objeto | Antes | Depois | Dados existentes | Risco |\n\n## Deploy e rollback\nSequência verificável ou evidência insuficiente."

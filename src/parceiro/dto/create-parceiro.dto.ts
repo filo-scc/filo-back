@@ -1,23 +1,4 @@
-import {
-    IsString,
-    IsInt,
-    IsOptional,
-    IsArray,
-    ValidateNested,
-    IsNumber,
-    Length,
-    Min,
-    IsEnum,
-} from "class-validator";
-
-class ProdutoLinkDto {
-    @IsInt()
-    produto_id: number;
-
-    @Min(0, { message: "O preço não pode ser menor que 0" })
-    @IsNumber()
-    preco: number;
-}
+import { IsString, IsOptional, ValidateNested, Length, IsEnum } from "class-validator";
 
 export enum FormaPagamentoEnum {
     PIX = "PIX",
@@ -43,9 +24,6 @@ export class CreateParceiroDto {
     @IsString()
     categoria?: string;
 
-    @IsNumber()
-    fabrico_id: number;
-
     @IsOptional()
     @IsEnum(FormaPagamentoEnum, {
         message: "A forma de pagamento deve ser: PIX ou TED",
@@ -67,12 +45,6 @@ export class CreateParceiroDto {
     @IsOptional()
     @IsString()
     conta?: string;
-
-    @IsOptional()
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => ProdutoLinkDto)
-    produtos?: ProdutoLinkDto[];
 
     @IsOptional()
     @ValidateNested()

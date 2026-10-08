@@ -27,7 +27,7 @@ describe("GradeService", () => {
                 update: jest.fn(),
             },
             gradeItem: { createMany: jest.fn() },
-            gradeVersao: { create: jest.fn() },
+            gradeVersao: { create: jest.fn(), updateMany: jest.fn() },
             gradeVersaoItem: { createMany: jest.fn() },
             tamanho: { findMany: jest.fn() },
         };
@@ -225,6 +225,10 @@ describe("GradeService", () => {
         });
         expect(prisma.grade.update).toHaveBeenCalledWith({
             where: { id: 1 },
+            data: { ativo: false },
+        });
+        expect(prisma.gradeVersao.updateMany).toHaveBeenCalledWith({
+            where: { grade_id: 1 },
             data: { ativo: false },
         });
     });

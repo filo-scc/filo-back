@@ -12,6 +12,8 @@ import { FichaTecnicaItemController } from "./ficha-tecnica-item.controller";
 import { FichaTecnicaItemService } from "./ficha-tecnica-item.service";
 import { FichaParceiroController } from "./ficha-parceiro.controller";
 import { FichaParceiroService } from "./ficha-parceiro.service";
+import { TransferenciaEtapaService } from "src/transferencia-etapa/transferencia-etapa.service";
+import { TransferenciaEtapaController } from "src/transferencia-etapa/transferencia-etapa.controller";
 
 @Module({
     imports: [PrismaModule, ProdutoModule, EtapaModule, FabricoModule, GradeModule],
@@ -20,12 +22,14 @@ import { FichaParceiroService } from "./ficha-parceiro.service";
         FichaEtapaController,
         FichaTecnicaItemController,
         FichaParceiroController,
+        TransferenciaEtapaController,
     ],
     providers: [
         FichaTecnicaService,
         FichaEtapaService,
         FichaTecnicaItemService,
         FichaParceiroService,
+        TransferenciaEtapaService,
     ],
 })
 export class FichaTecnicaModule {}

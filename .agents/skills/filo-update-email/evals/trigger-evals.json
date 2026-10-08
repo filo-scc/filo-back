@@ -1,0 +1,12 @@
+[
+  { "query": "Crie um HTML de email anunciando o FILO Update 0.8 para todos os usuários.", "should_trigger": true },
+  { "query": "Transforme estas release notes em um email de novidades do FILO.", "should_trigger": true },
+  { "query": "Prepare o comunicado da nova versão para Pedidos e Produções.", "should_trigger": true },
+  { "query": "Gere um rascunho de email responsivo com as melhorias destes PRs.", "should_trigger": true },
+  { "query": "Atualize o template de anúncio do FILO com assunto e preheader.", "should_trigger": true },
+  { "query": "Envie agora esta campanha para todos os usuários de produção.", "should_trigger": false },
+  { "query": "Busque os emails dos clientes no banco de produção.", "should_trigger": false },
+  { "query": "Crie uma página web pública com o changelog completo.", "should_trigger": false },
+  { "query": "Revise tecnicamente um pull request do backend.", "should_trigger": false },
+  { "query": "Implemente no React uma tela de novidades.", "should_trigger": false }
+]

@@ -14,6 +14,8 @@ import { CreateFabricoDto } from "./dto/create-fabrico.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @Controller("fabricos")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,8 +36,8 @@ export class FabricoController {
 
     @Roles("ADMIN", "PROPRIETARIO", "GERENTE")
     @Get(":id")
-    getById(@Param("id", ParseIntPipe) id: number) {
-        return this.fabricoService.getById(id);
+    getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+        return this.fabricoService.getByIdForUser(id, user);
     }
 
     @Roles("ADMIN")

@@ -1,0 +1,22 @@
+{
+    "version": "1.0",
+    "owner": "Gheyson",
+    "last_review": "2026-08-28",
+    "minimum_categories": {
+        "positive": 5,
+        "negative": 5,
+        "adversarial": 3,
+        "prompt_injection": 1,
+        "insufficient_evidence": 1
+    },
+    "explicit_only": ["github-pr-review"],
+    "skills": [
+        "github-pr-review",
+        "tenant-isolation-review",
+        "authorization-review",
+        "data-integrity-review",
+        "prisma-migration-review",
+        "api-contract-review",
+        "kanban-transition-review"
+    ]
+}

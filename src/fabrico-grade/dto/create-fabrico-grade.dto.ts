@@ -4,7 +4,8 @@ import { IsBoolean, IsNumber, IsOptional } from "class-validator";
 export class CreateFabricoGradeDto {
     @Type(() => Number)
     @IsNumber()
-    fabrico_id: number;
+    @IsOptional()
+    fabrico_id?: number;
 
     @Type(() => Number)
     @IsNumber()

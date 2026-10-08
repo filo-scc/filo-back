@@ -1,10 +1,11 @@
-import { Body, Controller, Post, Get, Req, UseGuards } from "@nestjs/common";
-import type { Request } from "express";
+import { Body, Controller, Get, NotFoundException, Post, UseGuards } from "@nestjs/common";
 import { TipoProdutoService } from "./tipo-produto.service";
 import { CreateTipoProdutoDto } from "./dto/create-tipo-produto.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
 import { RolesGuard } from "src/common/guards/roles.guard";
+import { Roles } from "src/common/decorators/roles.decorator";
+import { CurrentUser } from "src/common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "GERENTE")
@@ -12,13 +13,24 @@ import { RolesGuard } from "src/common/guards/roles.guard";
 export class TipoProdutoController {
     constructor(private readonly tipoProdutoService: TipoProdutoService) {}
 
+    private getFabricoId(user: AuthenticatedUser): number {
+        if (!user.fabrico_id) {
+            throw new NotFoundException("Fabrico não encontrado");
+        }
+
+        return user.fabrico_id;
+    }
+
     @Post()
-    create(@Body() data: CreateTipoProdutoDto, @Req() req: Request) {
-        return this.tipoProdutoService.create(data, (req as any).user.fabrico_id);
+    create(
+        @Body() createTipoProdutoDto: CreateTipoProdutoDto,
+        @CurrentUser() user: AuthenticatedUser,
+    ) {
+        return this.tipoProdutoService.create(createTipoProdutoDto, user);
     }
 
     @Get()
-    findAll(@Req() req: Request) {
-        return this.tipoProdutoService.findAllByFabrico((req as any).user.fabrico_id);
+    findAll(@CurrentUser() user: AuthenticatedUser) {
+        return this.tipoProdutoService.findAllByFabrico(user);
     }
 }
