@@ -4,7 +4,8 @@ import {
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { FichaTecnica, Prisma } from "@prisma/client";
+import { toMoney } from "src/common/utils/money";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { FichaTecnicaService } from "src/ficha-tecnica/ficha-tecnica.service";
@@ -39,6 +40,83 @@ export class TransferenciaEtapaService {
         if (valores.reduce((total, v) => total + v, 0) > quantidade) {
             throw new BadRequestException(
                 "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+            );
+        }
+    }
+
+    /**
+     * A ficha já está na etapa de destino: só é repetição legítima se o que foi pedido agora
+     * coincide com o que a transferência original aplicou. Divergências viram 409.
+     */
+    private async assertRepeticaoIdentica(
+        tx: Prisma.TransactionClient,
+        ficha: FichaTecnica,
+        dto: TransferirEtapaDto,
+        quantidadeCanonica: number,
+    ) {
+        const { ficha_tecnica_id, etapa_origem_id, relatorio, parceiros = [] } = dto;
+
+        // Com o destino aberto, a etapa encerrada por último é a origem da transição que levou a ficha até ele.
+        const origemRegistrada = await tx.fichaEtapa.findFirst({
+            where: { ficha_tecnica_id, data_fim: { not: null } },
+            orderBy: { data_fim: "desc" },
+            select: { etapa_id: true },
+        });
+
+        if (origemRegistrada?.etapa_id !== etapa_origem_id) {
+            throw new ConflictException(
+                "A etapa de origem informada difere da usada na transferência já realizada para esta etapa",
+            );
+        }
+
+        if (
+            relatorio &&
+            ((relatorio.quantidade !== undefined &&
+                Number(relatorio.quantidade) !== quantidadeCanonica) ||
+                relatorio.defeitos_costura !== (ficha.defeitos_costura ?? 0) ||
+                relatorio.defeitos_tecido !== (ficha.defeitos_tecido ?? 0) ||
+                relatorio.retiradas !== (ficha.retiradas ?? 0) ||
+                relatorio.sobras !== (ficha.sobras ?? 0))
+        ) {
+            throw new ConflictException(
+                "O relatório informado difere do já registrado nesta ficha técnica, que já está na etapa de destino",
+            );
+        }
+
+        if (parceiros.length === 0) {
+            return;
+        }
+
+        const parceiroIds = parceiros.map((parceiro) => parceiro.parceiro_id);
+        const [fichaParceiros, parceiroProdutos] = await Promise.all([
+            tx.fichaParceiro.findMany({
+                where: { ficha_id: ficha_tecnica_id, parceiro_id: { in: parceiroIds } },
+            }),
+            tx.parceiroProduto.findMany({
+                where: { produto_id: ficha.produto_id, parceiro_id: { in: parceiroIds } },
+            }),
+        ]);
+
+        const parceirosIguais = parceiros.every((parceiro) => {
+            const registrado = fichaParceiros.find((fp) => fp.parceiro_id === parceiro.parceiro_id);
+            const vinculo = parceiroProdutos.find((pp) => pp.parceiro_id === parceiro.parceiro_id);
+            if (!registrado || !vinculo || vinculo.preco === null) {
+                return false;
+            }
+
+            const quantidadeEsperada =
+                parceiros.length === 1 ? quantidadeCanonica : (parceiro.quantidade ?? 0);
+
+            return (
+                (registrado.operacao ?? null) === (parceiro.operacao ?? null) &&
+                (registrado.quantidade ?? 0) === quantidadeEsperada &&
+                toMoney(vinculo.preco).equals(toMoney(parceiro.preco))
+            );
+        });
+
+        if (!parceirosIguais) {
+            throw new ConflictException(
+                "Os parceiros informados diferem dos já registrados nesta ficha técnica, que já está na etapa de destino",
             );
         }
     }
@@ -87,8 +165,21 @@ export class TransferenciaEtapaService {
                     );
                 }
 
-                // Se já está na etapa destino não repete nada
+                // A quantidade canônica vem da matriz (FichaTecnicaItem). Se a matriz ainda
+                // não foi preenchida (soma 0), mantém a quantidade atual da ficha.
+                const matriz = await tx.fichaTecnicaItem.aggregate({
+                    where: { ficha_tecnica_id },
+                    _sum: { quantidade: true },
+                });
+                const somaMatriz = Number(matriz?._sum?.quantidade ?? 0);
+                const quantidadeAtual = Number(ficha.quantidade ?? 0);
+                const quantidadeCanonica = somaMatriz > 0 ? somaMatriz : quantidadeAtual;
+
+                // Repetição da mesma transferência devolve a ficha sem novo histórico. Dados
+                // diferentes dos já aplicados são conflito, nunca sucesso silencioso (INV-KAN-006).
                 if (ficha.etapa_atual_id === etapa_destino_id) {
+                    await this.assertRepeticaoIdentica(tx, ficha, dto, quantidadeCanonica);
+
                     return tx.fichaTecnica.findUnique({
                         where: { id: ficha_tecnica_id },
                         include: {
@@ -105,16 +196,6 @@ export class TransferenciaEtapaService {
                         "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
                     );
                 }
-
-                // A quantidade canônica vem da matriz (FichaTecnicaItem). Se a matriz ainda
-                // não foi preenchida (soma 0), mantém a quantidade atual da ficha.
-                const matriz = await tx.fichaTecnicaItem.aggregate({
-                    where: { ficha_tecnica_id },
-                    _sum: { quantidade: true },
-                });
-                const somaMatriz = Number(matriz?._sum?.quantidade ?? 0);
-                const quantidadeAtual = Number(ficha.quantidade ?? 0);
-                const quantidadeCanonica = somaMatriz > 0 ? somaMatriz : quantidadeAtual;
 
                 if (
                     relatorio?.quantidade !== undefined &&
