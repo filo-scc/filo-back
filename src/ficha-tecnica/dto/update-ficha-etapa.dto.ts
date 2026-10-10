@@ -1,6 +1,15 @@
-import { PartialType, OmitType } from "@nestjs/mapped-types";
-import { CreateFichaEtapaDto } from "./create-ficha-etapa.dto";
+import { IsDateString, IsOptional, IsString } from "class-validator";
 
-export class UpdateFichaEtapaDto extends PartialType(
-    OmitType(CreateFichaEtapaDto, ["ficha_tecnica_id", "etapa_id"] as const),
-) {}
+export class UpdateFichaEtapaDto {
+    @IsOptional()
+    @IsDateString()
+    data_inicio?: string;
+
+    @IsOptional()
+    @IsDateString()
+    data_fim?: string;
+
+    @IsOptional()
+    @IsString()
+    observacoes?: string;
+}
