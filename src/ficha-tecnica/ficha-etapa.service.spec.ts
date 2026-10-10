@@ -36,18 +36,11 @@ describe("FichaEtapaService", () => {
 
     beforeEach(() => {
         prisma = {
-            $transaction: jest.fn(async (callback) => callback(prisma)),
             fichaEtapa: {
-                findUnique: jest.fn(),
                 findFirst: jest.fn(),
-                create: jest.fn(),
-                delete: jest.fn(),
                 findMany: jest.fn(),
                 update: jest.fn(),
-                updateMany: jest.fn(),
             },
-            fichaTecnica: { updateMany: jest.fn() },
-            etapa: { findFirst: jest.fn() },
         };
         fichaTecnicaService = {
             findOne: jest.fn().mockImplementation((id) => ({ id, fabrico_id: 30 })),
@@ -57,27 +50,7 @@ describe("FichaEtapaService", () => {
                 .fn()
                 .mockImplementation((id, fabricoId) => ({ id, fabrico_id: fabricoId })),
         };
-        prisma.etapa.findFirst.mockResolvedValue({ id: 999 });
         service = new FichaEtapaService(prisma, fichaTecnicaService, etapaService);
-    });
-
-    it("remove vínculo existente", async () => {
-        prisma.fichaEtapa.findFirst.mockResolvedValue({
-            id: 1,
-            ficha_tecnica: { fabrico_id: 30 },
-        });
-        prisma.fichaEtapa.delete.mockResolvedValue({ id: 1 });
-
-        await expect(service.deleteFichaEtapa(1, gerenteFabrico30)).resolves.toEqual({ id: 1 });
-        expect(prisma.fichaEtapa.delete).toHaveBeenCalledWith({ where: { id: 1 } });
-    });
-
-    it("rejeita remoção de vínculo inexistente", async () => {
-        prisma.fichaEtapa.findFirst.mockResolvedValue(null);
-
-        await expect(service.deleteFichaEtapa(1, gerenteFabrico30)).rejects.toThrow(
-            new NotFoundException("FichaEtapa não encontrada"),
-        );
     });
 
     it("lista vínculos por ficha técnica", async () => {
@@ -142,53 +115,6 @@ describe("FichaEtapaService", () => {
                 data_fim: undefined,
             },
         });
-    });
-
-    it("usa o relógio do servidor ao encerrar uma etapa", async () => {
-        const instanteServidor = new Date("2026-08-28T00:30:00.000Z");
-        const fichaAberta = {
-            id: 1,
-            ficha_tecnica_id: 10,
-            etapa_id: 20,
-            data_fim: null,
-            ficha_tecnica: { fabrico_id: 30 },
-        };
-        const fichaFinalizada = { ...fichaAberta, data_fim: instanteServidor };
-        jest.useFakeTimers().setSystemTime(instanteServidor);
-        prisma.fichaEtapa.findFirst
-            .mockResolvedValueOnce(fichaAberta)
-            .mockResolvedValueOnce(fichaFinalizada);
-
-        try {
-            await expect(service.finalizarFichaEtapa(1, gerenteFabrico30)).resolves.toEqual(
-                fichaFinalizada,
-            );
-        } finally {
-            jest.useRealTimers();
-        }
-
-        expect(prisma.fichaEtapa.updateMany).toHaveBeenCalledWith({
-            where: { id: 1, data_fim: null },
-            data: { data_fim: instanteServidor },
-        });
-    });
-
-    it("preserva data_fim quando a etapa já está finalizada", async () => {
-        const dataFimOriginal = new Date("2026-08-28T00:30:00.000Z");
-        const fichaFinalizada = {
-            id: 1,
-            ficha_tecnica_id: 10,
-            etapa_id: 20,
-            data_fim: dataFimOriginal,
-            ficha_tecnica: { fabrico_id: 30 },
-        };
-        prisma.fichaEtapa.findFirst.mockResolvedValue(fichaFinalizada);
-
-        await expect(service.finalizarFichaEtapa(1, gerenteFabrico30)).resolves.toEqual(
-            fichaFinalizada,
-        );
-
-        expect(prisma.fichaEtapa.updateMany).not.toHaveBeenCalled();
     });
 
     it("rejeita update para vínculo duplicado", async () => {

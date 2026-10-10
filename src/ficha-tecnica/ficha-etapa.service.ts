@@ -55,12 +55,6 @@ export class FichaEtapaService {
         }
     }
 
-    async deleteFichaEtapa(id: number, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-        await this.getFichaEtapaOrFail(id, fabricoId);
-        return this.prisma.fichaEtapa.delete({ where: { id } });
-    }
-
     async getByFichaTecnica(ficha_tecnica_id: number, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user);
         const ficha = await this.fichaTecnicaService.findOne(ficha_tecnica_id, fabricoId);
@@ -92,22 +86,6 @@ export class FichaEtapaService {
         });
 
         return fichasEtapas;
-    }
-
-    async finalizarFichaEtapa(id: number, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-        const fichaEtapa = await this.getFichaEtapaOrFail(id, fabricoId);
-
-        if (fichaEtapa.data_fim) {
-            return fichaEtapa;
-        }
-
-        await this.prisma.fichaEtapa.updateMany({
-            where: { id, data_fim: null },
-            data: { data_fim: new Date() },
-        });
-
-        return this.getFichaEtapaOrFail(id, fabricoId);
     }
 
     private assertDatasValidas(
