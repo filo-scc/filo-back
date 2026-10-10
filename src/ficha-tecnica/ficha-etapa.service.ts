@@ -97,6 +97,13 @@ export class FichaEtapaService {
             throw new ConflictException("Não é possível reabrir uma etapa já encerrada");
         }
 
+        // Abrir e fechar etapas é papel da transferência, que move a ficha junto com o histórico.
+        if (data.data_fim && atual.data_fim === null) {
+            throw new ConflictException(
+                "Não é possível encerrar uma etapa em andamento por aqui: ela é encerrada pela transferência de etapa",
+            );
+        }
+
         const inicio =
             data.data_inicio === undefined ? atual.data_inicio : paraData(data.data_inicio);
         const fim = data.data_fim === undefined ? atual.data_fim : paraData(data.data_fim);

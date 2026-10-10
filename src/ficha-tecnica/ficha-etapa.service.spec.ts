@@ -184,7 +184,12 @@ describe("FichaEtapaService", () => {
         });
 
         it("rejeita data_inicio posterior a data_fim enviadas juntas", async () => {
-            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
 
             await expect(
                 service.updateFichaEtapa(
@@ -221,7 +226,10 @@ describe("FichaEtapaService", () => {
 
         it("rejeita data_fim anterior à data_inicio já gravada", async () => {
             prisma.fichaEtapa.findFirst.mockResolvedValue(
-                registro(new Date("2026-08-20T10:00:00.000Z"), null),
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
             );
 
             await expect(
@@ -250,6 +258,60 @@ describe("FichaEtapaService", () => {
             expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
         });
 
+        it("não encerra uma etapa em andamento: data_fim numa etapa aberta é conflito e nada é gravado", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(new Date("2026-08-20T10:00:00.000Z"), null),
+            );
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_fim: "2026-08-25T10:00:00.000Z" },
+                    gerenteFabrico30,
+                ),
+            ).rejects.toThrow(
+                new ConflictException(
+                    "Não é possível encerrar uma etapa em andamento por aqui: ela é encerrada pela transferência de etapa",
+                ),
+            );
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
+
+        it("etapa em andamento continua aceitando ajuste de data_inicio e observacoes", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(new Date("2026-08-20T10:00:00.000Z"), null),
+            );
+            prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_inicio: "2026-08-21T10:00:00.000Z", observacoes: "ajuste" },
+                    gerenteFabrico30,
+                ),
+            ).resolves.toEqual({ id: 1 });
+            expect(prisma.fichaEtapa.update).toHaveBeenCalledTimes(1);
+        });
+
+        it("etapa encerrada continua aceitando ajuste da data_fim", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
+            prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_fim: "2026-08-26T10:00:00.000Z" },
+                    gerenteFabrico30,
+                ),
+            ).resolves.toEqual({ id: 1 });
+            expect(prisma.fichaEtapa.update).toHaveBeenCalledTimes(1);
+        });
+
         it("data_fim nula numa etapa que já está aberta não reabre nada e é aceita", async () => {
             prisma.fichaEtapa.findFirst.mockResolvedValue(
                 registro(new Date("2026-08-20T10:00:00.000Z"), null),
@@ -263,7 +325,12 @@ describe("FichaEtapaService", () => {
         });
 
         it("aceita datas coerentes (início anterior ao fim)", async () => {
-            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
             prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
 
             await expect(
@@ -287,7 +354,12 @@ describe("FichaEtapaService", () => {
         });
 
         it("aceita data_inicio igual à data_fim", async () => {
-            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
             prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
 
             await expect(
