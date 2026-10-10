@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     ConflictException,
     Injectable,
     NotFoundException,
@@ -10,6 +11,8 @@ import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { EtapaService } from "src/etapa/etapa.service";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+
+const paraData = (valor: string | null): Date | null => (valor === null ? null : new Date(valor));
 
 @Injectable()
 export class FichaEtapaService {
@@ -107,9 +110,28 @@ export class FichaEtapaService {
         return this.getFichaEtapaOrFail(id, fabricoId);
     }
 
+    private assertDatasValidas(
+        atual: { data_inicio: Date | null; data_fim: Date | null },
+        data: UpdateFichaEtapaDto,
+    ) {
+        // `null` explícito passa pela validação (campo opcional) e reabriria uma etapa encerrada.
+        if (data.data_fim === null && atual.data_fim !== null) {
+            throw new ConflictException("Não é possível reabrir uma etapa já encerrada");
+        }
+
+        const inicio =
+            data.data_inicio === undefined ? atual.data_inicio : paraData(data.data_inicio);
+        const fim = data.data_fim === undefined ? atual.data_fim : paraData(data.data_fim);
+
+        if (inicio && fim && inicio.getTime() > fim.getTime()) {
+            throw new BadRequestException("A data de início não pode ser posterior à data de fim");
+        }
+    }
+
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user);
-        await this.getFichaEtapaOrFail(id, fabricoId);
+        const atual = await this.getFichaEtapaOrFail(id, fabricoId);
+        this.assertDatasValidas(atual, data);
 
         try {
             return await this.prisma.fichaEtapa.update({

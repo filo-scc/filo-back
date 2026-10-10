@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaEtapaService } from "./ficha-etapa.service";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
@@ -240,6 +245,149 @@ describe("FichaEtapaService", () => {
         await expect(service.updateFichaEtapa(1, { observacoes: "x" } as any, gerenteFabrico30));
         expect(fichaTecnicaService.findOne).not.toHaveBeenCalled();
         expect(etapaService.getById).not.toHaveBeenCalled();
+    });
+
+    describe("validação de datas no update (INV-KAN-005)", () => {
+        const registro = (data_inicio: Date | null, data_fim: Date | null) => ({
+            id: 1,
+            ficha_tecnica_id: 10,
+            etapa_id: 20,
+            data_inicio,
+            data_fim,
+            ficha_tecnica: { fabrico_id: 30 },
+        });
+
+        it("rejeita data_inicio posterior a data_fim enviadas juntas", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    {
+                        data_inicio: "2026-08-30T10:00:00.000Z",
+                        data_fim: "2026-08-29T10:00:00.000Z",
+                    },
+                    gerenteFabrico30,
+                ),
+            ).rejects.toThrow(
+                new BadRequestException("A data de início não pode ser posterior à data de fim"),
+            );
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
+
+        it("rejeita data_inicio posterior à data_fim já gravada", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_inicio: "2026-08-26T10:00:00.000Z" },
+                    gerenteFabrico30,
+                ),
+            ).rejects.toThrow(BadRequestException);
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
+
+        it("rejeita data_fim anterior à data_inicio já gravada", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(new Date("2026-08-20T10:00:00.000Z"), null),
+            );
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_fim: "2026-08-19T10:00:00.000Z" },
+                    gerenteFabrico30,
+                ),
+            ).rejects.toThrow(BadRequestException);
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
+
+        it("não reabre uma etapa encerrada: data_fim nula é conflito e nada é gravado", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(
+                    new Date("2026-08-20T10:00:00.000Z"),
+                    new Date("2026-08-25T10:00:00.000Z"),
+                ),
+            );
+
+            await expect(
+                service.updateFichaEtapa(1, { data_fim: null } as any, gerenteFabrico30),
+            ).rejects.toThrow(
+                new ConflictException("Não é possível reabrir uma etapa já encerrada"),
+            );
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
+
+        it("data_fim nula numa etapa que já está aberta não reabre nada e é aceita", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(
+                registro(new Date("2026-08-20T10:00:00.000Z"), null),
+            );
+            prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+            await expect(
+                service.updateFichaEtapa(1, { data_fim: null } as any, gerenteFabrico30),
+            ).resolves.toEqual({ id: 1 });
+            expect(prisma.fichaEtapa.update).toHaveBeenCalledTimes(1);
+        });
+
+        it("aceita datas coerentes (início anterior ao fim)", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+            prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    {
+                        data_inicio: "2026-08-20T10:00:00.000Z",
+                        data_fim: "2026-08-25T10:00:00.000Z",
+                    },
+                    gerenteFabrico30,
+                ),
+            ).resolves.toEqual({ id: 1 });
+            expect(prisma.fichaEtapa.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: {
+                    observacoes: undefined,
+                    data_inicio: "2026-08-20T10:00:00.000Z",
+                    data_fim: "2026-08-25T10:00:00.000Z",
+                },
+            });
+        });
+
+        it("aceita data_inicio igual à data_fim", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(registro(null, null));
+            prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    {
+                        data_inicio: "2026-08-20T10:00:00.000Z",
+                        data_fim: "2026-08-20T10:00:00.000Z",
+                    },
+                    gerenteFabrico30,
+                ),
+            ).resolves.toEqual({ id: 1 });
+        });
+
+        it("não deixa um usuário de outra fábrica alterar as datas", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.updateFichaEtapa(
+                    1,
+                    { data_fim: "2026-08-25T10:00:00.000Z" },
+                    gerenteFabrico30,
+                ),
+            ).rejects.toThrow(new NotFoundException("FichaEtapa não encontrada"));
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+        });
     });
 
     it("rejeita update de vínculo inexistente", async () => {
