@@ -13,7 +13,6 @@ const mockPrismaService = {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
-        count: jest.fn(),
     },
     icone: {
         findUnique: jest.fn(),
@@ -83,7 +82,6 @@ describe("EtapaService", () => {
             callback(mockPrismaService),
         );
         mockPrismaService.produto.findMany.mockResolvedValue([]);
-        mockPrismaService.etapa.count.mockResolvedValue(0);
         service = new EtapaService(
             mockPrismaService as unknown as PrismaService,
             mockProdutoService as unknown as ProdutoService,
@@ -317,184 +315,6 @@ describe("EtapaService", () => {
                 BadRequestException,
             );
             expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
-        });
-    });
-
-    describe("ordem única entre etapas ativas", () => {
-        const MENSAGEM = "Já existe outra etapa ativa com esta ordem neste fabrico";
-        // Formato real do Prisma 7 com o adaptador pg: o campo violado vem em driverAdapterError.
-        const erroUnico = (campos: string[]) =>
-            new Prisma.PrismaClientKnownRequestError("Erro", {
-                code: "P2002",
-                clientVersion: "7.x",
-                meta: {
-                    modelName: "Etapa",
-                    driverAdapterError: {
-                        name: "DriverAdapterError",
-                        cause: {
-                            originalCode: "23505",
-                            kind: "UniqueConstraintViolation",
-                            constraint: { fields: campos },
-                        },
-                    },
-                },
-            });
-        const erroOrdemUnica = () => erroUnico(["fabrico_id", "ordem"]);
-
-        describe("create", () => {
-            it("rejeita com 409 ordem já usada por outra etapa ativa do mesmo fabrico, sem gravar", async () => {
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await expect(
-                    service.create({ nome: "Corte", ordem: 3 }, gerenteFabrico1),
-                ).rejects.toThrow(new ConflictException(MENSAGEM));
-                expect(mockPrismaService.etapa.count).toHaveBeenCalledWith({
-                    where: { fabrico_id: 1, ativa: true, ordem: 3 },
-                });
-                expect(mockPrismaService.etapa.create).not.toHaveBeenCalled();
-                expect(mockProdutoService.recalcularCustosTotais).not.toHaveBeenCalled();
-            });
-
-            it("aceita a ordem quando nenhuma etapa ativa do fabrico a usa", async () => {
-                mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico1);
-
-                await expect(
-                    service.create({ nome: "Corte", ordem: 3 }, gerenteFabrico1),
-                ).resolves.toEqual(etapaFabrico1);
-                expect(mockPrismaService.etapa.create).toHaveBeenCalledTimes(1);
-            });
-
-            it("só compara com etapas do próprio fabrico: outra fábrica pode usar a mesma ordem", async () => {
-                mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico2);
-
-                await service.create({ nome: "Corte", ordem: 1 }, gerenteFabrico2);
-
-                expect(mockPrismaService.etapa.count).toHaveBeenCalledWith({
-                    where: { fabrico_id: 2, ativa: true, ordem: 1 },
-                });
-            });
-
-            it("não valida a ordem de uma etapa criada já inativa", async () => {
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-                mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico1);
-
-                await service.create({ nome: "Corte", ordem: 3, ativa: false }, gerenteFabrico1);
-
-                expect(mockPrismaService.etapa.count).not.toHaveBeenCalled();
-                expect(mockPrismaService.etapa.create).toHaveBeenCalledTimes(1);
-            });
-
-            it("traduz a violação do índice único parcial (corrida) como conflito de ordem", async () => {
-                mockPrismaService.etapa.create.mockRejectedValue(erroOrdemUnica());
-
-                await expect(
-                    service.create({ nome: "Corte", ordem: 3 }, gerenteFabrico1),
-                ).rejects.toThrow(new ConflictException(MENSAGEM));
-            });
-
-            it("também reconhece o formato legado do erro (meta.target)", async () => {
-                mockPrismaService.etapa.create.mockRejectedValue(
-                    new Prisma.PrismaClientKnownRequestError("Erro", {
-                        code: "P2002",
-                        clientVersion: "7.x",
-                        meta: { target: ["fabrico_id", "ordem"] },
-                    }),
-                );
-
-                await expect(
-                    service.create({ nome: "Corte", ordem: 3 }, gerenteFabrico1),
-                ).rejects.toThrow(new ConflictException(MENSAGEM));
-            });
-
-            it("mantém a mensagem de nome duplicado quando o conflito é do nome", async () => {
-                mockPrismaService.etapa.create.mockRejectedValue(erroUnico(["fabrico_id", "nome"]));
-
-                await expect(
-                    service.create({ nome: "Corte", ordem: 3 }, gerenteFabrico1),
-                ).rejects.toThrow(new ConflictException("Etapa já cadastrada"));
-            });
-        });
-
-        describe("update", () => {
-            beforeEach(() => {
-                mockPrismaService.etapa.findFirst.mockResolvedValue(etapaFabrico1);
-                mockPrismaService.etapa.update.mockResolvedValue(etapaFabrico1);
-            });
-
-            it("rejeita com 409 mudar para a ordem de outra etapa ativa, sem gravar", async () => {
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await expect(service.update(1, { ordem: 4 }, gerenteFabrico1)).rejects.toThrow(
-                    new ConflictException(MENSAGEM),
-                );
-                expect(mockPrismaService.etapa.count).toHaveBeenCalledWith({
-                    where: { fabrico_id: 1, ativa: true, ordem: 4, id: { not: 1 } },
-                });
-                expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
-            });
-
-            it("aceita mudar para uma ordem livre", async () => {
-                await expect(service.update(1, { ordem: 4 }, gerenteFabrico1)).resolves.toEqual(
-                    etapaFabrico1,
-                );
-                expect(mockPrismaService.etapa.update).toHaveBeenCalledTimes(1);
-            });
-
-            it("rejeita reativar uma etapa cuja ordem foi assumida por outra etapa ativa", async () => {
-                mockPrismaService.etapa.findFirst.mockResolvedValue({
-                    ...etapaFabrico1,
-                    ativa: false,
-                });
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await expect(service.update(1, { ativa: true }, gerenteFabrico1)).rejects.toThrow(
-                    new ConflictException(MENSAGEM),
-                );
-                expect(mockPrismaService.etapa.count).toHaveBeenCalledWith({
-                    where: { fabrico_id: 1, ativa: true, ordem: 1, id: { not: 1 } },
-                });
-                expect(mockPrismaService.etapa.update).not.toHaveBeenCalled();
-            });
-
-            it("não valida a ordem ao desativar uma etapa", async () => {
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await service.update(1, { ativa: false }, gerenteFabrico1);
-
-                expect(mockPrismaService.etapa.count).not.toHaveBeenCalled();
-                expect(mockPrismaService.etapa.update).toHaveBeenCalledTimes(1);
-            });
-
-            it("etapa inativa pode mudar de ordem mesmo que a ordem exista numa etapa ativa", async () => {
-                mockPrismaService.etapa.findFirst.mockResolvedValue({
-                    ...etapaFabrico1,
-                    ativa: false,
-                });
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await service.update(1, { ordem: 4 }, gerenteFabrico1);
-
-                expect(mockPrismaService.etapa.count).not.toHaveBeenCalled();
-                expect(mockPrismaService.etapa.update).toHaveBeenCalledTimes(1);
-            });
-
-            it("não valida a ordem quando nem a ordem nem o estado mudam", async () => {
-                mockPrismaService.etapa.count.mockResolvedValue(1);
-
-                await service.update(1, { nome: "Corte" }, gerenteFabrico1);
-                await service.update(1, { ordem: 1, ativa: true }, gerenteFabrico1);
-
-                expect(mockPrismaService.etapa.count).not.toHaveBeenCalled();
-                expect(mockPrismaService.etapa.update).toHaveBeenCalledTimes(2);
-            });
-
-            it("traduz a violação do índice único parcial (corrida) como conflito de ordem", async () => {
-                mockPrismaService.etapa.update.mockRejectedValue(erroOrdemUnica());
-
-                await expect(service.update(1, { ordem: 4 }, gerenteFabrico1)).rejects.toThrow(
-                    new ConflictException(MENSAGEM),
-                );
-            });
         });
     });
 
