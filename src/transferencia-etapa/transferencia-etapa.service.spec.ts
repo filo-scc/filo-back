@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from "@nest
 import { Prisma } from "@prisma/client";
 import { TransferenciaEtapaService } from "./transferencia-etapa.service";
 import { lockPedidos } from "src/pedido/pedido-finalizacao";
+import { toMoney } from "src/common/utils/money";
 
 jest.mock("src/pedido/pedido-finalizacao", () => ({
     lockPedidos: jest.fn(),
@@ -518,8 +519,8 @@ describe("TransferenciaEtapaService", () => {
 
         expect(prisma.parceiroProduto.upsert).toHaveBeenCalledWith({
             where: { produto_id_parceiro_id: { produto_id: 5, parceiro_id: 7 } },
-            create: { produto_id: 5, parceiro_id: 7, preco: 2.5 },
-            update: { preco: 2.5 },
+            create: { produto_id: 5, parceiro_id: 7, preco: toMoney(2.5) },
+            update: { preco: toMoney(2.5) },
         });
         expect(prisma.fichaParceiro.upsert).toHaveBeenCalledWith({
             where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 7 } },
@@ -528,12 +529,12 @@ describe("TransferenciaEtapaService", () => {
                 parceiro_id: 7,
                 operacao: "Costura completa",
                 quantidade: 100,
-                valor: 250,
+                valor: toMoney(250),
             },
             update: {
                 operacao: "Costura completa",
                 quantidade: 100,
-                valor: 250,
+                valor: toMoney(250),
             },
         });
     });
@@ -544,8 +545,8 @@ describe("TransferenciaEtapaService", () => {
             prisma.fichaParceiro.upsert.mock.calls.map(([args]: any[]) => ({
                 parceiro_id: args.where.ficha_id_parceiro_id.parceiro_id,
                 quantidade: args.create.quantidade,
-                valorCreate: args.create.valor,
-                valorUpdate: args.update.valor,
+                valorCreate: args.create.valor.toFixed(2),
+                valorUpdate: args.update.valor.toFixed(2),
             }));
 
         it("grava quantidade e valor individuais de cada parceiro (quantidade × preço)", async () => {
@@ -571,9 +572,9 @@ describe("TransferenciaEtapaService", () => {
                     parceiro_id: 7,
                     operacao: "Corte",
                     quantidade: 40,
-                    valor: 100,
+                    valor: toMoney(100),
                 },
-                update: { operacao: "Corte", quantidade: 40, valor: 100 },
+                update: { operacao: "Corte", quantidade: 40, valor: toMoney(100) },
             });
             expect(prisma.fichaParceiro.upsert).toHaveBeenNthCalledWith(2, {
                 where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 8 } },
@@ -582,9 +583,9 @@ describe("TransferenciaEtapaService", () => {
                     parceiro_id: 8,
                     operacao: "Costura",
                     quantidade: 60,
-                    valor: 180,
+                    valor: toMoney(180),
                 },
-                update: { operacao: "Costura", quantidade: 60, valor: 180 },
+                update: { operacao: "Costura", quantidade: 60, valor: toMoney(180) },
             });
         });
 
@@ -606,8 +607,8 @@ describe("TransferenciaEtapaService", () => {
 
             // O mesmo valor vai em `create` e em `update`: relação já existente não preserva valor antigo.
             expect(valoresGravados()).toEqual([
-                { parceiro_id: 7, quantidade: 30, valorCreate: 75, valorUpdate: 75 },
-                { parceiro_id: 8, quantidade: 70, valorCreate: 210, valorUpdate: 210 },
+                { parceiro_id: 7, quantidade: 30, valorCreate: "75.00", valorUpdate: "75.00" },
+                { parceiro_id: 8, quantidade: 70, valorCreate: "210.00", valorUpdate: "210.00" },
             ]);
         });
 
@@ -628,8 +629,8 @@ describe("TransferenciaEtapaService", () => {
             );
 
             expect(valoresGravados()).toEqual([
-                { parceiro_id: 7, quantidade: 0, valorCreate: 0, valorUpdate: 0 },
-                { parceiro_id: 8, quantidade: 100, valorCreate: 300, valorUpdate: 300 },
+                { parceiro_id: 7, quantidade: 0, valorCreate: "0.00", valorUpdate: "0.00" },
+                { parceiro_id: 8, quantidade: 100, valorCreate: "300.00", valorUpdate: "300.00" },
             ]);
         });
 
@@ -652,8 +653,8 @@ describe("TransferenciaEtapaService", () => {
             expect(valoresGravados()[0]).toEqual({
                 parceiro_id: 7,
                 quantidade: 0,
-                valorCreate: 0,
-                valorUpdate: 0,
+                valorCreate: "0.00",
+                valorUpdate: "0.00",
             });
         });
 
@@ -674,8 +675,8 @@ describe("TransferenciaEtapaService", () => {
             );
 
             expect(valoresGravados()).toEqual([
-                { parceiro_id: 7, quantidade: 40, valorCreate: 94, valorUpdate: 94 },
-                { parceiro_id: 8, quantidade: 60, valorCreate: 105, valorUpdate: 105 },
+                { parceiro_id: 7, quantidade: 40, valorCreate: "94.00", valorUpdate: "94.00" },
+                { parceiro_id: 8, quantidade: 60, valorCreate: "105.00", valorUpdate: "105.00" },
             ]);
         });
 
@@ -700,6 +701,128 @@ describe("TransferenciaEtapaService", () => {
                 ),
             ).rejects.toThrow("falha no segundo parceiro");
             expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("precisão do valor do parceiro (Decimal, ROUND_HALF_UP)", () => {
+        const parceiroNoFabrico = (id: number) => ({ id, fabrico_id: fabricoId });
+        const precoGravado = () =>
+            prisma.parceiroProduto.upsert.mock.calls.map(([args]: any[]) => ({
+                create: args.create.preco.toFixed(2),
+                update: args.update.preco.toFixed(2),
+            }));
+        const valoresGravados = () =>
+            prisma.fichaParceiro.upsert.mock.calls.map(([args]: any[]) => ({
+                create: args.create.valor.toFixed(2),
+                update: args.update.valor.toFixed(2),
+            }));
+
+        it("normaliza o preço para duas casas com ROUND_HALF_UP antes de gravar", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 1.005, quantidade: 3 },
+                        { parceiro_id: 8, preco: 2.675, quantidade: 3 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(precoGravado()).toEqual([
+                { create: "1.01", update: "1.01" },
+                { create: "2.68", update: "2.68" },
+            ]);
+        });
+
+        it("calcula o valor a partir do preço já normalizado, e não do preço bruto em ponto flutuante", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            // Com ponto flutuante, 1,005 × 3 = 3,0149999… e o valor saía 3,01, divergindo do preço gravado (1,01 × 3).
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 1.005, quantidade: 3 },
+                        { parceiro_id: 8, preco: 1.005, quantidade: 33 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(valoresGravados()).toEqual([
+                { create: "3.03", update: "3.03" },
+                { create: "33.33", update: "33.33" },
+            ]);
+        });
+
+        it.each([
+            [1, "1.01"],
+            [3, "3.03"],
+            [7, "7.07"],
+            [100, "101.00"],
+            [999, "1008.99"],
+            [1000000, "1010000.00"],
+        ])("preço 1,005 com quantidade %i grava valor %s", async (quantidade, esperado) => {
+            prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade } });
+            prisma.fichaTecnica.findFirst.mockResolvedValue({
+                id: 10,
+                fabrico_id: fabricoId,
+                produto_id: 5,
+                pedido_id: pedidoId,
+                quantidade,
+                etapa_atual_id: 1,
+            });
+            prisma.parceiro.findFirst.mockResolvedValue(parceiroNoFabrico(7));
+
+            await service.transferir(
+                { ...dtoBase, parceiros: [{ parceiro_id: 7, preco: 1.005 }] } as any,
+                fabricoId,
+            );
+
+            expect(valoresGravados()).toEqual([{ create: esperado, update: esperado }]);
+        });
+
+        it("o valor gravado é sempre o preço unitário gravado × a quantidade", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 0.1, quantidade: 3 },
+                        { parceiro_id: 8, preco: 19.999, quantidade: 7 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            const precos = precoGravado();
+            const valores = valoresGravados();
+            expect(precos[0].create).toBe("0.10");
+            expect(valores[0].create).toBe("0.30");
+            expect(precos[1].create).toBe("20.00");
+            expect(valores[1].create).toBe("140.00");
+        });
+
+        it("preço já com duas casas não sofre alteração", async () => {
+            prisma.parceiro.findFirst.mockResolvedValue(parceiroNoFabrico(7));
+
+            await service.transferir(
+                { ...dtoBase, parceiros: [{ parceiro_id: 7, preco: 2.5 }] } as any,
+                fabricoId,
+            );
+
+            expect(precoGravado()).toEqual([{ create: "2.50", update: "2.50" }]);
+            expect(valoresGravados()).toEqual([{ create: "250.00", update: "250.00" }]);
         });
     });
 
@@ -785,7 +908,7 @@ describe("TransferenciaEtapaService", () => {
 
         expect(prisma.fichaParceiro.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
-                create: expect.objectContaining({ quantidade: 90, valor: 180 }),
+                create: expect.objectContaining({ quantidade: 90, valor: toMoney(180) }),
             }),
         );
     });

@@ -5,7 +5,7 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import { FichaTecnica, Prisma } from "@prisma/client";
-import { toMoney } from "src/common/utils/money";
+import { lineTotal, toMoney } from "src/common/utils/money";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { FichaTecnicaService } from "src/ficha-tecnica/ficha-tecnica.service";
@@ -334,6 +334,9 @@ export class TransferenciaEtapaService {
                         );
                     }
 
+                    // Duas casas, ROUND_HALF_UP, antes de qualquer gravação: o valor da ficha sai deste mesmo preço.
+                    const preco = toMoney(p.preco);
+
                     await tx.parceiroProduto.upsert({
                         where: {
                             produto_id_parceiro_id: {
@@ -344,16 +347,16 @@ export class TransferenciaEtapaService {
                         create: {
                             produto_id: ficha.produto_id,
                             parceiro_id: p.parceiro_id,
-                            preco: p.preco,
+                            preco,
                         },
-                        update: { preco: p.preco },
+                        update: { preco },
                     });
 
                     const parceiroUnico = parceiros.length === 1;
                     const quantidadeEfetiva = parceiroUnico
                         ? quantidadeCanonica
                         : (p.quantidade ?? 0);
-                    const valor = Number((quantidadeEfetiva * p.preco).toFixed(2));
+                    const valor = lineTotal(quantidadeEfetiva, preco);
 
                     await tx.fichaParceiro.upsert({
                         where: {
