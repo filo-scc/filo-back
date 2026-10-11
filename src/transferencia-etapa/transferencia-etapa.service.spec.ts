@@ -538,49 +538,168 @@ describe("TransferenciaEtapaService", () => {
         });
     });
 
-    it("upsert de múltiplos parceiros: usa quantidade individual e não calcula valor", async () => {
-        const dtoComDoisParceiros = {
-            ...dtoBase,
-            parceiros: [
-                { parceiro_id: 7, preco: 2.5, quantidade: 40, operacao: "Corte" },
-                { parceiro_id: 8, preco: 3.0, quantidade: 60, operacao: "Costura" },
-            ],
-        };
-        prisma.parceiro.findFirst
-            .mockResolvedValueOnce({ id: 7, fabrico_id: fabricoId })
-            .mockResolvedValueOnce({ id: 8, fabrico_id: fabricoId });
+    describe("valor de cada parceiro com múltiplos parceiros", () => {
+        const parceiroNoFabrico = (id: number) => ({ id, fabrico_id: fabricoId });
+        const valoresGravados = () =>
+            prisma.fichaParceiro.upsert.mock.calls.map(([args]: any[]) => ({
+                parceiro_id: args.where.ficha_id_parceiro_id.parceiro_id,
+                quantidade: args.create.quantidade,
+                valorCreate: args.create.valor,
+                valorUpdate: args.update.valor,
+            }));
 
-        await service.transferir(dtoComDoisParceiros as any, fabricoId);
+        it("grava quantidade e valor individuais de cada parceiro (quantidade × preço)", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
 
-        expect(prisma.fichaParceiro.upsert).toHaveBeenNthCalledWith(1, {
-            where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 7 } },
-            create: {
-                ficha_id: 10,
-                parceiro_id: 7,
-                operacao: "Corte",
-                quantidade: 40,
-                valor: undefined,
-            },
-            update: {
-                operacao: "Corte",
-                quantidade: 40,
-                valor: undefined,
-            },
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 2.5, quantidade: 40, operacao: "Corte" },
+                        { parceiro_id: 8, preco: 3.0, quantidade: 60, operacao: "Costura" },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(prisma.fichaParceiro.upsert).toHaveBeenNthCalledWith(1, {
+                where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 7 } },
+                create: {
+                    ficha_id: 10,
+                    parceiro_id: 7,
+                    operacao: "Corte",
+                    quantidade: 40,
+                    valor: 100,
+                },
+                update: { operacao: "Corte", quantidade: 40, valor: 100 },
+            });
+            expect(prisma.fichaParceiro.upsert).toHaveBeenNthCalledWith(2, {
+                where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 8 } },
+                create: {
+                    ficha_id: 10,
+                    parceiro_id: 8,
+                    operacao: "Costura",
+                    quantidade: 60,
+                    valor: 180,
+                },
+                update: { operacao: "Costura", quantidade: 60, valor: 180 },
+            });
         });
-        expect(prisma.fichaParceiro.upsert).toHaveBeenNthCalledWith(2, {
-            where: { ficha_id_parceiro_id: { ficha_id: 10, parceiro_id: 8 } },
-            create: {
-                ficha_id: 10,
-                parceiro_id: 8,
-                operacao: "Costura",
-                quantidade: 60,
-                valor: undefined,
-            },
-            update: {
-                operacao: "Costura",
-                quantidade: 60,
-                valor: undefined,
-            },
+
+        it("grava o valor tanto na criação quanto na atualização da relação existente", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 2.5, quantidade: 30 },
+                        { parceiro_id: 8, preco: 3, quantidade: 70 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            // O mesmo valor vai em `create` e em `update`: relação já existente não preserva valor antigo.
+            expect(valoresGravados()).toEqual([
+                { parceiro_id: 7, quantidade: 30, valorCreate: 75, valorUpdate: 75 },
+                { parceiro_id: 8, quantidade: 70, valorCreate: 210, valorUpdate: 210 },
+            ]);
+        });
+
+        it("quantidade zero gera valor zero, sem preservar valor antigo", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 2.5, quantidade: 0 },
+                        { parceiro_id: 8, preco: 3, quantidade: 100 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(valoresGravados()).toEqual([
+                { parceiro_id: 7, quantidade: 0, valorCreate: 0, valorUpdate: 0 },
+                { parceiro_id: 8, quantidade: 100, valorCreate: 300, valorUpdate: 300 },
+            ]);
+        });
+
+        it("quantidade omitida é tratada como zero e o valor também", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 2.5 },
+                        { parceiro_id: 8, preco: 3, quantidade: 100 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(valoresGravados()[0]).toEqual({
+                parceiro_id: 7,
+                quantidade: 0,
+                valorCreate: 0,
+                valorUpdate: 0,
+            });
+        });
+
+        it("preços com casas decimais geram valor com duas casas", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+
+            await service.transferir(
+                {
+                    ...dtoBase,
+                    parceiros: [
+                        { parceiro_id: 7, preco: 2.35, quantidade: 40 },
+                        { parceiro_id: 8, preco: 1.75, quantidade: 60 },
+                    ],
+                } as any,
+                fabricoId,
+            );
+
+            expect(valoresGravados()).toEqual([
+                { parceiro_id: 7, quantidade: 40, valorCreate: 94, valorUpdate: 94 },
+                { parceiro_id: 8, quantidade: 60, valorCreate: 105, valorUpdate: 105 },
+            ]);
+        });
+
+        it("falha ao gravar o valor de um parceiro impede a atualização final da ficha (atomicidade)", async () => {
+            prisma.parceiro.findFirst
+                .mockResolvedValueOnce(parceiroNoFabrico(7))
+                .mockResolvedValueOnce(parceiroNoFabrico(8));
+            prisma.fichaParceiro.upsert
+                .mockResolvedValueOnce({})
+                .mockRejectedValueOnce(new Error("falha no segundo parceiro"));
+
+            await expect(
+                service.transferir(
+                    {
+                        ...dtoBase,
+                        parceiros: [
+                            { parceiro_id: 7, preco: 2.5, quantidade: 40 },
+                            { parceiro_id: 8, preco: 3, quantidade: 60 },
+                        ],
+                    } as any,
+                    fabricoId,
+                ),
+            ).rejects.toThrow("falha no segundo parceiro");
+            expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
         });
     });
 

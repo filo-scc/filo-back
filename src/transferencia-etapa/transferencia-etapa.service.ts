@@ -353,9 +353,7 @@ export class TransferenciaEtapaService {
                     const quantidadeEfetiva = parceiroUnico
                         ? quantidadeCanonica
                         : (p.quantidade ?? 0);
-                    const valor = parceiroUnico
-                        ? Number((quantidadeEfetiva * p.preco).toFixed(2))
-                        : undefined;
+                    const valor = Number((quantidadeEfetiva * p.preco).toFixed(2));
 
                     await tx.fichaParceiro.upsert({
                         where: {
