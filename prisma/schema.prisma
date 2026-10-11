@@ -198,8 +198,6 @@ model Etapa {
   fichas_etapas   FichaEtapa[]
 
   @@unique([fabrico_id, nome])
-  // Índice único parcial (fabrico_id, ordem) WHERE ativa = true: criado por SQL na migration
-  // 20261011120000_etapas_ordem_unica_entre_ativas (o Prisma não declara índices parciais).
   @@map("etapas")
 }
 
