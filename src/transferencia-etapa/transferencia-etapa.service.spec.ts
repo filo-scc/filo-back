@@ -45,8 +45,8 @@ describe("TransferenciaEtapaService", () => {
                 update: jest.fn(),
             },
             parceiro: { findFirst: jest.fn() },
-            parceiroProduto: { upsert: jest.fn() },
-            fichaParceiro: { upsert: jest.fn() },
+            parceiroProduto: { upsert: jest.fn(), findMany: jest.fn() },
+            fichaParceiro: { upsert: jest.fn(), findMany: jest.fn() },
         };
 
         produtoService = {
@@ -104,22 +104,267 @@ describe("TransferenciaEtapaService", () => {
         expect(resultado).toEqual({ id: 10, etapa_atual_id: 2 });
     });
 
-    it("é idempotente: não repete nada se a ficha já está na etapa destino", async () => {
-        prisma.fichaTecnica.findFirst.mockResolvedValue({
+    describe("repetição da transferência (ficha já na etapa destino)", () => {
+        const fichaJaNoDestino = {
             id: 10,
             fabrico_id: fabricoId,
             produto_id: 5,
+            pedido_id: pedidoId,
             quantidade: 100,
             etapa_atual_id: 2,
+            defeitos_costura: 2,
+            defeitos_tecido: 1,
+            retiradas: 0,
+            sobras: 3,
+        };
+        const relatorioIgual = {
+            defeitos_costura: 2,
+            defeitos_tecido: 1,
+            retiradas: 0,
+            sobras: 3,
+        };
+        const fichaRetornada = { id: 10, etapa_atual_id: 2 };
+
+        const expectNenhumaEscrita = () => {
+            expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
+            expect(prisma.parceiroProduto.upsert).not.toHaveBeenCalled();
+            expect(prisma.fichaParceiro.upsert).not.toHaveBeenCalled();
+            expect(produtoService.recalcularCustoTotal).not.toHaveBeenCalled();
+            expect(fichaTecnicaService.sincronizarPedido).not.toHaveBeenCalled();
+        };
+
+        beforeEach(() => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue(fichaJaNoDestino);
+            prisma.fichaTecnica.findUnique.mockResolvedValue(fichaRetornada);
+            // Etapa encerrada por último = origem da transição que levou a ficha ao destino.
+            prisma.fichaEtapa.findFirst.mockResolvedValue({ etapa_id: 1 });
+            prisma.fichaParceiro.findMany.mockResolvedValue([]);
+            prisma.parceiroProduto.findMany.mockResolvedValue([]);
         });
-        prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 10, etapa_atual_id: 2 });
 
-        const resultado = await service.transferir(dtoBase as any, fabricoId);
+        it("repetição idêntica devolve a ficha sem novo histórico e sem escrever nada", async () => {
+            const resultado = await service.transferir(dtoBase as any, fabricoId);
 
-        expect(resultado).toEqual({ id: 10, etapa_atual_id: 2 });
-        expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
-        expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
-        expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(resultado).toEqual(fichaRetornada);
+            expect(prisma.fichaEtapa.findFirst).toHaveBeenCalledWith({
+                where: { ficha_tecnica_id: 10, data_fim: { not: null } },
+                orderBy: { data_fim: "desc" },
+                select: { etapa_id: true },
+            });
+            expectNenhumaEscrita();
+        });
+
+        it("repetição idêntica com relatório igual ao registrado é aceita", async () => {
+            const resultado = await service.transferir(
+                { ...dtoBase, relatorio: relatorioIgual } as any,
+                fabricoId,
+            );
+
+            expect(resultado).toEqual(fichaRetornada);
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita com 409 quando a origem informada difere da usada na transferência original", async () => {
+            await expect(
+                service.transferir({ ...dtoBase, etapa_origem_id: 7 } as any, fabricoId),
+            ).rejects.toThrow(
+                new ConflictException(
+                    "A etapa de origem informada difere da usada na transferência já realizada para esta etapa",
+                ),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita com 409 quando não há etapa encerrada que prove a origem da transferência", async () => {
+            prisma.fichaEtapa.findFirst.mockResolvedValue(null);
+
+            await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+                ConflictException,
+            );
+            expectNenhumaEscrita();
+        });
+
+        it.each([
+            ["defeitos_costura", { defeitos_costura: 9 }],
+            ["defeitos_tecido", { defeitos_tecido: 9 }],
+            ["retiradas", { retiradas: 9 }],
+            ["sobras", { sobras: 9 }],
+            ["quantidade", { quantidade: 999 }],
+        ])("rejeita com 409 quando o relatório difere em %s", async (_campo, alteracao) => {
+            await expect(
+                service.transferir(
+                    { ...dtoBase, relatorio: { ...relatorioIgual, ...alteracao } } as any,
+                    fabricoId,
+                ),
+            ).rejects.toThrow(
+                new ConflictException(
+                    "O relatório informado difere do já registrado nesta ficha técnica, que já está na etapa de destino",
+                ),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("usa a soma da matriz como quantidade do relatório ao comparar a repetição", async () => {
+            prisma.fichaTecnicaItem.aggregate.mockResolvedValue({ _sum: { quantidade: 80 } });
+
+            await expect(
+                service.transferir(
+                    { ...dtoBase, relatorio: { ...relatorioIgual, quantidade: 100 } } as any,
+                    fabricoId,
+                ),
+            ).rejects.toThrow(ConflictException);
+
+            await expect(
+                service.transferir(
+                    { ...dtoBase, relatorio: { ...relatorioIgual, quantidade: 80 } } as any,
+                    fabricoId,
+                ),
+            ).resolves.toEqual(fichaRetornada);
+        });
+
+        describe("parceiros", () => {
+            const parceiroUnico = { parceiro_id: 4, operacao: "Costura", preco: 2.5 };
+            const registroParceiro = (
+                parceiro_id: number,
+                quantidade: number,
+                operacao = "Costura",
+            ) => ({
+                ficha_id: 10,
+                parceiro_id,
+                operacao,
+                quantidade,
+                valor: null,
+            });
+            const vinculo = (parceiro_id: number, preco: string | null) => ({
+                produto_id: 5,
+                parceiro_id,
+                preco: preco === null ? null : new Prisma.Decimal(preco),
+            });
+
+            it("parceiro único idêntico ao registrado é repetição válida", async () => {
+                prisma.fichaParceiro.findMany.mockResolvedValue([registroParceiro(4, 100)]);
+                prisma.parceiroProduto.findMany.mockResolvedValue([vinculo(4, "2.50")]);
+
+                await expect(
+                    service.transferir(
+                        { ...dtoBase, parceiros: [parceiroUnico] } as any,
+                        fabricoId,
+                    ),
+                ).resolves.toEqual(fichaRetornada);
+                expect(prisma.fichaParceiro.findMany).toHaveBeenCalledWith({
+                    where: { ficha_id: 10, parceiro_id: { in: [4] } },
+                });
+                expect(prisma.parceiroProduto.findMany).toHaveBeenCalledWith({
+                    where: { produto_id: 5, parceiro_id: { in: [4] } },
+                });
+                expectNenhumaEscrita();
+            });
+
+            it("múltiplos parceiros idênticos aos registrados são repetição válida", async () => {
+                prisma.fichaParceiro.findMany.mockResolvedValue([
+                    registroParceiro(4, 40),
+                    registroParceiro(5, 60),
+                ]);
+                prisma.parceiroProduto.findMany.mockResolvedValue([
+                    vinculo(4, "2.50"),
+                    vinculo(5, "3.00"),
+                ]);
+
+                await expect(
+                    service.transferir(
+                        {
+                            ...dtoBase,
+                            parceiros: [
+                                { parceiro_id: 4, operacao: "Costura", preco: 2.5, quantidade: 40 },
+                                { parceiro_id: 5, operacao: "Costura", preco: 3, quantidade: 60 },
+                            ],
+                        } as any,
+                        fabricoId,
+                    ),
+                ).resolves.toEqual(fichaRetornada);
+                expectNenhumaEscrita();
+            });
+
+            it.each([
+                ["parceiro não registrado na ficha", [], [vinculo(4, "2.50")], parceiroUnico],
+                ["parceiro sem preço gravado", [registroParceiro(4, 100)], [], parceiroUnico],
+                [
+                    "preço gravado nulo",
+                    [registroParceiro(4, 100)],
+                    [vinculo(4, null)],
+                    parceiroUnico,
+                ],
+                [
+                    "preço diferente",
+                    [registroParceiro(4, 100)],
+                    [vinculo(4, "2.50")],
+                    { ...parceiroUnico, preco: 2.6 },
+                ],
+                [
+                    "operação diferente",
+                    [registroParceiro(4, 100)],
+                    [vinculo(4, "2.50")],
+                    { ...parceiroUnico, operacao: "Acabamento" },
+                ],
+                [
+                    "quantidade diferente da total (parceiro único)",
+                    [registroParceiro(4, 90)],
+                    [vinculo(4, "2.50")],
+                    parceiroUnico,
+                ],
+            ])("rejeita com 409: %s", async (_caso, registrados, vinculos, parceiro) => {
+                prisma.fichaParceiro.findMany.mockResolvedValue(registrados);
+                prisma.parceiroProduto.findMany.mockResolvedValue(vinculos);
+
+                await expect(
+                    service.transferir({ ...dtoBase, parceiros: [parceiro] } as any, fabricoId),
+                ).rejects.toThrow(
+                    new ConflictException(
+                        "Os parceiros informados diferem dos já registrados nesta ficha técnica, que já está na etapa de destino",
+                    ),
+                );
+                expectNenhumaEscrita();
+            });
+
+            it("rejeita com 409 quando, com vários parceiros, a quantidade de um deles difere", async () => {
+                prisma.fichaParceiro.findMany.mockResolvedValue([
+                    registroParceiro(4, 40),
+                    registroParceiro(5, 60),
+                ]);
+                prisma.parceiroProduto.findMany.mockResolvedValue([
+                    vinculo(4, "2.50"),
+                    vinculo(5, "3.00"),
+                ]);
+
+                await expect(
+                    service.transferir(
+                        {
+                            ...dtoBase,
+                            parceiros: [
+                                { parceiro_id: 4, operacao: "Costura", preco: 2.5, quantidade: 50 },
+                                { parceiro_id: 5, operacao: "Costura", preco: 3, quantidade: 50 },
+                            ],
+                        } as any,
+                        fabricoId,
+                    ),
+                ).rejects.toThrow(ConflictException);
+                expectNenhumaEscrita();
+            });
+
+            it("não confirma parceiro de outra fábrica (mesma resposta de parceiro não registrado)", async () => {
+                // O parceiro 99 não tem vínculo com a ficha desta fábrica: nada é encontrado.
+                await expect(
+                    service.transferir(
+                        { ...dtoBase, parceiros: [{ ...parceiroUnico, parceiro_id: 99 }] } as any,
+                        fabricoId,
+                    ),
+                ).rejects.toThrow(ConflictException);
+                expectNenhumaEscrita();
+            });
+        });
     });
 
     it("rejeita quando a ficha não pertence ao fabrico", async () => {

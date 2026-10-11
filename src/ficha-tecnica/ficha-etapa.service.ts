@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     ConflictException,
     Injectable,
     NotFoundException,
@@ -6,11 +7,12 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateFichaEtapaDto } from "./dto/update-ficha-etapa.dto";
-import { CreateFichaEtapaDto } from "./dto/create-ficha-etapa.dto";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { EtapaService } from "src/etapa/etapa.service";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+
+const paraData = (valor: string | null): Date | null => (valor === null ? null : new Date(valor));
 
 @Injectable()
 export class FichaEtapaService {
@@ -35,12 +37,6 @@ export class FichaEtapaService {
         return fichaEtapa;
     }
 
-    private assertMesmaFabrica(fabrico_id: number, etapa: { fabrico_id: number }) {
-        if (fabrico_id !== etapa.fabrico_id) {
-            throw new NotFoundException("A etapa não pertence ao mesmo fabrico da ficha técnica");
-        }
-    }
-
     private resolverFabricoId(user: AuthenticatedUser): number {
         if (user.cargo === "ADMIN") {
             throw new ForbiddenException("Administrador não pode acessar fichas-etapas");
@@ -57,79 +53,6 @@ export class FichaEtapaService {
         if (ficha.fabrico_id !== fabricoId) {
             throw new NotFoundException("FichaEtapa não encontrada");
         }
-    }
-
-    async createFichaEtapa(data: CreateFichaEtapaDto, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-
-        const [ficha, etapa] = await Promise.all([
-            this.fichaTecnicaService.findOne(data.ficha_tecnica_id, fabricoId),
-            this.etapaService.getById(data.etapa_id, fabricoId),
-        ]);
-        this.assertFichaDoFabrico(ficha, fabricoId);
-        this.assertMesmaFabrica(fabricoId, etapa);
-
-        const vinculoExiste = await this.prisma.fichaEtapa.findUnique({
-            where: {
-                ficha_tecnica_id_etapa_id: {
-                    ficha_tecnica_id: data.ficha_tecnica_id,
-                    etapa_id: data.etapa_id,
-                },
-            },
-        });
-
-        if (vinculoExiste) {
-            throw new ConflictException("Esta etapa já está vinculada a esta ficha técnica");
-        }
-
-        try {
-            return await this.prisma.$transaction(async (tx) => {
-                const ultimaEtapa = await tx.etapa.findFirst({
-                    where: { fabrico_id: etapa.fabrico_id, ativa: true },
-                    orderBy: { ordem: "desc" },
-                    select: { id: true },
-                });
-                const dataInicio = new Date();
-                const fichaEtapa = await tx.fichaEtapa.create({
-                    data: {
-                        ...data,
-                        data_inicio: dataInicio,
-                    },
-                });
-
-                if (ultimaEtapa?.id === data.etapa_id) {
-                    await tx.fichaTecnica.updateMany({
-                        where: {
-                            id: data.ficha_tecnica_id,
-                            produzida_em: null,
-                        },
-                        data: {
-                            produzida_em: dataInicio,
-                        },
-                    });
-                }
-
-                return fichaEtapa;
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                if (error.code === "P2002") {
-                    throw new ConflictException("Ficha Etapa já cadastrada");
-                }
-
-                if (error.code === "P2003") {
-                    throw new NotFoundException("Ficha Etapa não encontrado");
-                }
-            }
-
-            throw error;
-        }
-    }
-
-    async deleteFichaEtapa(id: number, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-        await this.getFichaEtapaOrFail(id, fabricoId);
-        return this.prisma.fichaEtapa.delete({ where: { id } });
     }
 
     async getByFichaTecnica(ficha_tecnica_id: number, user: AuthenticatedUser) {
@@ -165,25 +88,35 @@ export class FichaEtapaService {
         return fichasEtapas;
     }
 
-    async finalizarFichaEtapa(id: number, user: AuthenticatedUser) {
-        const fabricoId = this.resolverFabricoId(user);
-        const fichaEtapa = await this.getFichaEtapaOrFail(id, fabricoId);
-
-        if (fichaEtapa.data_fim) {
-            return fichaEtapa;
+    private assertDatasValidas(
+        atual: { data_inicio: Date | null; data_fim: Date | null },
+        data: UpdateFichaEtapaDto,
+    ) {
+        // `null` explícito passa pela validação (campo opcional) e reabriria uma etapa encerrada.
+        if (data.data_fim === null && atual.data_fim !== null) {
+            throw new ConflictException("Não é possível reabrir uma etapa já encerrada");
         }
 
-        await this.prisma.fichaEtapa.updateMany({
-            where: { id, data_fim: null },
-            data: { data_fim: new Date() },
-        });
+        // Abrir e fechar etapas é papel da transferência, que move a ficha junto com o histórico.
+        if (data.data_fim && atual.data_fim === null) {
+            throw new ConflictException(
+                "Não é possível encerrar uma etapa em andamento por aqui: ela é encerrada pela transferência de etapa",
+            );
+        }
 
-        return this.getFichaEtapaOrFail(id, fabricoId);
+        const inicio =
+            data.data_inicio === undefined ? atual.data_inicio : paraData(data.data_inicio);
+        const fim = data.data_fim === undefined ? atual.data_fim : paraData(data.data_fim);
+
+        if (inicio && fim && inicio.getTime() > fim.getTime()) {
+            throw new BadRequestException("A data de início não pode ser posterior à data de fim");
+        }
     }
 
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user);
-        await this.getFichaEtapaOrFail(id, fabricoId);
+        const atual = await this.getFichaEtapaOrFail(id, fabricoId);
+        this.assertDatasValidas(atual, data);
 
         try {
             return await this.prisma.fichaEtapa.update({
