@@ -37,11 +37,20 @@ export class ProdutoService {
     }
 
     private async assertRelacionamentosDoFabrico(
-        dados: { tipo_produto_id?: number; tecido_id?: number },
+        db: Prisma.TransactionClient,
+        dados: {
+            tipo_produto_id?: number | null;
+            tecido_id?: number | null;
+            grade_versao_id?: number | null;
+        },
         fabricoId: number,
     ) {
+        if (dados.tipo_produto_id === null) {
+            throw new BadRequestException("Tipo de produto inválido");
+        }
+
         if (dados.tipo_produto_id !== undefined) {
-            const tipoProduto = await this.prisma.tipoProduto.findFirst({
+            const tipoProduto = await db.tipoProduto.findFirst({
                 where: { id: dados.tipo_produto_id, fabrico_id: fabricoId },
                 select: { id: true },
             });
@@ -52,7 +61,7 @@ export class ProdutoService {
         }
 
         if (dados.tecido_id !== undefined && dados.tecido_id !== null) {
-            const tecido = await this.prisma.tecido.findFirst({
+            const tecido = await db.tecido.findFirst({
                 where: { id: dados.tecido_id, fabrico_id: fabricoId },
                 select: { id: true },
             });
@@ -60,6 +69,38 @@ export class ProdutoService {
             if (!tecido) {
                 throw new BadRequestException("Tecido inválido");
             }
+        }
+
+        if (dados.grade_versao_id !== undefined && dados.grade_versao_id !== null) {
+            await this.assertGradeVersaoLiberadaParaFabrico(db, dados.grade_versao_id, fabricoId);
+        }
+    }
+
+    private async assertGradeVersaoLiberadaParaFabrico(
+        db: Prisma.TransactionClient,
+        gradeVersaoId: number,
+        fabricoId: number,
+    ) {
+        // FOR SHARE impede que a liberação, a versão ou a grade sejam desativadas antes do commit.
+        const liberacoes = await db.$queryRaw<{ id: number }[]>(
+            Prisma.sql`
+                SELECT gv."id"
+                FROM "grade_versoes" gv
+                JOIN "grades" g ON g."id" = gv."grade_id"
+                JOIN "fabrico_grades" fg ON fg."grade_id" = gv."grade_id"
+                WHERE gv."id" = ${gradeVersaoId}
+                  AND gv."ativo" = true
+                  AND g."ativo" = true
+                  AND fg."fabrico_id" = ${fabricoId}
+                  AND fg."ativo" = true
+                FOR SHARE OF gv, g, fg
+            `,
+        );
+
+        if (!liberacoes.length) {
+            throw new BadRequestException(
+                "Versão de grade inválida ou não liberada para o fabrico",
+            );
         }
     }
 
@@ -176,20 +217,6 @@ export class ProdutoService {
             delete_at?: unknown;
         };
         this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
-        await this.assertRelacionamentosDoFabrico(data, userFabricoId);
-
-        if (data.grade_versao_id) {
-            const grade = await this.prisma.gradeVersao.findFirst({
-                where: {
-                    id: data.grade_versao_id,
-                    ativo: true,
-                },
-            });
-
-            if (!grade) {
-                throw new BadRequestException("Versão de grade inválida ou inativa");
-            }
-        }
 
         const {
             fabrico_id: _fabricoIdIgnorado,
@@ -199,11 +226,15 @@ export class ProdutoService {
         } = payload;
 
         try {
-            return await this.prisma.produto.create({
-                data: {
-                    ...dadosCreate,
-                    fabrico_id: userFabricoId,
-                },
+            return await this.prisma.$transaction(async (tx) => {
+                await this.assertRelacionamentosDoFabrico(tx, dadosCreate, userFabricoId);
+
+                return tx.produto.create({
+                    data: {
+                        ...dadosCreate,
+                        fabrico_id: userFabricoId,
+                    },
+                });
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -314,22 +345,6 @@ export class ProdutoService {
         };
         this.assertFabricoImutavel(payload.fabrico_id, userFabricoId);
 
-        const produto = await this.getActiveById(id, user);
-        await this.assertRelacionamentosDoFabrico(dados, userFabricoId);
-
-        if (dados.grade_versao_id) {
-            const grade = await this.prisma.gradeVersao.findFirst({
-                where: {
-                    id: dados.grade_versao_id,
-                    ativo: true,
-                },
-            });
-
-            if (!grade) {
-                throw new BadRequestException("Versão de grade inválida ou inativa");
-            }
-        }
-
         const {
             fabrico_id: _fabricoIdIgnorado,
             ativo: _ativoIgnorado,
@@ -337,31 +352,41 @@ export class ProdutoService {
             ...dadosUpdate
         } = payload;
 
-        try {
-            const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
-                "custo_tecido",
-                "quantidade_tecido",
-                "tecido_id",
-                "custo_operacional",
-                "outros_custos",
-                "custo_total",
-            ];
-            const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dadosUpdate);
+        const camposQueAlteramCusto: (keyof UpdateProduto)[] = [
+            "custo_tecido",
+            "quantidade_tecido",
+            "tecido_id",
+            "custo_operacional",
+            "outros_custos",
+            "custo_total",
+        ];
+        const deveRecalcular = camposQueAlteramCusto.some((campo) => campo in dadosUpdate);
 
-            if (deveRecalcular) {
-                await this.prisma.$transaction(async (tx) => {
-                    await tx.produto.update({
-                        where: { id: produto.id },
-                        data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
-                    });
-                    await this.recalcularCustoTotal(produto.id, tx);
-                });
-            } else {
-                await this.prisma.produto.update({
+        try {
+            await this.prisma.$transaction(async (tx) => {
+                const [produto] = await tx.$queryRaw<{ id: number }[]>(
+                    Prisma.sql`
+                        SELECT "id" FROM "produtos"
+                        WHERE "id" = ${id} AND "fabrico_id" = ${userFabricoId} AND "ativo" = true
+                        FOR UPDATE
+                    `,
+                );
+
+                if (!produto) {
+                    throw new NotFoundException("Produto não encontrado");
+                }
+
+                await this.assertRelacionamentosDoFabrico(tx, dadosUpdate, userFabricoId);
+
+                await tx.produto.update({
                     where: { id: produto.id },
-                    data: { ...dadosUpdate, fabrico_id: produto.fabrico_id },
+                    data: { ...dadosUpdate, fabrico_id: userFabricoId },
                 });
-            }
+
+                if (deveRecalcular) {
+                    await this.recalcularCustoTotal(produto.id, tx);
+                }
+            });
 
             return `O produto com o id ${id} foi atualizado`;
         } catch (error) {

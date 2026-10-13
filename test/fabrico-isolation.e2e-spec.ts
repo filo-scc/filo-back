@@ -136,6 +136,8 @@ const sharedIds = {
     tamanhoId: 0,
     gradeId: 0,
     gradeVersaoId: 0,
+    gradeExclusivaBId: 0,
+    gradeVersaoExclusivaBId: 0,
 };
 
 describe("Isolamento E2E entre fabricos", () => {
@@ -176,8 +178,24 @@ describe("Isolamento E2E entre fabricos", () => {
         sharedIds.gradeId = grade.id;
         sharedIds.gradeVersaoId = gradeVersao.id;
 
+        const gradeExclusivaB = await prisma.grade.create({
+            data: { nome: `${runId}-grade-exclusiva-b`, ativo: true },
+        });
+        const gradeVersaoExclusivaB = await prisma.gradeVersao.create({
+            data: { grade_id: gradeExclusivaB.id, versao: 1, ativo: true },
+        });
+        sharedIds.gradeExclusivaBId = gradeExclusivaB.id;
+        sharedIds.gradeVersaoExclusivaBId = gradeVersaoExclusivaB.id;
+
         tenantA = await createTenantFixtures(prisma, "a");
         tenantB = await createTenantFixtures(prisma, "b");
+        await prisma.fabricoGrade.createMany({
+            data: [
+                { fabrico_id: tenantA.fabrico.id, grade_id: grade.id, ativo: true },
+                { fabrico_id: tenantB.fabrico.id, grade_id: grade.id, ativo: true },
+                { fabrico_id: tenantB.fabrico.id, grade_id: gradeExclusivaB.id, ativo: true },
+            ],
+        });
         tokenA = await login(app, tenantA.user.email);
         tokenB = await login(app, tenantB.user.email);
     });
@@ -218,13 +236,18 @@ describe("Isolamento E2E entre fabricos", () => {
         await prisma.etapa.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.tipoProduto.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.usuario.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
+        await prisma.fabricoGrade.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.fabrico.deleteMany({ where: { id: { in: fabricoIds } } });
         await prisma.gradeVersaoItem.deleteMany({
             where: { grade_versao_id: sharedIds.gradeVersaoId },
         });
         await prisma.gradeItem.deleteMany({ where: { grade_id: sharedIds.gradeId } });
-        await prisma.gradeVersao.deleteMany({ where: { grade_id: sharedIds.gradeId } });
-        await prisma.grade.deleteMany({ where: { id: sharedIds.gradeId } });
+        await prisma.gradeVersao.deleteMany({
+            where: { grade_id: { in: [sharedIds.gradeId, sharedIds.gradeExclusivaBId] } },
+        });
+        await prisma.grade.deleteMany({
+            where: { id: { in: [sharedIds.gradeId, sharedIds.gradeExclusivaBId] } },
+        });
         await prisma.tamanho.deleteMany({ where: { id: sharedIds.tamanhoId } });
 
         if (app) await app.close();
@@ -465,6 +488,131 @@ describe("Isolamento E2E entre fabricos", () => {
             .set(auth(tokenA))
             .send({ preco: 10 })
             .expect(404);
+    });
+
+    it("valida tipo, tecido e grade do produto contra o fabrico autenticado na criação e na edição", async () => {
+        const idInexistente = 2147483647;
+        const baseA = {
+            tipo_produto_id: tenantA.tipoProduto.id,
+            tecido_id: tenantA.tecido.id,
+            grade_versao_id: sharedIds.gradeVersaoId,
+        };
+
+        const gradeNaoLiberada = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                ...baseA,
+                nome: `${runId}-produto-grade-b`,
+                grade_versao_id: sharedIds.gradeVersaoExclusivaBId,
+            })
+            .expect(400);
+        const gradeInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-grade-x`, grade_versao_id: idInexistente })
+            .expect(400);
+        expect(gradeNaoLiberada.body).toEqual(gradeInexistente.body);
+
+        const tipoDeB = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                ...baseA,
+                nome: `${runId}-produto-tipo-b`,
+                tipo_produto_id: tenantB.tipoProduto.id,
+            })
+            .expect(400);
+        const tipoInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tipo-x`, tipo_produto_id: idInexistente })
+            .expect(400);
+        expect(tipoDeB.body).toEqual(tipoInexistente.body);
+
+        const tecidoDeB = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tecido-b`, tecido_id: tenantB.tecido.id })
+            .expect(400);
+        const tecidoInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tecido-x`, tecido_id: idInexistente })
+            .expect(400);
+        expect(tecidoDeB.body).toEqual(tecidoInexistente.body);
+
+        await expect(
+            prisma.produto.count({
+                where: {
+                    nome: {
+                        in: ["grade-b", "grade-x", "tipo-b", "tipo-x", "tecido-b", "tecido-x"].map(
+                            (sufixo) => `${runId}-produto-${sufixo}`,
+                        ),
+                    },
+                },
+            }),
+        ).resolves.toBe(0);
+
+        const legitimo = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-relacoes-validas` })
+            .expect(201);
+        const semOpcionais = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                nome: `${runId}-produto-sem-opcionais`,
+                tipo_produto_id: baseA.tipo_produto_id,
+            })
+            .expect(201);
+        expect(semOpcionais.body).toMatchObject({ tecido_id: null, grade_versao_id: null });
+
+        const tentativasUpdate = [
+            { tipo_produto_id: tenantB.tipoProduto.id },
+            { tipo_produto_id: idInexistente },
+            { tipo_produto_id: null },
+            { tecido_id: tenantB.tecido.id },
+            { tecido_id: idInexistente },
+            { grade_versao_id: sharedIds.gradeVersaoExclusivaBId },
+            { grade_versao_id: idInexistente },
+        ];
+        for (const body of tentativasUpdate) {
+            await request(app.getHttpServer())
+                .put(`/produtos/${legitimo.body.id}`)
+                .set(auth(tokenA))
+                .send(body)
+                .expect(400);
+        }
+
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject({ ...baseA, fabrico_id: tenantA.fabrico.id });
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${legitimo.body.id}`)
+            .set(auth(tokenA))
+            .send({ tecido_id: null, grade_versao_id: null })
+            .expect(200);
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject({ tecido_id: null, grade_versao_id: null });
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${legitimo.body.id}`)
+            .set(auth(tokenA))
+            .send(baseA)
+            .expect(200);
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject(baseA);
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${tenantB.produto.id}`)
+            .set(auth(tokenB))
+            .send({ grade_versao_id: sharedIds.gradeVersaoExclusivaBId })
+            .expect(200);
     });
 
     it("ignora ou rejeita fabrico_id falsificado no body e mantém fluxos válidos do próprio fabrico", async () => {
