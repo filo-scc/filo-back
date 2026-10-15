@@ -856,6 +856,27 @@ describe("TransferenciaEtapaService", () => {
 
         expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
     });
+    it("a última etapa é a de maior ordem entre as ATIVAS: etapa inativa de ordem maior não conta", async () => {
+        // Etapas do fabrico: 1 (ativa), 2 (ativa) e 3 (inativa). A consulta só enxerga as ativas.
+        prisma.etapa.findFirst
+            .mockReset()
+            .mockResolvedValueOnce({ id: 1, fabrico_id: fabricoId, ativa: true, ordem: 1 })
+            .mockResolvedValueOnce({ id: 2, fabrico_id: fabricoId, ativa: true, ordem: 2 })
+            .mockResolvedValueOnce({ id: 2 });
+
+        await service.transferir(dtoBase as any, fabricoId);
+
+        expect(prisma.etapa.findFirst).toHaveBeenLastCalledWith({
+            where: { fabrico_id: fabricoId, ativa: true },
+            orderBy: { ordem: "desc" },
+            select: { id: true },
+        });
+        expect(prisma.fichaTecnica.updateMany).toHaveBeenCalledWith({
+            where: { id: 10, produzida_em: null },
+            data: { produzida_em: expect.any(Date) },
+        });
+    });
+
     it("rejeita relatorio.quantidade divergente da quantidade da ficha (fonte é a matriz)", async () => {
         const dto = {
             ...dtoBase,
