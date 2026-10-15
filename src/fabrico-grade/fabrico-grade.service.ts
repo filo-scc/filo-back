@@ -205,25 +205,30 @@ export class FabricoGradeService {
     }
 
     async update(id: number, data: UpdateFabricoGradeDto, user: AuthenticatedUser) {
-        const linkAtual = await this.findOne(id, user);
-
-        if (user.cargo === "ADMIN") {
-            if (data.fabrico_id !== undefined && Number(data.fabrico_id) !== linkAtual.fabrico_id) {
-                throw new BadRequestException("Não é permitido alterar o fabrico da grade");
-            }
-        } else {
-            this.assertFabricoImutavel(data.fabrico_id, this.getFabricoId(user));
+        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+            throw new ForbiddenException(
+                "Usuário não tem permissão para alterar vínculo de grade com fabrico",
+            );
         }
 
-        const { ...dadosUpdate } = data;
+        if (data.fabrico_id !== undefined) {
+            throw new BadRequestException("Não é permitido alterar o fabrico da grade");
+        }
+
+        if (data.grade_id !== undefined) {
+            throw new BadRequestException("Não é permitido alterar a grade do vínculo");
+        }
+
+        if (typeof data.ativo !== "boolean") {
+            throw new BadRequestException("Informe o campo ativo como booleano");
+        }
+
+        const linkAtual = await this.findOne(id, user);
 
         try {
             const link = await this.prisma.fabricoGrade.update({
                 where: { id: linkAtual.id },
-                data: {
-                    ...dadosUpdate,
-                    fabrico_id: linkAtual.fabrico_id,
-                },
+                data: { ativo: data.ativo },
                 include: {
                     fabrico: true,
                     grade: true,
@@ -235,14 +240,6 @@ export class FabricoGradeService {
                 data: link,
             };
         } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                if (error.code === "P2002") {
-                    throw new ConflictException("Essa relação já existe");
-                }
-                if (error.code === "P2003") {
-                    throw new NotFoundException("Relacionamento inválido");
-                }
-            }
             if (error instanceof Prisma.PrismaClientValidationError) {
                 throw new BadRequestException("Dados inválidos");
             }

@@ -147,6 +147,8 @@ describe("Isolamento E2E entre fabricos", () => {
     let tenantB: TenantFixtures;
     let tokenA: string;
     let tokenB: string;
+    let tokenAdmin: string;
+    const adminEmail = `${runId}-admin@filo.test`;
 
     beforeAll(async () => {
         const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -196,8 +198,18 @@ describe("Isolamento E2E entre fabricos", () => {
                 { fabrico_id: tenantB.fabrico.id, grade_id: gradeExclusivaB.id, ativo: true },
             ],
         });
+        await prisma.usuario.create({
+            data: {
+                email: adminEmail,
+                nome: `${runId}-admin`,
+                senha: await bcrypt.hash(password, 10),
+                cargo: Cargo.ADMIN,
+                fabrico_id: null,
+            },
+        });
         tokenA = await login(app, tenantA.user.email);
         tokenB = await login(app, tenantB.user.email);
+        tokenAdmin = await login(app, adminEmail);
     });
 
     afterAll(async () => {
@@ -236,6 +248,7 @@ describe("Isolamento E2E entre fabricos", () => {
         await prisma.etapa.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.tipoProduto.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.usuario.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
+        await prisma.usuario.deleteMany({ where: { email: adminEmail } });
         await prisma.fabricoGrade.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.fabrico.deleteMany({ where: { id: { in: fabricoIds } } });
         await prisma.gradeVersaoItem.deleteMany({
@@ -800,5 +813,64 @@ describe("Isolamento E2E entre fabricos", () => {
         await expect(
             prisma.fichaTecnica.findUniqueOrThrow({ where: { id: tenantA.ficha.id } }),
         ).resolves.toMatchObject({ fabrico_id: tenantA.fabrico.id });
+    });
+
+    it("permite alterar apenas ativo no vínculo fabrico-grade e preserva grade e fabrico originais", async () => {
+        const vinculoA = await prisma.fabricoGrade.findUniqueOrThrow({
+            where: {
+                fabrico_id_grade_id: {
+                    fabrico_id: tenantA.fabrico.id,
+                    grade_id: sharedIds.gradeId,
+                },
+            },
+        });
+        const vinculoOriginal = {
+            fabrico_id: tenantA.fabrico.id,
+            grade_id: sharedIds.gradeId,
+            ativo: true,
+        };
+
+        const tentativasInvalidas = [
+            { ativo: true, grade_id: sharedIds.gradeExclusivaBId },
+            { ativo: true, grade_id: sharedIds.gradeId },
+            { ativo: true, fabrico_id: tenantB.fabrico.id },
+            { ativo: true, fabrico_id: tenantA.fabrico.id },
+            {},
+        ];
+        for (const body of tentativasInvalidas) {
+            await request(app.getHttpServer())
+                .put(`/fabrico-grades/${vinculoA.id}`)
+                .set(auth(tokenAdmin))
+                .send(body)
+                .expect(400);
+        }
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenA))
+            .send({ ativo: false })
+            .expect(403);
+
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject(vinculoOriginal);
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenAdmin))
+            .send({ ativo: false })
+            .expect(200);
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject({ ...vinculoOriginal, ativo: false });
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenAdmin))
+            .send({ ativo: true })
+            .expect(200);
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject(vinculoOriginal);
     });
 });
