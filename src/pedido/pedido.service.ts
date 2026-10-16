@@ -1305,7 +1305,12 @@ export class PedidoService {
             return tx.pedido.update({
                 where: { id: pedido.id },
                 data: {
-                    data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
+                    data_prevista:
+                        data.data_prevista === undefined
+                            ? undefined
+                            : data.data_prevista === null
+                              ? null
+                              : new Date(data.data_prevista),
                     observacoes: data.observacoes,
                     cliente_id: data.cliente_id,
                     valor_total:

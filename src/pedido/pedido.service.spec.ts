@@ -1,10 +1,13 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { toMoney } from "src/common/utils/money";
+import { UpdatePedidoDto } from "./dto/update-pedido.dto";
 
 describe("PedidoService", () => {
     let service: PedidoService;
@@ -1464,6 +1467,85 @@ describe("PedidoService", () => {
     });
 
     describe("update", () => {
+        describe("campos opcionais", () => {
+            beforeEach(() => {
+                mockPrismaService.pedido.findFirst.mockResolvedValue({
+                    id: 1,
+                    fabrico_id: fabricoId,
+                    finalizado: false,
+                    data_prevista: new Date("2026-10-20T00:00:00.000Z"),
+                    observacoes: "Observação existente",
+                    cliente_id: 7,
+                });
+            });
+
+            it("deve preservar campos omitidos ao atualizar somente o custo", async () => {
+                await service.update(1, { custo_total: 140.75 }, fabricoId);
+
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: undefined,
+                        observacoes: undefined,
+                        cliente_id: undefined,
+                        custo_total: toMoney(140.75),
+                    }),
+                });
+                expect(mockPrismaService.cliente.findFirst).not.toHaveBeenCalled();
+            });
+
+            it("deve aceitar null explícito no DTO e limpar os campos", async () => {
+                const dto = plainToInstance(UpdatePedidoDto, {
+                    data_prevista: null,
+                    observacoes: null,
+                    cliente_id: null,
+                });
+
+                expect(await validate(dto)).toEqual([]);
+
+                await service.update(1, dto, fabricoId);
+
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: null,
+                        observacoes: null,
+                        cliente_id: null,
+                    }),
+                });
+                expect(mockPrismaService.cliente.findFirst).not.toHaveBeenCalled();
+            });
+
+            it("deve atualizar os campos preenchidos e validar o cliente no fabrico", async () => {
+                mockPrismaService.cliente.findFirst.mockResolvedValue({
+                    id: 8,
+                    fabrico_id: fabricoId,
+                });
+
+                await service.update(
+                    1,
+                    {
+                        data_prevista: "2026-10-25T00:00:00.000Z",
+                        observacoes: "Observação atualizada",
+                        cliente_id: 8,
+                    },
+                    fabricoId,
+                );
+
+                expect(mockPrismaService.cliente.findFirst).toHaveBeenCalledWith({
+                    where: { id: 8, fabrico_id: fabricoId },
+                });
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: new Date("2026-10-25T00:00:00.000Z"),
+                        observacoes: "Observação atualizada",
+                        cliente_id: 8,
+                    }),
+                });
+            });
+        });
+
         it("deve atualizar um pedido", async () => {
             const pedidoAtualizado = {
                 id: 1,
