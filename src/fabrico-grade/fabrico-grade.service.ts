@@ -44,7 +44,7 @@ export class FabricoGradeService {
     }
 
     async create(data: CreateFabricoGradeDto, user: AuthenticatedUser) {
-        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+        if (user.cargo !== "ADMIN") {
             throw new ForbiddenException(
                 "Usuário não tem permissão para criar vínculo de grade com fabrico",
             );
@@ -205,7 +205,7 @@ export class FabricoGradeService {
     }
 
     async update(id: number, data: UpdateFabricoGradeDto, user: AuthenticatedUser) {
-        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+        if (user.cargo !== "ADMIN") {
             throw new ForbiddenException(
                 "Usuário não tem permissão para alterar vínculo de grade com fabrico",
             );
@@ -248,7 +248,7 @@ export class FabricoGradeService {
     }
 
     async remove(id: number, user: AuthenticatedUser) {
-        if (user.cargo === "GERENTE" || user.cargo === "PROPRIETARIO") {
+        if (user.cargo !== "ADMIN") {
             throw new ForbiddenException(
                 "Usuário não tem permissão para criar vínculo de grade com fabrico",
             );
