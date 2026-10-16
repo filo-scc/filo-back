@@ -2,12 +2,14 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+import { Prisma } from "@prisma/client";
 
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { toMoney } from "src/common/utils/money";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import type { CreatePedidoFichaParceiroDto } from "./dto/create-pedido-completo.dto";
 
 describe("PedidoService", () => {
     let service: PedidoService;
@@ -37,6 +39,7 @@ describe("PedidoService", () => {
 
         produto: {
             findMany: jest.fn(),
+            findUnique: jest.fn(),
             findFirst: jest.fn(),
             update: jest.fn(),
             updateMany: jest.fn(),
@@ -683,6 +686,137 @@ describe("PedidoService", () => {
             finalizado: false,
             fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
         };
+
+        describe("preço de parceiro e custo recalculado", () => {
+            let serviceComRecalculo: PedidoService;
+            let precoGravado: Prisma.Decimal | null;
+            let custoGravado: number;
+
+            beforeEach(async () => {
+                precoGravado = toMoney(4);
+                custoGravado = 12;
+
+                mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+                mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100 });
+                mockPrismaService.produto.findFirst.mockResolvedValue({ id: 5 });
+                mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
+                mockPrismaService.etapa.findMany.mockResolvedValue([
+                    { id: 2, nome: "Costura", ordem: 1 },
+                    { id: 3, nome: "Embalagem", ordem: 2 },
+                ]);
+                mockPrismaService.produto.findMany.mockImplementation(async () => [
+                    { id: 5, custo_total: custoGravado },
+                ]);
+                mockPrismaService.produto.findUnique.mockImplementation(async () => ({
+                    id: 5,
+                    fabrico_id: fabricoId,
+                    tecido: null,
+                    quantidade_tecido: null,
+                    custo_tecido: toMoney(6),
+                    custo_operacional: toMoney(2),
+                    outros_custos: null,
+                    produtoAviamentos: [],
+                    parceiro_produto: [{ preco: precoGravado, parceiro: { categoria: "Costura" } }],
+                }));
+                mockPrismaService.parceiroProduto.upsert.mockImplementation(
+                    async ({ update }: { update: { preco?: Prisma.Decimal | null } }) => {
+                        if (update.preco !== undefined) precoGravado = update.preco;
+                        return { produto_id: 5, parceiro_id: 9, preco: precoGravado };
+                    },
+                );
+                mockPrismaService.produto.update.mockImplementation(
+                    async ({ data }: { data: { custo_total: number } }) => {
+                        custoGravado = data.custo_total;
+                        return { id: 5, custo_total: custoGravado };
+                    },
+                );
+
+                const module = await Test.createTestingModule({
+                    providers: [
+                        PedidoService,
+                        ProdutoService,
+                        { provide: PrismaService, useValue: mockPrismaService },
+                    ],
+                }).compile();
+                serviceComRecalculo = module.get<PedidoService>(PedidoService);
+            });
+
+            const cenarios: {
+                descricao: string;
+                parceiro: CreatePedidoFichaParceiroDto;
+                precoEsperado: number | null;
+                custoUnitarioEsperado: number;
+                custoPedidoEsperado: number;
+            }[] = [
+                {
+                    descricao: "ausente preserva o preço gravado",
+                    parceiro: { parceiro_id: 9 },
+                    precoEsperado: 4,
+                    custoUnitarioEsperado: 12,
+                    custoPedidoEsperado: 360,
+                },
+                {
+                    descricao: "null explícito limpa o preço gravado",
+                    parceiro: { parceiro_id: 9, preco: null },
+                    precoEsperado: null,
+                    custoUnitarioEsperado: 8,
+                    custoPedidoEsperado: 240,
+                },
+                {
+                    descricao: "valor informado atualiza o preço gravado",
+                    parceiro: { parceiro_id: 9, preco: 7.5 },
+                    precoEsperado: 7.5,
+                    custoUnitarioEsperado: 15.5,
+                    custoPedidoEsperado: 465,
+                },
+                {
+                    descricao: "zero é um valor válido e não mantém o preço anterior",
+                    parceiro: { parceiro_id: 9, preco: 0 },
+                    precoEsperado: 0,
+                    custoUnitarioEsperado: 8,
+                    custoPedidoEsperado: 240,
+                },
+            ];
+
+            it.each(cenarios)(
+                "$descricao, recalculando o custo do produto e do pedido",
+                async ({ parceiro, precoEsperado, custoUnitarioEsperado, custoPedidoEsperado }) => {
+                    await serviceComRecalculo.updateCompleto(
+                        100,
+                        {
+                            fichas: [
+                                {
+                                    id: 200,
+                                    produto_id: 5,
+                                    quantidade: 30,
+                                    parceiros: [parceiro],
+                                },
+                            ],
+                        },
+                        fabricoId,
+                    );
+
+                    expect(precoGravado).toEqual(
+                        precoEsperado === null ? null : toMoney(precoEsperado),
+                    );
+                    expect(custoGravado).toBe(custoUnitarioEsperado);
+                    expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
+                        where: { id: 5 },
+                        data: {
+                            custo_tecido: 6,
+                            custo_total: custoUnitarioEsperado,
+                        },
+                    });
+                    expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                        where: { id: 100 },
+                        data: expect.objectContaining({
+                            quantidade: 30,
+                            custo_total: toMoney(custoPedidoEsperado),
+                        }),
+                    });
+                },
+            );
+        });
 
         it("deve rejeitar ficha nova de produto que ja tem ficha no pedido", async () => {
             await expect(

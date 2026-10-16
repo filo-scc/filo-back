@@ -1066,7 +1066,7 @@ export class PedidoService {
                     produto_id_parceiro_id: { produto_id: produtoId, parceiro_id: parceiroId },
                 },
                 create: { produto_id: produtoId, parceiro_id: parceiroId, preco },
-                update: { preco },
+                update: parceiro.preco === undefined ? {} : { preco },
             });
         }
 
