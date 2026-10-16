@@ -82,6 +82,8 @@ export class ProdutoService {
         fabricoId: number,
     ) {
         // FOR SHARE impede que a liberação, a versão ou a grade sejam desativadas antes do commit.
+        // Prisma não emite FOR SHARE; trava versão, grade e liberação até o commit
+        // para a validação e a escrita do produto não divergirem sob concorrência.
         const liberacoes = await db.$queryRaw<{ id: number }[]>(
             Prisma.sql`
                 SELECT gv."id"
