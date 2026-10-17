@@ -60,7 +60,7 @@ push -> master            -> validação da imagem, publicação, migrations e d
 
 ## Risco de Merge
 
-**Door:** two-way
+**Porta de merge:** reversível (`two-way door`)
 
 O rollback pode ser feito revertendo os commits desta task. O impacto fica restrito ao workflow de CI e à compilação das specs.
 
