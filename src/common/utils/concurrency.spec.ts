@@ -29,12 +29,11 @@ describe("concurrency", () => {
     });
 
     it("reconhece conflito de idempotência pelo target do Prisma", () => {
-        const error = Object.assign(new Error("unique"), {
+        const error = new Prisma.PrismaClientKnownRequestError("unique", {
             code: "P2002",
             meta: { target: ["fabrico_id", "idempotency_key"] },
             clientVersion: "0",
-            name: "PrismaClientKnownRequestError",
-        }) as Prisma.PrismaClientKnownRequestError;
+        });
 
         expect(isIdempotencyConflict(error)).toBe(true);
     });

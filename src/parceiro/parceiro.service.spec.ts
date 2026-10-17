@@ -5,7 +5,6 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 import { EnderecoService } from "../endereco/endereco.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -40,24 +39,24 @@ describe("ParceiroService", () => {
 
     const mockPrismaService = {
         parceiro: {
-            findMany: jest.fn<any>(),
-            findUnique: jest.fn<any>(),
-            findFirst: jest.fn<any>(),
-            create: jest.fn<any>(),
-            update: jest.fn<any>(),
-            delete: jest.fn<any>(),
+            findMany: jest.fn(),
+            findUnique: jest.fn(),
+            findFirst: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
         },
-        $transaction: jest.fn<any>(),
+        $transaction: jest.fn(),
     };
 
     const mockEnderecoService = {
-        create: jest.fn<any>(),
-        update: jest.fn<any>(),
+        create: jest.fn(),
+        update: jest.fn(),
     };
 
     const mockProdutoService = {
-        bloquearProdutosParaRecalculo: jest.fn<any>(),
-        recalcularCustosTotais: jest.fn<any>(),
+        bloquearProdutosParaRecalculo: jest.fn(),
+        recalcularCustosTotais: jest.fn(),
     };
 
     const mockParceiro = {
