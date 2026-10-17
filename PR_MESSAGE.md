@@ -26,6 +26,7 @@ Atualiza o CI do backend para validar pull requests destinados à branch `develo
 - [x] Adicionado o typecheck após a geração do Prisma Client.
 - [x] Restrita a validação da imagem de produção a PRs para `master` e `push` em `master`.
 - [x] Corrigidos os fixtures e payloads das cinco famílias de specs sem alterar DTOs ou services de produção.
+- [x] Ajustada a spec de parceiro para usar os globais e mocks compatíveis com o Jest configurado no projeto.
 - [x] Mantidas as condições de publicação, migrations de produção e deploy somente para `push` em `master`.
 
 ## Checklist
@@ -45,7 +46,7 @@ Não há alteração visual que exija screenshots.
 
 - Prettier completo: passou.
 - ESLint dos arquivos alterados: passou.
-- Specs alteradas: 5 suites e 86 testes passaram.
+- Specs alteradas: 6 suites e 103 testes passaram.
 - Suíte completa: 699 testes passaram; uma suite falhou porque `@nestjs/schedule` não está instalado localmente.
 - Typecheck: os erros das specs foram resolvidos; a execução local ficou bloqueada pela dependência ausente `@nestjs/schedule`.
 - Build: bloqueado por `EACCES` preexistente ao remover `dist/prisma`.
