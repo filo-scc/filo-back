@@ -28,96 +28,103 @@ export type PedidoFicha = {
 };
 
 export async function createConcurrencyFixtures(prisma: PrismaService): Promise<Fixtures> {
-    const fabrico = await prisma.fabrico.create({
-        data: {
-            nome_fantasia: `${runId}-fabrico`,
-            razao_social: `${runId}-razao`,
-            cnpj: `${Date.now()}${Math.floor(Math.random() * 10)}`.slice(0, 14),
-        },
-    });
     const email = `${runId}@filo.test`;
+    const senha = await bcrypt.hash(password, 10);
 
-    await prisma.usuario.create({
-        data: {
-            email,
-            nome: `${runId}-usuario`,
-            senha: await bcrypt.hash(password, 10),
-            cargo: Cargo.PROPRIETARIO,
-            fabrico_id: fabrico.id,
-        },
-    });
-
-    const cliente = await prisma.cliente.create({
-        data: {
-            nome: `${runId}-cliente`,
-            status: true,
-            fabrico_id: fabrico.id,
-        },
-    });
-    const tipoProduto = await prisma.tipoProduto.create({
-        data: { nome: `${runId}-tipo`, fabrico_id: fabrico.id },
-    });
-    const tamanho = await prisma.tamanho.create({
-        data: { codigo: `${runId}-P`, ordem_global: Math.floor(Math.random() * 1000000) },
-    });
-    const grade = await prisma.grade.create({
-        data: { nome: `${runId}-grade`, ativo: true },
-    });
-    const gradeVersao = await prisma.gradeVersao.create({
-        data: { grade_id: grade.id, versao: 1, ativo: true },
-    });
-    await prisma.gradeItem.create({
-        data: { grade_id: grade.id, tamanho_id: tamanho.id, posicao: 1 },
-    });
-    const gradeVersaoItem = await prisma.gradeVersaoItem.create({
-        data: { grade_versao_id: gradeVersao.id, tamanho_id: tamanho.id, posicao: 1 },
-    });
-    await prisma.fabricoGrade.create({
-        data: { fabrico_id: fabrico.id, grade_id: grade.id, ativo: true },
-    });
-
-    const produto = await prisma.produto.create({
-        data: {
-            nome: `${runId}-produto`,
-            tipo_produto_id: tipoProduto.id,
-            fabrico_id: fabrico.id,
-            grade_versao_id: gradeVersao.id,
-        },
-    });
-    const cor = await prisma.cor.create({
-        data: {
-            nome: `${runId}-cor`,
-            codigo_hex: "#FFFFFF",
-            tipo: TipoCor.COR,
-            fabrico_id: fabrico.id,
-        },
-    });
-    const etapas = await Promise.all(
-        [1, 2, 3].map((ordem) =>
-            prisma.etapa.create({
+    return prisma.$transaction(
+        async (tx) => {
+            const fabrico = await tx.fabrico.create({
                 data: {
-                    nome: `${runId}-etapa-${ordem}`,
-                    ordem,
-                    ativa: true,
+                    nome_fantasia: `${runId}-fabrico`,
+                    razao_social: `${runId}-razao`,
+                    cnpj: `${Date.now()}${Math.floor(Math.random() * 10)}`.slice(0, 14),
+                },
+            });
+
+            await tx.usuario.create({
+                data: {
+                    email,
+                    nome: `${runId}-usuario`,
+                    senha,
+                    cargo: Cargo.PROPRIETARIO,
                     fabrico_id: fabrico.id,
                 },
-                select: { id: true, ordem: true },
-            }),
-        ),
-    );
+            });
 
-    return {
-        fabricoId: fabrico.id,
-        email,
-        tamanhoId: tamanho.id,
-        gradeId: grade.id,
-        gradeVersaoId: gradeVersao.id,
-        gradeVersaoItemId: gradeVersaoItem.id,
-        clienteId: cliente.id,
-        produtoId: produto.id,
-        corId: cor.id,
-        etapas: etapas as Fixtures["etapas"],
-    };
+            const cliente = await tx.cliente.create({
+                data: {
+                    nome: `${runId}-cliente`,
+                    status: true,
+                    fabrico_id: fabrico.id,
+                },
+            });
+            const tipoProduto = await tx.tipoProduto.create({
+                data: { nome: `${runId}-tipo`, fabrico_id: fabrico.id },
+            });
+            const tamanho = await tx.tamanho.create({
+                data: { codigo: `${runId}-P`, ordem_global: Math.floor(Math.random() * 1000000) },
+            });
+            const grade = await tx.grade.create({
+                data: { nome: `${runId}-grade`, ativo: true },
+            });
+            const gradeVersao = await tx.gradeVersao.create({
+                data: { grade_id: grade.id, versao: 1, ativo: true },
+            });
+            await tx.gradeItem.create({
+                data: { grade_id: grade.id, tamanho_id: tamanho.id, posicao: 1 },
+            });
+            const gradeVersaoItem = await tx.gradeVersaoItem.create({
+                data: { grade_versao_id: gradeVersao.id, tamanho_id: tamanho.id, posicao: 1 },
+            });
+            await tx.fabricoGrade.create({
+                data: { fabrico_id: fabrico.id, grade_id: grade.id, ativo: true },
+            });
+
+            const produto = await tx.produto.create({
+                data: {
+                    nome: `${runId}-produto`,
+                    tipo_produto_id: tipoProduto.id,
+                    fabrico_id: fabrico.id,
+                    grade_versao_id: gradeVersao.id,
+                },
+            });
+            const cor = await tx.cor.create({
+                data: {
+                    nome: `${runId}-cor`,
+                    codigo_hex: "#FFFFFF",
+                    tipo: TipoCor.COR,
+                    fabrico_id: fabrico.id,
+                },
+            });
+            const etapas = await Promise.all(
+                [1, 2, 3].map((ordem) =>
+                    tx.etapa.create({
+                        data: {
+                            nome: `${runId}-etapa-${ordem}`,
+                            ordem,
+                            ativa: true,
+                            fabrico_id: fabrico.id,
+                        },
+                        select: { id: true, ordem: true },
+                    }),
+                ),
+            );
+
+            return {
+                fabricoId: fabrico.id,
+                email,
+                tamanhoId: tamanho.id,
+                gradeId: grade.id,
+                gradeVersaoId: gradeVersao.id,
+                gradeVersaoItemId: gradeVersaoItem.id,
+                clienteId: cliente.id,
+                produtoId: produto.id,
+                corId: cor.id,
+                etapas: etapas as Fixtures["etapas"],
+            };
+        },
+        { maxWait: 15000, timeout: 60000 },
+    );
 }
 
 let nextPedidoNumber = 1000;
