@@ -21,15 +21,12 @@ describe("uploadFileFilter", () => {
         );
     });
 
-    it.each(["image/jpeg", "image/png", "image/webp"])(
-        "aceita o formato %s",
-        (mimetype) => {
-            const callback = jest.fn();
-            const file = { mimetype } as Express.Multer.File;
+    it.each(["image/jpeg", "image/png", "image/webp"])("aceita o formato %s", (mimetype) => {
+        const callback = jest.fn();
+        const file = { mimetype } as Express.Multer.File;
 
-            uploadFileFilter(req, file, callback);
+        uploadFileFilter(req, file, callback);
 
-            expect(callback).toHaveBeenCalledWith(null, true);
-        },
-    );
+        expect(callback).toHaveBeenCalledWith(null, true);
+    });
 });
