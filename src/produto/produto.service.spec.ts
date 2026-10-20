@@ -25,7 +25,7 @@ describe("ProdutoService", () => {
             $transaction: jest.fn((cb) =>
                 typeof cb === "function" ? cb(prisma) : Promise.all(cb),
             ),
-            $queryRaw: jest.fn(),
+            $queryRaw: jest.fn().mockResolvedValue([]),
             produto: {
                 create: jest.fn(),
                 findMany: jest.fn(),
@@ -34,9 +34,6 @@ describe("ProdutoService", () => {
                 update: jest.fn(),
                 updateMany: jest.fn(),
                 delete: jest.fn(),
-            },
-            gradeVersao: {
-                findFirst: jest.fn(),
             },
             tipoProduto: {
                 findFirst: jest.fn().mockResolvedValue({ id: 1 }),
@@ -79,13 +76,51 @@ describe("ProdutoService", () => {
             });
         });
 
-        it("valida versão de grade e lança erro se inativa ou inexistente", async () => {
-            prisma.gradeVersao.findFirst.mockResolvedValue(null);
+        it("rejeita versão de grade inexistente, inativa ou não liberada com a mesma resposta", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
 
-            const dto = { nome: "Camiseta", grade_versao_id: 5 };
+            const dto = { nome: "Camiseta", tipo_produto_id: 1, grade_versao_id: 5 };
             await expect(service.create(dto as any, mockUser)).rejects.toThrow(
-                new BadRequestException("Versão de grade inválida ou inativa"),
+                new BadRequestException("Versão de grade inválida ou não liberada para o fabrico"),
             );
+            expect(prisma.produto.create).not.toHaveBeenCalled();
+        });
+
+        it("valida a liberação da grade via FabricoGrade do fabrico do usuário", async () => {
+            prisma.$queryRaw.mockResolvedValueOnce([{ id: 5 }]);
+            prisma.produto.create.mockResolvedValue({ id: 1 });
+
+            await service.create(
+                { nome: "Camiseta", tipo_produto_id: 1, grade_versao_id: 5 } as any,
+                mockUser,
+            );
+
+            const consulta = prisma.$queryRaw.mock.calls[0][0];
+            expect(consulta.sql).toContain('"fabrico_grades"');
+            expect(consulta.sql).toContain("FOR SHARE");
+            expect(consulta.values).toEqual([5, 10]);
+            expect(prisma.produto.create).toHaveBeenCalledWith({
+                data: { nome: "Camiseta", tipo_produto_id: 1, grade_versao_id: 5, fabrico_id: 10 },
+            });
+        });
+
+        it("valida relações e cria o produto na mesma transação", async () => {
+            prisma.produto.create.mockResolvedValue({ id: 1 });
+
+            await service.create({ nome: "Camiseta", tipo_produto_id: 1 } as any, mockUser);
+
+            expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+            expect(prisma.tipoProduto.findFirst).toHaveBeenCalled();
+            expect(prisma.produto.create).toHaveBeenCalled();
+        });
+
+        it("não valida relações opcionais omitidas", async () => {
+            prisma.produto.create.mockResolvedValue({ id: 1 });
+
+            await service.create({ nome: "Camiseta", tipo_produto_id: 1 } as any, mockUser);
+
+            expect(prisma.tecido.findFirst).not.toHaveBeenCalled();
+            expect(prisma.$queryRaw).not.toHaveBeenCalled();
         });
 
         it("traduz erro P2002 do Prisma no create", async () => {
@@ -255,8 +290,10 @@ describe("ProdutoService", () => {
     });
 
     describe("update", () => {
+        const mockProdutoBloqueado = () => prisma.$queryRaw.mockResolvedValueOnce([{ id: 1 }]);
+
         it("atualiza produto sem recalcular custo quando nenhum campo de custo muda", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            mockProdutoBloqueado();
             prisma.produto.update.mockResolvedValue({ id: 1, nome: "Camiseta Polo" });
 
             const res = await service.update(1, { nome: "Camiseta Polo" }, mockUser);
@@ -266,10 +303,34 @@ describe("ProdutoService", () => {
                 where: { id: 1 },
                 data: { nome: "Camiseta Polo", fabrico_id: 10 },
             });
+            expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+        });
+
+        it("bloqueia o produto ativo do fabrico do usuário dentro da transação", async () => {
+            mockProdutoBloqueado();
+            prisma.produto.update.mockResolvedValue({});
+
+            await service.update(1, { nome: "Camiseta Polo" }, mockUser);
+
+            const consulta = prisma.$queryRaw.mock.calls[0][0];
+            expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+            expect(consulta.sql).toContain('"produtos"');
+            expect(consulta.sql).toContain("FOR UPDATE");
+            expect(consulta.values).toEqual([1, 10]);
+        });
+
+        it("não revela produto inativo, inexistente ou de outro fabrico e não valida relações", async () => {
+            prisma.$queryRaw.mockResolvedValueOnce([]);
+
+            await expect(
+                service.update(1, { tipo_produto_id: 3, grade_versao_id: 5 }, mockUser),
+            ).rejects.toThrow(new NotFoundException("Produto não encontrado"));
+            expect(prisma.tipoProduto.findFirst).not.toHaveBeenCalled();
+            expect(prisma.produto.update).not.toHaveBeenCalled();
         });
 
         it("rejeita troca para tecido de outro fabrico no update", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            mockProdutoBloqueado();
             prisma.tecido.findFirst.mockResolvedValue(null);
 
             await expect(service.update(1, { tecido_id: 4 }, mockUser)).rejects.toThrow(
@@ -278,8 +339,69 @@ describe("ProdutoService", () => {
             expect(prisma.produto.update).not.toHaveBeenCalled();
         });
 
+        it("rejeita troca para tipo de produto de outro fabrico no update", async () => {
+            mockProdutoBloqueado();
+            prisma.tipoProduto.findFirst.mockResolvedValue(null);
+
+            await expect(service.update(1, { tipo_produto_id: 3 }, mockUser)).rejects.toThrow(
+                new BadRequestException("Tipo de produto inválido"),
+            );
+            expect(prisma.tipoProduto.findFirst).toHaveBeenCalledWith({
+                where: { id: 3, fabrico_id: 10 },
+                select: { id: true },
+            });
+            expect(prisma.produto.update).not.toHaveBeenCalled();
+        });
+
+        it("rejeita remoção do tipo de produto obrigatório", async () => {
+            mockProdutoBloqueado();
+
+            await expect(
+                service.update(1, { tipo_produto_id: null } as any, mockUser),
+            ).rejects.toThrow(new BadRequestException("Tipo de produto inválido"));
+            expect(prisma.tipoProduto.findFirst).not.toHaveBeenCalled();
+            expect(prisma.produto.update).not.toHaveBeenCalled();
+        });
+
+        it("rejeita troca para versão de grade não liberada para o fabrico", async () => {
+            mockProdutoBloqueado();
+            prisma.$queryRaw.mockResolvedValueOnce([]);
+
+            await expect(service.update(1, { grade_versao_id: 7 }, mockUser)).rejects.toThrow(
+                new BadRequestException("Versão de grade inválida ou não liberada para o fabrico"),
+            );
+            expect(prisma.$queryRaw.mock.calls[1][0].values).toEqual([7, 10]);
+            expect(prisma.produto.update).not.toHaveBeenCalled();
+        });
+
+        it("aceita troca para versão de grade liberada para o fabrico", async () => {
+            mockProdutoBloqueado();
+            prisma.$queryRaw.mockResolvedValueOnce([{ id: 7 }]);
+            prisma.produto.update.mockResolvedValue({});
+
+            await service.update(1, { grade_versao_id: 7 }, mockUser);
+
+            expect(prisma.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { grade_versao_id: 7, fabrico_id: 10 },
+            });
+        });
+
+        it("remove a versão de grade com null sem consultar liberação", async () => {
+            mockProdutoBloqueado();
+            prisma.produto.update.mockResolvedValue({});
+
+            await service.update(1, { grade_versao_id: null } as any, mockUser);
+
+            expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+            expect(prisma.produto.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { grade_versao_id: null, fabrico_id: 10 },
+            });
+        });
+
         it("não permite reativar produto nem alterar delete_at pelo payload comum", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10, ativo: true });
+            mockProdutoBloqueado();
             prisma.produto.update.mockResolvedValue({ id: 1, nome: "Camiseta Polo" });
 
             await service.update(
@@ -295,7 +417,7 @@ describe("ProdutoService", () => {
         });
 
         it("executa transação e recálculo quando altera campos referentes a custo", async () => {
-            prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });
+            mockProdutoBloqueado();
             prisma.produto.findUnique.mockResolvedValue({
                 id: 1,
                 fabrico_id: 10,
