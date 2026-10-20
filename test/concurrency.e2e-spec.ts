@@ -299,7 +299,7 @@ describe("Concorrencia E2E com PostgreSQL", () => {
         }
     });
 
-    it("transferencia e update da ficha nao perdem a atualizacao", async () => {
+    it("transferencia e update da ficha preservam a etapa e o historico", async () => {
         const { pedidoId, fichaId } = await createPedidoFicha(
             prisma,
             fixtures,
@@ -325,7 +325,6 @@ describe("Concorrencia E2E com PostgreSQL", () => {
                 .put(`/fichas-tecnicas/${fichaId}`)
                 .set(auth(token))
                 .send({
-                    etapa_atual_id: fixtures.etapas[2].id,
                     observacoes: "update concorrente",
                 })
                 .then((response) => response);
@@ -338,12 +337,25 @@ describe("Concorrencia E2E com PostgreSQL", () => {
             ]);
 
             expect(transferResult.status).toBe(201);
-            expect(updateResult.status).toBe(409);
+            expect(updateResult.status).toBe(200);
 
             const estado = await prisma.fichaTecnica.findUniqueOrThrow({
                 where: { id: fichaId },
+                include: { fichas_etapas: true },
             });
             expect(estado.etapa_atual_id).toBe(fixtures.etapas[1].id);
+            expect(estado.fichas_etapas).toHaveLength(2);
+
+            const etapasAbertas = estado.fichas_etapas.filter((etapa) => etapa.data_fim === null);
+            expect(etapasAbertas).toHaveLength(1);
+            expect(etapasAbertas[0].etapa_id).toBe(fixtures.etapas[1].id);
+
+            const etapaOrigem = estado.fichas_etapas.find(
+                (etapa) => etapa.etapa_id === fixtures.etapas[0].id,
+            );
+            expect(etapaOrigem).toBeDefined();
+            expect(etapaOrigem?.data_fim).not.toBeNull();
+            expect(estado.observacoes).toBe("update concorrente");
         } finally {
             lock.release();
             await lock.finished;
