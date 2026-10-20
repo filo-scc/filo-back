@@ -8,10 +8,19 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFichaTecnicaItemDto } from "./dto/create-ficha-tecnica-item.dto";
 import { UpdateFichaTecnicaItemDto } from "./dto/update-ficha-tecnica-item.dto";
+import { FichaTecnicaService } from "./ficha-tecnica.service";
+import {
+    assertMatrizSemMudanca,
+    matrizEquivalente,
+    MSG_MATRIZ_CONCLUIDA,
+} from "src/common/utils/ficha";
 
 @Injectable()
 export class FichaTecnicaItemService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly fichaTecnicaService: FichaTecnicaService,
+    ) {}
 
     private validateDuplicados(itens: CreateFichaTecnicaItemDto[]) {
         const chaves = new Set<string>();
@@ -31,6 +40,7 @@ export class FichaTecnicaItemService {
                 id: true,
                 fabrico_id: true,
                 grade_versao_id: true,
+                concluida: true,
             },
         });
         if (!ficha) {
@@ -98,6 +108,20 @@ export class FichaTecnicaItemService {
         fabrico_id: number,
     ) {
         const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
+
+        const itensAtuais = await this.prisma.fichaTecnicaItem.findMany({
+            where: { ficha_tecnica_id: Number(ficha_tecnica_id) },
+            include: {
+                cor: true,
+                grade_versao_item: { include: { tamanho: true, grade_versao: true } },
+            },
+            orderBy: [{ cor_id: "asc" }, { grade_versao_item: { posicao: "asc" } }],
+        });
+
+        if (ficha.concluida) {
+            assertMatrizSemMudanca(ficha, !matrizEquivalente(itensAtuais, itens));
+            return { message: "Itens inalterados (eco)", data: itensAtuais };
+        }
 
         if (!itens.length) {
             throw new BadRequestException("Informe ao menos um item para a ficha técnica");
@@ -188,6 +212,20 @@ export class FichaTecnicaItemService {
     async update(id: number, data: UpdateFichaTecnicaItemDto, fabrico_id: number) {
         const atual = await this.findOne(id, fabrico_id);
 
+        if (atual?.ficha_tecnica?.concluida) {
+            const mesmaCor = data.cor_id === undefined || Number(data.cor_id) === atual.cor_id;
+            const mesmaGrade =
+                data.grade_versao_item_id === undefined ||
+                Number(data.grade_versao_item_id) === atual.grade_versao_item_id;
+            const mesmaQtd =
+                data.quantidade === undefined || Number(data.quantidade) === atual.quantidade;
+
+            if (!mesmaCor || !mesmaGrade || !mesmaQtd) {
+                throw new ConflictException(MSG_MATRIZ_CONCLUIDA);
+            }
+            return { message: "Item da ficha técnica atualizado com sucesso (eco)", data: atual };
+        }
+
         if (data.cor_id && data.cor_id !== atual.cor_id) {
             const cor = await this.prisma.cor.findFirst({
                 where: { id: Number(data.cor_id), fabrico_id: atual.ficha_tecnica.fabrico_id },
@@ -250,7 +288,17 @@ export class FichaTecnicaItemService {
     }
 
     async remove(id: number, fabrico_id: number) {
-        await this.findOne(id, fabrico_id);
+        const ficha_item = await this.findOne(id, fabrico_id);
+
+        if (ficha_item?.ficha_tecnica?.concluida) {
+            if (Number(ficha_item.quantidade) === 0) {
+                return {
+                    message: "Item da ficha técnica removido com sucesso (eco)",
+                    data: ficha_item,
+                };
+            }
+            throw new ConflictException(MSG_MATRIZ_CONCLUIDA);
+        }
 
         try {
             const item = await this.prisma.fichaTecnicaItem.delete({ where: { id } });
@@ -268,6 +316,16 @@ export class FichaTecnicaItemService {
 
     async clearByFichaTecnicaID(ficha_tecnica_id: number, fabrico_id: number) {
         const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
+
+        if (ficha.concluida) {
+            const total = await this.prisma.fichaTecnicaItem.count({
+                where: { ficha_tecnica_id: ficha.id },
+            });
+
+            // Concluída: só passa se não há nada a remover (no-op)
+            assertMatrizSemMudanca(ficha, total > 0);
+            return { message: "Itens da ficha técnica removidos com sucesso" };
+        }
 
         try {
             await this.prisma.fichaTecnicaItem.deleteMany({
@@ -287,13 +345,8 @@ export class FichaTecnicaItemService {
         const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         const cor = await this.prisma.cor.findFirst({
-            where: {
-                id: Number(cor_id),
-                fabrico_id: ficha.fabrico_id,
-            },
-            select: {
-                id: true,
-            },
+            where: { id: Number(cor_id), fabrico_id: ficha.fabrico_id },
+            select: { id: true },
         });
 
         if (!cor) {
@@ -301,15 +354,9 @@ export class FichaTecnicaItemService {
         }
 
         const itensGrade = await this.prisma.gradeVersaoItem.findMany({
-            where: {
-                grade_versao_id: ficha.grade_versao_id,
-            },
-            select: {
-                id: true,
-            },
-            orderBy: {
-                posicao: "asc",
-            },
+            where: { grade_versao_id: ficha.grade_versao_id },
+            select: { id: true },
+            orderBy: { posicao: "asc" },
         });
 
         if (!itensGrade.length) {
@@ -319,13 +366,8 @@ export class FichaTecnicaItemService {
         }
 
         const itensExistentes = await this.prisma.fichaTecnicaItem.findMany({
-            where: {
-                ficha_tecnica_id: ficha.id,
-                cor_id: cor.id,
-            },
-            select: {
-                grade_versao_item_id: true,
-            },
+            where: { ficha_tecnica_id: ficha.id, cor_id: cor.id },
+            select: { grade_versao_item_id: true },
         });
 
         const existentesSet = new Set(itensExistentes.map((item) => item.grade_versao_item_id));
@@ -339,19 +381,16 @@ export class FichaTecnicaItemService {
                 quantidade: 0,
             }));
 
+        // Concluída: só passa se não houver nada a criar (no-op)
+        assertMatrizSemMudanca(ficha, novosItens.length > 0);
+
         if (!novosItens.length) {
-            return {
-                message: "Essa cor já possui todos os itens da grade nessa ficha técnica",
-            };
+            return { message: "Essa cor já possui todos os itens da grade nessa ficha técnica" };
         }
 
-        await this.prisma.fichaTecnicaItem.createMany({
-            data: novosItens,
-        });
+        await this.prisma.fichaTecnicaItem.createMany({ data: novosItens });
 
-        return {
-            message: "Itens da cor gerados com sucesso",
-        };
+        return { message: "Itens da cor gerados com sucesso" };
     }
 
     async gerarItensPorCoresBatch(
@@ -363,10 +402,7 @@ export class FichaTecnicaItemService {
 
         // valida cores pertencentes ao fabrico
         const cores = await this.prisma.cor.findMany({
-            where: {
-                id: { in: cores_ids.map(Number) },
-                fabrico_id: ficha.fabrico_id,
-            },
+            where: { id: { in: cores_ids.map(Number) }, fabrico_id: ficha.fabrico_id },
             select: { id: true },
         });
 
@@ -378,15 +414,9 @@ export class FichaTecnicaItemService {
 
         // busca tamanhos da grade
         const itensGrade = await this.prisma.gradeVersaoItem.findMany({
-            where: {
-                grade_versao_id: ficha.grade_versao_id,
-            },
-            select: {
-                id: true,
-            },
-            orderBy: {
-                posicao: "asc",
-            },
+            where: { grade_versao_id: ficha.grade_versao_id },
+            select: { id: true },
+            orderBy: { posicao: "asc" },
         });
 
         if (!itensGrade.length) {
@@ -397,14 +427,8 @@ export class FichaTecnicaItemService {
 
         // evita duplicação (idempotente)
         const existentes = await this.prisma.fichaTecnicaItem.findMany({
-            where: {
-                ficha_tecnica_id: ficha.id,
-                cor_id: { in: cores_ids },
-            },
-            select: {
-                cor_id: true,
-                grade_versao_item_id: true,
-            },
+            where: { ficha_tecnica_id: ficha.id, cor_id: { in: cores_ids } },
+            select: { cor_id: true, grade_versao_item_id: true },
         });
 
         const existentesSet = new Set(
@@ -420,9 +444,7 @@ export class FichaTecnicaItemService {
 
         for (const cor of cores) {
             for (const item of itensGrade) {
-                const key = `${cor.id}-${item.id}`;
-
-                if (!existentesSet.has(key)) {
+                if (!existentesSet.has(`${cor.id}-${item.id}`)) {
                     novosItens.push({
                         ficha_tecnica_id: ficha.id,
                         cor_id: cor.id,
@@ -433,15 +455,14 @@ export class FichaTecnicaItemService {
             }
         }
 
+        // Concluída: só passa se não houver nada a criar (no-op)
+        assertMatrizSemMudanca(ficha, novosItens.length > 0);
+
         if (!novosItens.length) {
-            return {
-                message: "Todas as combinações já existem",
-            };
+            return { message: "Todas as combinações já existem" };
         }
 
-        await this.prisma.fichaTecnicaItem.createMany({
-            data: novosItens,
-        });
+        await this.prisma.fichaTecnicaItem.createMany({ data: novosItens });
 
         return {
             message: "Matriz de cores x tamanhos criada com sucesso",
@@ -454,10 +475,7 @@ export class FichaTecnicaItemService {
 
         // valida se cores pertencem ao fabrico
         const cores = await this.prisma.cor.findMany({
-            where: {
-                id: { in: cores_ids.map(Number) },
-                fabrico_id: ficha.fabrico_id,
-            },
+            where: { id: { in: cores_ids.map(Number) }, fabrico_id: ficha.fabrico_id },
             select: { id: true },
         });
 
@@ -469,12 +487,12 @@ export class FichaTecnicaItemService {
 
         return this.prisma.$transaction(async (tx) => {
             const itensExistentes = await tx.fichaTecnicaItem.findMany({
-                where: {
-                    ficha_tecnica_id: ficha.id,
-                    cor_id: { in: cores_ids },
-                },
+                where: { ficha_tecnica_id: ficha.id, cor_id: { in: cores_ids } },
                 select: { id: true },
             });
+
+            // Concluída: só passa se não houver nada a remover (no-op)
+            assertMatrizSemMudanca(ficha, itensExistentes.length > 0);
 
             if (!itensExistentes.length) {
                 return {
@@ -484,10 +502,7 @@ export class FichaTecnicaItemService {
             }
 
             const deleteResult = await tx.fichaTecnicaItem.deleteMany({
-                where: {
-                    ficha_tecnica_id: ficha.id,
-                    cor_id: { in: cores_ids },
-                },
+                where: { ficha_tecnica_id: ficha.id, cor_id: { in: cores_ids } },
             });
 
             return {
@@ -501,6 +516,30 @@ export class FichaTecnicaItemService {
         const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
 
         const coresUnicas = [...new Set(cores_ids.map(Number))];
+
+        const existentesAntesTx = await this.prisma.fichaTecnicaItem.findMany({
+            where: { ficha_tecnica_id: ficha.id },
+            select: { cor_id: true },
+        });
+
+        const coresAtuaisAntesTx = [...new Set(existentesAntesTx.map((item) => item.cor_id))];
+        const coresParaRemoverCheck = coresAtuaisAntesTx.filter(
+            (corId) => !coresUnicas.includes(corId),
+        );
+        const coresParaAdicionarCheck = coresUnicas.filter(
+            (corId) => !coresAtuaisAntesTx.includes(corId),
+        );
+
+        if (ficha.concluida) {
+            if (coresParaRemoverCheck.length > 0 || coresParaAdicionarCheck.length > 0) {
+                throw new ConflictException(MSG_MATRIZ_CONCLUIDA);
+            }
+            return {
+                message: "Cores da ficha técnica sincronizadas com sucesso (eco)",
+                cores_adicionadas: 0,
+                cores_removidas: 0,
+            };
+        }
 
         const coresValidas = await this.prisma.cor.findMany({
             where: {
@@ -577,6 +616,9 @@ export class FichaTecnicaItemService {
 
     async create(ficha_tecnica_id: number, data: CreateFichaTecnicaItemDto, fabrico_id: number) {
         const ficha = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
+        if (ficha.concluida) {
+            throw new ConflictException(MSG_MATRIZ_CONCLUIDA);
+        }
 
         const cor = await this.prisma.cor.findFirst({
             where: { id: Number(data.cor_id), fabrico_id: ficha.fabrico_id },

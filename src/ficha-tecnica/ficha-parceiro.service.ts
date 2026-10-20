@@ -8,6 +8,7 @@ import { CreateFichaParceiroDto } from "./dto/create-ficha-parceiro.dto";
 import { UpdateFichaParceiroDto } from "./dto/update-ficha-parceiro.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+import { mesmoPreco, MSG_FICHA_CONCLUIDA } from "src/common/utils/ficha";
 
 @Injectable()
 export class FichaParceiroService {
@@ -16,12 +17,15 @@ export class FichaParceiroService {
     async create(data: CreateFichaParceiroDto, fabrico_id: number) {
         const fichaExiste = await this.prisma.fichaTecnica.findFirst({
             where: { id: data.ficha_id, fabrico_id },
-            select: { id: true },
+            select: { id: true, concluida: true },
         });
         if (!fichaExiste) {
             throw new NotFoundException(
                 "Ficha Técnica não encontrada ou o fabrico não possui essa ficha",
             );
+        }
+        if (fichaExiste.concluida) {
+            throw new ConflictException(MSG_FICHA_CONCLUIDA);
         }
 
         const parceiroExiste = await this.prisma.parceiro.findFirst({
@@ -93,7 +97,20 @@ export class FichaParceiroService {
         data: UpdateFichaParceiroDto,
         fabrico_id: number,
     ) {
-        await this.findOne(ficha_id, parceiro_id, fabrico_id);
+        const atual = await this.findOne(ficha_id, parceiro_id, fabrico_id);
+
+        if (atual?.ficha?.concluida) {
+            const mudou =
+                (data.operacao !== undefined && (data.operacao ?? "") !== (atual.operacao ?? "")) ||
+                (data.quantidade !== undefined &&
+                    Number(data.quantidade ?? 0) !== Number(atual.quantidade ?? 0)) ||
+                (data.valor !== undefined && !mesmoPreco(data.valor, atual.valor));
+
+            if (mudou) {
+                throw new ConflictException(MSG_FICHA_CONCLUIDA);
+            }
+            return atual;
+        }
 
         return await this.prisma.fichaParceiro.update({
             where: {
@@ -111,7 +128,10 @@ export class FichaParceiroService {
     }
 
     async remove(ficha_id: number, parceiro_id: number, fabrico_id: number) {
-        await this.findOne(ficha_id, parceiro_id, fabrico_id);
+        const atual = await this.findOne(ficha_id, parceiro_id, fabrico_id);
+        if (atual.ficha.concluida) {
+            throw new ConflictException(MSG_FICHA_CONCLUIDA);
+        }
 
         await this.prisma.fichaParceiro.delete({
             where: {

@@ -15,6 +15,7 @@ import { Prisma } from "@prisma/client";
 import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
 import { lockFabricoNumeracao, proximoNumeroFicha } from "src/common/utils/concurrency";
 import { AuthenticatedUser } from "src/auth/types/authenticated-user";
+import { assertFichaEditavel, MSG_FICHA_CONCLUIDA } from "src/common/utils/ficha";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -350,6 +351,11 @@ export class FichaTecnicaService {
         const fabricoId = this.findfabricoIdFromUser(user);
         const ficha = await this.findOne(id, fabricoId);
 
+        assertFichaEditavel(ficha, data);
+        if (ficha.concluida) {
+            return ficha;
+        }
+
         if (ficha.pedido_id) {
             await this.assertPedidoEditavel(ficha.pedido_id);
         }
@@ -448,6 +454,16 @@ export class FichaTecnicaService {
                 // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
                 for (const pedidoId of pedidosEnvolvidos) {
                     await this.assertPedidoEditavel(pedidoId, tx);
+                }
+
+                // Revalida com o lock: a ficha pode ter sido concluída após a leitura inicial.
+                const fichaTx = await tx.fichaTecnica.findUnique({
+                    where: { id },
+                    select: { concluida: true },
+                });
+
+                if (fichaTx?.concluida) {
+                    throw new ConflictException(MSG_FICHA_CONCLUIDA);
                 }
 
                 if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
@@ -600,21 +616,28 @@ export class FichaTecnicaService {
         const fabricoId = this.findfabricoIdFromUser(user);
         const ficha = await this.findOne(id, fabricoId);
 
+        if (ficha.concluida) {
+            throw new ConflictException(MSG_FICHA_CONCLUIDA);
+        }
+
         if (ficha.pedido_id) {
             await this.assertPedidoEditavel(ficha.pedido_id);
         }
 
         await this.prisma.$transaction(async (tx) => {
-            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
             if (ficha.pedido_id) {
                 await lockPedidos(tx, [ficha.pedido_id]);
-                // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
                 await this.assertPedidoEditavel(ficha.pedido_id, tx);
             }
 
-            await tx.fichaTecnica.delete({
-                where: { id },
+            // deleteMany com concluida:false garante a regra mesmo com corrida
+            const { count } = await tx.fichaTecnica.deleteMany({
+                where: { id, concluida: false },
             });
+
+            if (count === 0) {
+                throw new ConflictException(MSG_FICHA_CONCLUIDA);
+            }
 
             if (ficha.pedido_id) {
                 await this.sincronizarPedido(tx, ficha.pedido_id);
