@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    branches: [master, develop]
 
 env:
   REGISTRY: ghcr.io
@@ -44,6 +44,9 @@ jobs:
 
       - name: Gerar Prisma Client
         run: pnpm exec prisma generate
+
+      - name: Verificar tipos
+        run: pnpm exec tsc --noEmit -p tsconfig.json
 
       - name: Build da aplicação
         run: pnpm build
@@ -112,6 +115,9 @@ jobs:
     name: Validate Production Image
     runs-on: ubuntu-latest
     needs: [validate-and-build, test]
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'master')
 
     steps:
       - name: Checkout código
