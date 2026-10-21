@@ -501,6 +501,18 @@ describe("ProdutoService", () => {
     });
 
     describe("recalcularCustoTotal", () => {
+        const stubEtapas = [
+            { nome: "Corte", ordem: 1 },
+            { nome: "Costura", ordem: 2 },
+        ];
+
+        function expectMoneyUpdate(custoTecido: string, custoTotal: string) {
+            const update = prisma.produto.update.mock.calls[0][0];
+            expect(update.where).toEqual({ id: 1 });
+            expect(update.data.custo_tecido.toString()).toBe(custoTecido);
+            expect(update.data.custo_total.toString()).toBe(custoTotal);
+        }
+
         it("calcula e atualiza custo total somando tecidos, etapas e aviamentos", async () => {
             prisma.$queryRaw.mockResolvedValue([]);
             prisma.produto.findUnique.mockResolvedValue({
@@ -519,19 +531,85 @@ describe("ProdutoService", () => {
                     { preco: 20, parceiro: { categoria: "Corte" } },
                 ],
             });
-            prisma.etapa.findMany.mockResolvedValue([
-                { nome: "Corte", ordem: 1 },
-                { nome: "Costura", ordem: 2 },
-            ]);
+            prisma.etapa.findMany.mockResolvedValue(stubEtapas);
             prisma.produto.update.mockResolvedValue({});
 
             const total = await service.recalcularCustoTotal(1, prisma);
 
             expect(total).toBe(53);
-            expect(prisma.produto.update).toHaveBeenCalledWith({
-                where: { id: 1 },
-                data: { custo_tecido: 20, custo_total: 53 },
+            expectMoneyUpdate("20", "53");
+        });
+
+        it("arredonda média de parceiros 0,10/0,11 para 0,11 com ROUND_HALF_UP", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                quantidade_tecido: null,
+                custo_tecido: null,
+                custo_operacional: 0,
+                outros_custos: 0,
+                tecido: null,
+                produtoAviamentos: [],
+                parceiro_produto: [
+                    { preco: "0.10", parceiro: { categoria: "Corte" } },
+                    { preco: "0.11", parceiro: { categoria: "Corte" } },
+                ],
             });
+            prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+            prisma.produto.update.mockResolvedValue({});
+
+            const total = await service.recalcularCustoTotal(1, prisma);
+
+            expect(total).toBe(0.11);
+            expectMoneyUpdate("0", "0.11");
+        });
+
+        it("arredonda componente 0,105 para 0,11 com ROUND_HALF_UP", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                quantidade_tecido: null,
+                custo_tecido: null,
+                custo_operacional: "0.105",
+                outros_custos: 0,
+                tecido: null,
+                produtoAviamentos: [],
+                parceiro_produto: [],
+            });
+            prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+            prisma.produto.update.mockResolvedValue({});
+
+            const total = await service.recalcularCustoTotal(1, prisma);
+
+            expect(total).toBe(0.11);
+            expectMoneyUpdate("0", "0.11");
+        });
+
+        it("preserva precisão com quantidades grandes usando Decimal", async () => {
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.produto.findUnique.mockResolvedValue({
+                id: 1,
+                fabrico_id: 10,
+                quantidade_tecido: "1000000",
+                custo_operacional: 0,
+                outros_custos: 0,
+                tecido: { custo_unitario: "0.11" },
+                produtoAviamentos: [
+                    { quantidade: "1000000", aviamento: { custo_unitario: "0.105" } },
+                ],
+                parceiro_produto: [],
+            });
+            prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+            prisma.produto.update.mockResolvedValue({});
+
+            // tecido: 1_000_000 * 0.11 = 110_000
+            // aviamento: 1_000_000 * 0.105 = 105_000 → ROUND_HALF_UP na linha
+            const total = await service.recalcularCustoTotal(1, prisma);
+
+            expect(total).toBe(215000);
+            expectMoneyUpdate("110000", "215000");
         });
 
         it("lança NotFoundException se o produto não existir no recálculo", async () => {
