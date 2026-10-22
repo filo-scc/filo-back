@@ -35,12 +35,12 @@ export class ParceiroController {
         return this.parceiroService.getAll(user);
     }
 
-    @Get("categoria/:categoria")
-    async getByCategoria(
+    @Get("etapa/:etapaId")
+    findByEtapa(
         @CurrentUser() user: AuthenticatedUser,
-        @Param("categoria") categoria: string,
+        @Param("etapaId", ParseIntPipe) etapaId: number,
     ) {
-        return this.parceiroService.getParceirosByFabricoECategoria(categoria, user);
+        return this.parceiroService.getParceirosByEtapa(etapaId, user);
     }
 
     @Get(":id")

@@ -502,8 +502,8 @@ describe("ProdutoService", () => {
 
     describe("recalcularCustoTotal", () => {
         const stubEtapas = [
-            { nome: "Corte", ordem: 1 },
-            { nome: "Costura", ordem: 2 },
+            { id: 1, nome: "Corte", ordem: 1 },
+            { id: 2, nome: "Costura", ordem: 2 },
         ];
 
         function expectMoneyUpdate(custoTecido: string, custoTotal: string) {
@@ -527,8 +527,8 @@ describe("ProdutoService", () => {
                     { quantidade: 2, aviamento: { custo_unitario: 3 } },
                 ],
                 parceiro_produto: [
-                    { preco: 10, parceiro: { categoria: "Corte" } },
-                    { preco: 20, parceiro: { categoria: "Corte" } },
+                    { preco: 10, parceiro: { etapa_id: 1 } },
+                    { preco: 20, parceiro: { etapa_id: 1 } },
                 ],
             });
             prisma.etapa.findMany.mockResolvedValue(stubEtapas);
@@ -538,6 +538,65 @@ describe("ProdutoService", () => {
 
             expect(total).toBe(53);
             expectMoneyUpdate("20", "53");
+        });
+
+        describe("vínculo do parceiro com a etapa", () => {
+            function produtoComParceiros(parceiros: Array<{ preco: number; parceiro: object }>) {
+                return {
+                    id: 1,
+                    fabrico_id: 10,
+                    quantidade_tecido: null,
+                    custo_tecido: null,
+                    custo_operacional: 0,
+                    outros_custos: 0,
+                    tecido: null,
+                    produtoAviamentos: [],
+                    parceiro_produto: parceiros,
+                };
+            }
+
+            it("renomear a etapa não altera o custo do produto", async () => {
+                const parceiros = [{ preco: 10, parceiro: { etapa_id: 1, categoria: "Corte" } }];
+                prisma.$queryRaw.mockResolvedValue([]);
+                prisma.produto.findUnique.mockResolvedValue(produtoComParceiros(parceiros));
+                prisma.produto.update.mockResolvedValue({});
+
+                prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+                const antes = await service.recalcularCustoTotal(1, prisma);
+
+                prisma.etapa.findMany.mockResolvedValue([
+                    { id: 1, nome: "Corte e Risco", ordem: 1 },
+                    { id: 2, nome: "Costura", ordem: 2 },
+                ]);
+                const depois = await service.recalcularCustoTotal(1, prisma);
+
+                expect(antes).toBe(10);
+                expect(depois).toBe(antes);
+            });
+
+            it("parceiro sem etapa_id não entra no custo, mesmo com categoria igual ao nome", async () => {
+                prisma.$queryRaw.mockResolvedValue([]);
+                prisma.produto.findUnique.mockResolvedValue(
+                    produtoComParceiros([
+                        { preco: 10, parceiro: { etapa_id: null, categoria: "Corte" } },
+                    ]),
+                );
+                prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+                prisma.produto.update.mockResolvedValue({});
+
+                await expect(service.recalcularCustoTotal(1, prisma)).resolves.toBe(0);
+            });
+
+            it("parceiro ligado à última etapa ativa não entra no custo", async () => {
+                prisma.$queryRaw.mockResolvedValue([]);
+                prisma.produto.findUnique.mockResolvedValue(
+                    produtoComParceiros([{ preco: 10, parceiro: { etapa_id: 2 } }]),
+                );
+                prisma.etapa.findMany.mockResolvedValue(stubEtapas);
+                prisma.produto.update.mockResolvedValue({});
+
+                await expect(service.recalcularCustoTotal(1, prisma)).resolves.toBe(0);
+            });
         });
 
         it("arredonda média de parceiros 0,10/0,11 para 0,11 com ROUND_HALF_UP", async () => {
@@ -552,8 +611,8 @@ describe("ProdutoService", () => {
                 tecido: null,
                 produtoAviamentos: [],
                 parceiro_produto: [
-                    { preco: "0.10", parceiro: { categoria: "Corte" } },
-                    { preco: "0.11", parceiro: { categoria: "Corte" } },
+                    { preco: "0.10", parceiro: { etapa_id: 1 } },
+                    { preco: "0.11", parceiro: { etapa_id: 1 } },
                 ],
             });
             prisma.etapa.findMany.mockResolvedValue(stubEtapas);

@@ -75,7 +75,6 @@ async function createTenantFixtures(prisma: PrismaClient, label: "a" | "b") {
     const parceiro = await prisma.parceiro.create({
         data: {
             nome: `${runId}-parceiro-${label}`,
-            categoria: `${runId}-costura-${label}`,
             fabrico_id: fabrico.id,
         },
     });
@@ -872,5 +871,69 @@ describe("Isolamento E2E entre fabricos", () => {
         await expect(
             prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
         ).resolves.toMatchObject(vinculoOriginal);
+    });
+
+    it("vincula o parceiro apenas a etapas do próprio fabrico", async () => {
+        const nomeInvasor = `${runId}-parceiro-etapa-de-b`;
+
+        const criacao = await request(app.getHttpServer())
+            .post("/parceiros")
+            .set(auth(tokenA))
+            .send({ nome: nomeInvasor, etapa_id: tenantB.etapa.id })
+            .expect(400);
+        const inexistente = await request(app.getHttpServer())
+            .post("/parceiros")
+            .set(auth(tokenA))
+            .send({ nome: nomeInvasor, etapa_id: 2147483647 })
+            .expect(400);
+        expect(criacao.body.message).toBe(inexistente.body.message);
+        await expect(
+            prisma.parceiro.findFirst({
+                where: { fabrico_id: tenantA.fabrico.id, nome: nomeInvasor },
+            }),
+        ).resolves.toBeNull();
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: tenantB.etapa.id })
+            .expect(400);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: null });
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: tenantA.etapa.id })
+            .expect(200);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: tenantA.etapa.id });
+
+        const daEtapaA = await request(app.getHttpServer())
+            .get(`/parceiros/etapa/${tenantA.etapa.id}`)
+            .set(auth(tokenA))
+            .expect(200);
+        expect(daEtapaA.body.map((parceiro: { id: number }) => parceiro.id)).toEqual([
+            tenantA.parceiro.id,
+        ]);
+        const etapaA = await prisma.etapa.findUniqueOrThrow({ where: { id: tenantA.etapa.id } });
+        expect(daEtapaA.body[0].etapa).toMatchObject({ id: etapaA.id, nome: etapaA.nome });
+
+        const daEtapaB = await request(app.getHttpServer())
+            .get(`/parceiros/etapa/${tenantB.etapa.id}`)
+            .set(auth(tokenA))
+            .expect(200);
+        expect(daEtapaB.body).toEqual([]);
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: null })
+            .expect(200);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: null });
     });
 });
