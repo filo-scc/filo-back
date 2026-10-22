@@ -1,9 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { ProdutoService } from "../produto/produto.service";
-import { FabricoService } from "../fabrico/fabrico.service";
-import { EtapaService } from "../etapa/etapa.service";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
@@ -13,7 +10,6 @@ const mockPrismaService = {
     $queryRaw: jest.fn(),
     $executeRaw: jest.fn().mockResolvedValue(1),
     fichaTecnica: {
-        create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -45,17 +41,11 @@ const mockPrismaService = {
     },
 };
 
-const mockProdutoService = { getById: jest.fn() };
-const mockFabricoService = { getById: jest.fn() };
-const mockEtapaService = { getById: jest.fn() };
 const mockUser = { fabrico_id: 20 } as AuthenticatedUser;
 
 describe("FichaTecnicaService", () => {
     let service: FichaTecnicaService;
     let prismaService: typeof mockPrismaService;
-    let produtoService: typeof mockProdutoService;
-    let fabricoService: typeof mockFabricoService;
-    let etapaService: typeof mockEtapaService;
 
     // Dados base para reuso
     const fichaData = {
@@ -82,17 +72,11 @@ describe("FichaTecnicaService", () => {
             providers: [
                 FichaTecnicaService,
                 { provide: PrismaService, useValue: mockPrismaService },
-                { provide: ProdutoService, useValue: mockProdutoService },
-                { provide: FabricoService, useValue: mockFabricoService },
-                { provide: EtapaService, useValue: mockEtapaService },
             ],
         }).compile();
 
         service = module.get<FichaTecnicaService>(FichaTecnicaService);
         prismaService = module.get(PrismaService);
-        produtoService = module.get(ProdutoService);
-        fabricoService = module.get(FabricoService);
-        etapaService = module.get(EtapaService);
     });
 
     afterEach(() => {
@@ -101,67 +85,6 @@ describe("FichaTecnicaService", () => {
 
     it("should be defined", () => {
         expect(service).toBeDefined();
-    });
-
-    describe("create", () => {
-        const createDto = { produto_id: 10, pedido_id: 100, fabrico_id: 20 } as any;
-
-        beforeEach(() => {
-            produtoService.getById.mockResolvedValue(true);
-            fabricoService.getById.mockResolvedValue(true);
-            prismaService.pedido.findFirst.mockResolvedValue({ id: 100 });
-        });
-
-        it("deve criar uma ficha técnica com sucesso", async () => {
-            prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
-            prismaService.gradeVersaoItem.findMany.mockResolvedValue([{ id: 1 }]);
-            prismaService.fichaTecnica.create.mockResolvedValue(fichaData);
-
-            const result = await service.create(createDto, mockUser);
-
-            expect(result).toEqual(fichaData);
-            expect(prismaService.fichaTecnica.create).toHaveBeenCalled();
-        });
-
-        it("deve lançar NotFoundException se o produto não pertencer ao fabrico", async () => {
-            prismaService.produto.findFirst.mockResolvedValue(null);
-
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(NotFoundException);
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(
-                "Produto não encontrado para este fabrico",
-            );
-        });
-
-        it("deve lançar BadRequestException se o produto não tiver grade_versao_id", async () => {
-            prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: null });
-
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(BadRequestException);
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(
-                "Produto não possui grade definida",
-            );
-        });
-
-        it("deve lançar BadRequestException se a grade não tiver tamanhos configurados", async () => {
-            prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
-            prismaService.gradeVersaoItem.findMany.mockResolvedValue([]);
-
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(BadRequestException);
-            await expect(service.create(createDto, mockUser)).rejects.toThrow(
-                "Grade sem tamanhos configurados",
-            );
-        });
-
-        it("deve lançar BadRequestException se a etapa_atual_id for de outro fabrico", async () => {
-            prismaService.produto.findFirst.mockResolvedValue({ grade_versao_id: 30 });
-            etapaService.getById.mockResolvedValue({ fabrico_id: 99 });
-
-            const dtoComEtapa = { ...createDto, etapa_atual_id: 40 };
-
-            await expect(service.create(dtoComEtapa, mockUser)).rejects.toThrow(
-                new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
-            );
-            expect(prismaService.fichaTecnica.create).not.toHaveBeenCalled();
-        });
     });
 
     describe("findOne", () => {
@@ -214,6 +137,7 @@ describe("FichaTecnicaService", () => {
                 pedido_id: 100,
                 concluida: false,
             } as any);
+            prismaService.pedido.findFirst.mockResolvedValue({ id: 100, finalizado: false });
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
                 pedido_id: 100,
@@ -366,7 +290,6 @@ describe("FichaTecnicaService", () => {
 
             await service.update(1, { observacoes: "x", etapa_atual_id: 99 } as any, mockUser);
 
-            expect(etapaService.getById).not.toHaveBeenCalled();
             const { data } = prismaService.fichaTecnica.update.mock.calls[0][0];
             expect(data).not.toHaveProperty("etapa_atual_id");
         });

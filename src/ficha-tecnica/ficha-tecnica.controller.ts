@@ -1,16 +1,5 @@
-import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Param,
-    Delete,
-    UseGuards,
-    Put,
-    ParseIntPipe,
-} from "@nestjs/common";
+import { Controller, Get, Body, Param, Delete, UseGuards, Put, ParseIntPipe } from "@nestjs/common";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
-import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
 import { JwtAuthGuard } from "src/auth/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
@@ -23,12 +12,6 @@ import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 @Controller("fichas-tecnicas")
 export class FichaTecnicaController {
     constructor(private readonly fichaTecnicaService: FichaTecnicaService) {}
-
-    @Post()
-    create(@Body() data: CreateFichaTecnicaDto, @CurrentUser() user: AuthenticatedUser) {
-        return this.fichaTecnicaService.create(data, user);
-    }
-
     @Get()
     findAllByFabricoId(@CurrentUser() user: AuthenticatedUser) {
         return this.fichaTecnicaService.findAllByFabricoId(user.fabrico_id!);

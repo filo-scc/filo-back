@@ -8,23 +8,14 @@ import { CreateFichaTecnicaDto } from "./dto/create-ficha-tecnica.dto";
 import { UpdateFichaTecnicaDto } from "./dto/update-ficha-tecnica.dto";
 import { lockPedidos, sincronizarFinalizacaoPedido } from "src/pedido/pedido-finalizacao";
 import { PrismaService } from "../prisma/prisma.service";
-import { ProdutoService } from "../produto/produto.service";
-import { EtapaService } from "../etapa/etapa.service";
-import { FabricoService } from "../fabrico/fabrico.service";
 import { Prisma } from "@prisma/client";
 import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
-import { lockFabricoNumeracao, proximoNumeroFicha } from "src/common/utils/concurrency";
 import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 import { assertFichaEditavel, MSG_FICHA_CONCLUIDA } from "src/common/utils/ficha";
 
 @Injectable()
 export class FichaTecnicaService {
-    constructor(
-        private prisma: PrismaService,
-        private readonly produtoService: ProdutoService,
-        private readonly fabricoService: FabricoService,
-        private readonly etapaService: EtapaService,
-    ) {}
+    constructor(private prisma: PrismaService) {}
 
     private async assertPedidoDoFabrico(pedidoId: number, fabricoId: number) {
         const pedido = await this.prisma.pedido.findFirst({
@@ -93,100 +84,6 @@ export class FichaTecnicaService {
                 "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
             );
         }
-    }
-
-    async create(data: CreateFichaTecnicaDto, user: AuthenticatedUser) {
-        const produto_id = Number(data.produto_id);
-        const fabrico_id = this.findfabricoIdFromUser(user);
-
-        this.validateProductionReport(data);
-
-        await Promise.all([
-            this.produtoService.getById(produto_id, user),
-            this.fabricoService.getById(fabrico_id),
-            this.assertPedidoDoFabrico(Number(data.pedido_id), fabrico_id),
-        ]);
-
-        await this.assertPedidoEditavel(Number(data.pedido_id));
-
-        const produto = await this.prisma.produto.findFirst({
-            where: {
-                id: produto_id,
-                fabrico_id,
-                ativo: true,
-            },
-            select: {
-                grade_versao_id: true,
-            },
-        });
-
-        if (!produto) {
-            throw new NotFoundException("Produto não encontrado para este fabrico");
-        }
-
-        const pedido = await this.prisma.pedido.findFirst({
-            where: { id: data.pedido_id, fabrico_id: fabrico_id },
-            select: { id: true },
-        });
-        if (!pedido) {
-            throw new NotFoundException("Pedido não encontrado para este fabrico");
-        }
-
-        if (data.etapa_atual_id) {
-            const etapa_atual = await this.etapaService.getById(
-                Number(data.etapa_atual_id),
-                fabrico_id,
-            );
-            if (etapa_atual.fabrico_id !== fabrico_id) {
-                throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
-                );
-            }
-        }
-
-        if (!produto.grade_versao_id) {
-            throw new BadRequestException("Produto não possui grade definida");
-        }
-
-        const grade_versao_id = produto.grade_versao_id;
-
-        const gradeItens = await this.prisma.gradeVersaoItem.findMany({
-            where: {
-                grade_versao_id,
-            },
-            select: {
-                id: true,
-            },
-        });
-
-        if (gradeItens.length === 0) {
-            throw new BadRequestException("Grade sem tamanhos configurados");
-        }
-
-        return this.prisma.$transaction(async (tx) => {
-            await lockFabricoNumeracao(tx, fabrico_id);
-            // Pedido antes da ficha: mesma ordem de trava do cron e do updateCompleto.
-            await lockPedidos(tx, [Number(data.pedido_id)]);
-            // Revalida com o pedido travado: o cron pode ter finalizado após a checagem inicial.
-            await this.assertPedidoEditavel(Number(data.pedido_id), tx);
-            const numero = await proximoNumeroFicha(tx, fabrico_id);
-
-            const ficha = await tx.fichaTecnica.create({
-                data: {
-                    ...data,
-                    concluida: false,
-                    numero,
-                    grade_versao_id,
-                    produto_id,
-                    fabrico_id,
-                },
-            });
-
-            await this.sincronizarPedido(tx, Number(data.pedido_id));
-            await sincronizarFinalizacaoPedido(tx, Number(data.pedido_id));
-
-            return ficha;
-        });
     }
 
     async findAllByFabricoId(fabrico_id: number) {
