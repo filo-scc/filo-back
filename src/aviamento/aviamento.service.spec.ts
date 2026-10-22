@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, UnidadeDeMedida } from "@prisma/client";
 import { AviamentoService } from "./aviamento.service";
+import type { UpdateAviamentoDto } from "./dto/update-aviamento.dto";
 
 const { PrismaClientKnownRequestError } = Prisma;
 
@@ -295,17 +296,14 @@ describe("AviamentoService", () => {
                 custo_unitario: 5,
             });
             prisma.aviamento.update.mockResolvedValue({ id: 1 });
+            const dto = {
+                nome: "Elástico",
+                unidade_de_medida: UnidadeDeMedida.METRO,
+                custo_unitario: 8,
+            } as UpdateAviamentoDto;
+            Object.assign(dto, { fabrico_id: 10 });
 
-            await service.update(
-                1,
-                {
-                    nome: "Elástico",
-                    fabrico_id: 10,
-                    unidade_de_medida: "METRO",
-                    custo_unitario: 8,
-                },
-                user,
-            );
+            await service.update(1, dto, user);
 
             expect(prisma.aviamento.update).toHaveBeenCalledWith({
                 where: { id: 1 },
@@ -319,16 +317,10 @@ describe("AviamentoService", () => {
         });
 
         it("rejeita se o fabrico_id informado no DTO for diferente do usuário", async () => {
-            await expect(
-                service.update(
-                    1,
-                    {
-                        nome: "zíper",
-                        fabrico_id: 99,
-                    },
-                    user,
-                ),
-            ).rejects.toThrow(
+            const dto = { nome: "zíper" } as UpdateAviamentoDto;
+            Object.assign(dto, { fabrico_id: 99 });
+
+            await expect(service.update(1, dto, user)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do aviamento"),
             );
         });
