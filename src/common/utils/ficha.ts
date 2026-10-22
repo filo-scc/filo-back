@@ -51,8 +51,8 @@ export type ContextoPrecos = {
     precoPadraoCliente?: Prisma.Decimal | null;
 };
 
-// Campos de produção ainda bloqueados em ficha concluída. A task não os lista:
-// confirme com o produto. Esvazie o array se perdas/etapa devem ficar liberadas.
+// Perdas de produção também ficam bloqueadas em ficha concluída (decisão de produto de
+// 22/10/2026, DEV-505): depois da conclusão a ficha é imutável, relatório de acabamento incluído.
 const CAMPOS_PRODUCAO_BLOQUEADOS = [
     "defeitos_costura",
     "defeitos_tecido",
