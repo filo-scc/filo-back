@@ -135,10 +135,14 @@ model Parceiro {
   banco           String?
   agencia         String?
   conta           String?
+  /// @deprecated Só exibição. O vínculo com a etapa é `etapa_id`; a coluna sai numa migration futura.
   categoria       String?
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  etapa_id Int?
+  etapa    Etapa? @relation(fields: [etapa_id], references: [id], onDelete: SetNull)
 
   endereco Endereco?
 
@@ -147,6 +151,7 @@ model Parceiro {
   ficha_parceiro FichaParceiro[]
 
   @@unique([fabrico_id, nome])
+  @@index([etapa_id])
   @@map("parceiros")
 }
 
@@ -196,6 +201,7 @@ model Etapa {
 
   fichas_tecnicas FichaTecnica[]
   fichas_etapas   FichaEtapa[]
+  parceiros       Parceiro[]
 
   @@unique([fabrico_id, nome])
   // Índice único parcial (fabrico_id, ordem) WHERE ativa = true: criado por SQL na migration
