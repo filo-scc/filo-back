@@ -269,7 +269,6 @@ describe("FichaTecnicaService", () => {
 
         it("deve lançar BadRequestException se a nova grade for inválida/inativa", async () => {
             prismaService.gradeVersao.findFirst.mockResolvedValue(null);
-            ``;
             await expect(
                 service.update(1, { grade_versao_id: 99 } as any, mockUser),
             ).rejects.toThrow(BadRequestException);
