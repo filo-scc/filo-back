@@ -17,7 +17,6 @@ export type FichaParaValidar = {
     quantidade?: number | null;
     observacoes?: string | null;
     grade_versao_id?: number | null;
-    etapa_atual_id?: number | null;
     defeitos_costura?: number | null;
     defeitos_tecido?: number | null;
     retiradas?: number | null;
@@ -31,7 +30,6 @@ export type PayloadFicha = {
     quantidade?: number | string | null;
     observacoes?: string | null;
     grade_versao_id?: number | string | null;
-    etapa_atual_id?: number | string | null;
     defeitos_costura?: number | null;
     defeitos_tecido?: number | null;
     retiradas?: number | null;
@@ -138,14 +136,6 @@ function fichaMudou(
     if (
         payload.pedido_id !== undefined &&
         (payload.pedido_id ?? null) !== (fichaDb.pedido_id ?? null)
-    ) {
-        return true;
-    }
-
-    if (
-        payload.etapa_atual_id !== undefined &&
-        (payload.etapa_atual_id == null ? null : Number(payload.etapa_atual_id)) !==
-            (fichaDb.etapa_atual_id ?? null)
     ) {
         return true;
     }

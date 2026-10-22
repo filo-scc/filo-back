@@ -396,16 +396,6 @@ export class FichaTecnicaService {
             await this.assertPedidoEditavel(Number(data.pedido_id));
         }
 
-        if (data.etapa_atual_id) {
-            const etapa = await this.etapaService.getById(Number(data.etapa_atual_id), fabricoId);
-
-            if (etapa.fabrico_id !== fabricoId) {
-                throw new BadRequestException(
-                    "A etapa não pertence ao mesmo fabrico da ficha técnica",
-                );
-            }
-        }
-
         const payload = data as UpdateFichaTecnicaDto & { grade_versao_id?: number };
         const novaGradeVersaoId = payload.grade_versao_id
             ? Number(payload.grade_versao_id)
@@ -459,35 +449,38 @@ export class FichaTecnicaService {
                 // Revalida com o lock: a ficha pode ter sido concluída após a leitura inicial.
                 const fichaTx = await tx.fichaTecnica.findUnique({
                     where: { id },
-                    select: { concluida: true },
+                    select: { concluida: true, grade_versao_id: true },
                 });
 
-                if (fichaTx?.concluida) {
+                if (!fichaTx) {
+                    throw new NotFoundException("Ficha não encontrada");
+                }
+
+                if (fichaTx.concluida) {
                     throw new ConflictException(MSG_FICHA_CONCLUIDA);
                 }
 
-                if (novaGradeVersaoId && novaGradeVersaoId !== ficha.grade_versao_id) {
-                    await tx.fichaTecnicaItem.deleteMany({
-                        where: { ficha_tecnica_id: id },
-                    });
+                if (novaGradeVersaoId && novaGradeVersaoId !== fichaTx.grade_versao_id) {
+                    await tx.fichaTecnicaItem.deleteMany({ where: { ficha_tecnica_id: id } });
                 }
 
-                const { concluida: _concluidaIgnorada, ...dadosEditaveis } =
-                    data as UpdateFichaTecnicaDto & {
-                        concluida?: boolean;
-                    };
+                const {
+                    concluida: _concluida,
+                    etapa_atual_id: _etapa,
+                    grade_versao_id: _grade,
+                    ...dadosEditaveis
+                } = data as UpdateFichaTecnicaDto & {
+                    concluida?: boolean;
+                    etapa_atual_id?: number;
+                    grade_versao_id?: number;
+                };
 
                 const fichaAtualizada = await tx.fichaTecnica.update({
                     where: { id },
                     data: {
                         ...dadosEditaveis,
                         fabrico_id: fabricoId,
-                        grade_versao_id: novaGradeVersaoId ?? ficha.grade_versao_id,
-                        etapa_atual_id: data.etapa_atual_id
-                            ? Number(data.etapa_atual_id)
-                            : data.etapa_atual_id === null
-                              ? null
-                              : ficha.etapa_atual_id,
+                        ...(novaGradeVersaoId ? { grade_versao_id: novaGradeVersaoId } : {}),
                     },
                     include: {
                         produto: true,

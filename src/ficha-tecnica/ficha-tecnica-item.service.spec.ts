@@ -396,6 +396,7 @@ describe("FichaTecnicaItemService", () => {
 
     it("rejeita sync com cores fora do fabrico", async () => {
         prisma.fichaTecnica.findFirst.mockResolvedValue(ficha);
+        prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
         prisma.cor.findMany.mockResolvedValue([]);
 
         await expect(service.syncCoresBatch(1, [30], 10)).rejects.toThrow(
@@ -405,6 +406,7 @@ describe("FichaTecnicaItemService", () => {
 
     it("rejeita sync quando a grade não possui tamanhos", async () => {
         prisma.fichaTecnica.findFirst.mockResolvedValue(ficha);
+        prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
         prisma.cor.findMany.mockResolvedValue([{ id: 30 }]);
         prisma.gradeVersaoItem.findMany.mockResolvedValue([]);
 
@@ -477,5 +479,120 @@ describe("FichaTecnicaItemService", () => {
         await expect(service.create(1, itemDto as any, 10)).rejects.toThrow(
             new ConflictException("Esse item já existe nesta ficha técnica"),
         );
+    });
+
+    describe("ficha concluída", () => {
+        const concluida = { ...ficha, concluida: true };
+        const atuais = [{ cor_id: 30, grade_versao_item_id: 40, quantidade: 5 }];
+
+        beforeEach(() => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue(concluida);
+        });
+
+        it("salvar a mesma matriz é eco e não grava", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue(atuais);
+
+            await expect(
+                service.createManyByFichaTecnicaID(1, [itemDto] as any, 10),
+            ).resolves.toEqual(expect.objectContaining({ message: "Itens inalterados (eco)" }));
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("salvar matriz diferente dá 409 sem gravar", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue(atuais);
+
+            await expect(
+                service.createManyByFichaTecnicaID(1, [{ ...itemDto, quantidade: 6 }] as any, 10),
+            ).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("sync com o mesmo conjunto de cores é eco", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ cor_id: 30 }]);
+
+            await expect(service.syncCoresBatch(1, [30], 10)).resolves.toEqual(
+                expect.objectContaining({ cores_adicionadas: 0, cores_removidas: 0 }),
+            );
+            expect(prisma.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("sync com conjunto diferente dá 409", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ cor_id: 30 }]);
+
+            await expect(service.syncCoresBatch(1, [31], 10)).rejects.toThrow(ConflictException);
+            expect(prisma.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("gerar itens de cor que já tem toda a grade passa; cor nova dá 409", async () => {
+            prisma.cor.findFirst.mockResolvedValue({ id: 30 });
+            prisma.gradeVersaoItem.findMany.mockResolvedValue([{ id: 40 }]);
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ grade_versao_item_id: 40 }]);
+            await expect(service.gerarItensPorCor(1, 30, 10)).resolves.toBeDefined();
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
+            await expect(service.gerarItensPorCor(1, 30, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("remover itens de cores ausentes passa; presentes dá 409", async () => {
+            prisma.cor.findMany.mockResolvedValue([{ id: 30 }]);
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
+            await expect(service.removerCoresBatch(1, [30], 10)).resolves.toEqual(
+                expect.objectContaining({ itens_removidos: 0 }),
+            );
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ id: 1 }]);
+            await expect(service.removerCoresBatch(1, [30], 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("limpar itens: dá 409 se houver itens", async () => {
+            prisma.fichaTecnicaItem.count = jest.fn().mockResolvedValue(3);
+
+            await expect(service.clearByFichaTecnicaID(1, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("remove: item com quantidade 0 é eco; com quantidade > 0 dá 409", async () => {
+            const spy = jest.spyOn(service, "findOne");
+
+            spy.mockResolvedValue({
+                id: 1,
+                quantidade: 0,
+                ficha_tecnica: { concluida: true },
+            } as any);
+            await expect(service.remove(1, 10)).resolves.toEqual(
+                expect.objectContaining({ message: expect.stringContaining("eco") }),
+            );
+
+            spy.mockResolvedValue({
+                id: 1,
+                quantidade: 5,
+                ficha_tecnica: { concluida: true },
+            } as any);
+            await expect(service.remove(1, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.delete).not.toHaveBeenCalled();
+        });
+
+        it("update: valores iguais é eco; valor diferente dá 409", async () => {
+            const atual = {
+                id: 1,
+                cor_id: 30,
+                grade_versao_item_id: 40,
+                quantidade: 5,
+                ficha_tecnica: { concluida: true },
+            };
+            jest.spyOn(service, "findOne").mockResolvedValue(atual as any);
+
+            await expect(service.update(1, { quantidade: 5 } as any, 10)).resolves.toBeDefined();
+            await expect(service.update(1, { quantidade: 6 } as any, 10)).rejects.toThrow(
+                ConflictException,
+            );
+            expect(prisma.fichaTecnicaItem.update).not.toHaveBeenCalled();
+        });
     });
 });

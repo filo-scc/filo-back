@@ -4,7 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { FabricoService } from "../fabrico/fabrico.service";
 import { EtapaService } from "../etapa/etapa.service";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
@@ -16,6 +16,7 @@ const mockPrismaService = {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
@@ -179,24 +180,31 @@ describe("FichaTecnicaService", () => {
     });
 
     describe("update", () => {
-        const updateDto = { fabrico_id: 20, etapa_atual_id: 40 } as any;
+        const updateDto = { observacoes: "Obs atualizada" } as any;
 
         beforeEach(() => {
             jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
             prismaService.produto.findFirst.mockResolvedValue({ id: 10, grade_versao_id: 30 });
+            prismaService.fichaTecnica.findUnique.mockResolvedValue({
+                concluida: false,
+                grade_versao_id: 30,
+            });
         });
 
         it("deve atualizar a ficha com sucesso", async () => {
-            etapaService.getById.mockResolvedValue({ fabrico_id: 20 });
-            prismaService.fichaTecnica.update.mockResolvedValue({
-                ...fichaData,
-                etapa_atual_id: 40,
-            });
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData });
 
-            const result = await service.update(1, updateDto, mockUser);
+            await service.update(1, updateDto, mockUser);
 
-            expect(result.etapa_atual_id).toEqual(40);
-            expect(prismaService.fichaTecnica.update).toHaveBeenCalled();
+            expect(prismaService.fichaTecnica.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        observacoes: "Obs atualizada",
+                        fabrico_id: 20,
+                    }),
+                }),
+            );
             expect(prismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
         });
 
@@ -225,7 +233,6 @@ describe("FichaTecnicaService", () => {
         it("deve limpar os itens da ficha se a grade_versao_id for alterada", async () => {
             const updateComGradeDto = { ...updateDto, grade_versao_id: 31 };
 
-            etapaService.getById.mockResolvedValue({ fabrico_id: 20 });
             prismaService.gradeVersao.findFirst.mockResolvedValue({ id: 31, grade_id: 5 });
             prismaService.fichaTecnica.update.mockResolvedValue({
                 ...fichaData,
@@ -260,20 +267,9 @@ describe("FichaTecnicaService", () => {
             );
         });
 
-        it("deve lançar BadRequestException se a etapa for de outro fabrico", async () => {
-            etapaService.getById.mockResolvedValue({ fabrico_id: 99 });
-
-            await expect(service.update(1, updateDto, mockUser)).rejects.toThrow(
-                BadRequestException,
-            );
-            await expect(service.update(1, updateDto, mockUser)).rejects.toThrow(
-                "A etapa não pertence ao mesmo fabrico da ficha técnica",
-            );
-        });
-
         it("deve lançar BadRequestException se a nova grade for inválida/inativa", async () => {
             prismaService.gradeVersao.findFirst.mockResolvedValue(null);
-
+            ``;
             await expect(
                 service.update(1, { grade_versao_id: 99 } as any, mockUser),
             ).rejects.toThrow(BadRequestException);
@@ -365,6 +361,44 @@ describe("FichaTecnicaService", () => {
                 "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
             );
         });
+
+        it("ignora etapa_atual_id no payload (só a transferência altera a etapa)", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData });
+
+            await service.update(1, { observacoes: "x", etapa_atual_id: 99 } as any, mockUser);
+
+            expect(etapaService.getById).not.toHaveBeenCalled();
+            const { data } = prismaService.fichaTecnica.update.mock.calls[0][0];
+            expect(data).not.toHaveProperty("etapa_atual_id");
+        });
+
+        describe("ficha concluída", () => {
+            const concluida = {
+                ...fichaData,
+                concluida: true,
+                quantidade: 10,
+                observacoes: null,
+                ficha_tecnica_itens: [],
+            };
+
+            it("alteração dá 409 sem gravar", async () => {
+                jest.spyOn(service, "findOne").mockResolvedValue(concluida as any);
+
+                await expect(
+                    service.update(1, { quantidade: 11 } as any, mockUser),
+                ).rejects.toThrow(ConflictException);
+                expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
+            });
+
+            it("reenvio idêntico passa e não grava", async () => {
+                jest.spyOn(service, "findOne").mockResolvedValue(concluida as any);
+
+                await expect(
+                    service.update(1, { quantidade: 10 } as any, mockUser),
+                ).resolves.toEqual(concluida);
+                expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
+            });
+        });
     });
 
     describe("findAllByFabricoId", () => {
@@ -400,20 +434,44 @@ describe("FichaTecnicaService", () => {
 
     describe("remove", () => {
         it("deve remover a ficha com sucesso", async () => {
-            jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
-            prismaService.fichaTecnica.delete.mockResolvedValue(fichaData);
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                concluida: false,
+            } as any);
 
             const result = await service.remove(1, mockUser);
 
             expect(result).toBe("Ficha técnica excluída com sucesso");
-            expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.fichaTecnica.deleteMany).toHaveBeenCalledWith({
+                where: { id: 1, concluida: false },
+            });
         });
 
         it("deve lançar NotFoundException se a ficha não existir", async () => {
             jest.spyOn(service, "findOne").mockRejectedValue(new NotFoundException());
 
             await expect(service.remove(99, mockUser)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
+            expect(prismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("recusa com 409 ficha concluída sem apagar", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                concluida: true,
+            } as any);
+
+            await expect(service.remove(1, mockUser)).rejects.toThrow(ConflictException);
+            expect(prismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("recusa com 409 se a ficha foi concluída entre a leitura e a exclusão", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...fichaData,
+                concluida: false,
+            } as any);
+            prismaService.fichaTecnica.deleteMany.mockResolvedValueOnce({ count: 0 });
+
+            await expect(service.remove(1, mockUser)).rejects.toThrow(ConflictException);
         });
     });
 

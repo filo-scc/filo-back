@@ -479,12 +479,14 @@ export class PedidoService {
 
                     // Omitir uma ficha do payload a remove; produção registrada não pode sumir assim.
                     const fichaProduzidaOmitida = fichasDoPedido.some(
-                        (ficha) => !idsParaManter.has(ficha.id) && ficha.concluida,
+                        (ficha) =>
+                            !idsParaManter.has(ficha.id) &&
+                            (ficha.concluida || Boolean(ficha.produzida_em)),
                     );
 
                     if (fichaProduzidaOmitida) {
                         throw new ConflictException(
-                            "Fichas técnicas concluídas não podem ser removidas do pedido",
+                            "Fichas técnicas já produzidas não podem ser removidas do pedido",
                         );
                     }
 

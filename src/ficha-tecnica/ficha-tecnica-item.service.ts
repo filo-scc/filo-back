@@ -8,7 +8,6 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFichaTecnicaItemDto } from "./dto/create-ficha-tecnica-item.dto";
 import { UpdateFichaTecnicaItemDto } from "./dto/update-ficha-tecnica-item.dto";
-import { FichaTecnicaService } from "./ficha-tecnica.service";
 import {
     assertMatrizSemMudanca,
     matrizEquivalente,
@@ -17,10 +16,7 @@ import {
 
 @Injectable()
 export class FichaTecnicaItemService {
-    constructor(
-        private readonly prisma: PrismaService,
-        private readonly fichaTecnicaService: FichaTecnicaService,
-    ) {}
+    constructor(private readonly prisma: PrismaService) {}
 
     private validateDuplicados(itens: CreateFichaTecnicaItemDto[]) {
         const chaves = new Set<string>();
