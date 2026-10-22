@@ -444,41 +444,43 @@ describe("Isolamento E2E entre fabricos", () => {
             })
             .expect(400);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantB.produto.id,
-                pedido_id: tenantA.pedido.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        // A ficha só nasce junto do pedido (POST /pedidos/completo): a recusa de relações de
+        // outro fabrico vale para o produto, a etapa e o cliente informados.
+        const pedidosAntes = await prisma.pedido.count({
+            where: { fabrico_id: tenantA.fabrico.id },
+        });
+        const fichasAntes = await prisma.fichaTecnica.count({
+            where: { fabrico_id: tenantA.fabrico.id },
+        });
+        const pedidoCompleto = (chave: string, corpo: object) =>
+            request(app.getHttpServer())
+                .post("/pedidos/completo")
+                .set({ ...auth(tokenA), "Idempotency-Key": `${runId}-${chave}` })
+                .send(corpo);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantA.produto.id,
-                pedido_id: tenantB.pedido.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        await pedidoCompleto("produto-de-b", {
+            fichas: [{ produto_id: tenantB.produto.id, quantidade: 0 }],
+        }).expect(404);
+        await pedidoCompleto("etapa-de-b", {
+            fichas: [
+                {
+                    produto_id: tenantA.produto.id,
+                    quantidade: 0,
+                    etapa_atual_id: tenantB.etapa.id,
+                },
+            ],
+        }).expect(400);
+        await pedidoCompleto("cliente-de-b", {
+            cliente_id: tenantB.cliente.id,
+            fichas: [{ produto_id: tenantA.produto.id, quantidade: 0 }],
+        }).expect(404);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantA.produto.id,
-                pedido_id: tenantA.pedido.id,
-                etapa_atual_id: tenantB.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        await expect(
+            prisma.pedido.count({ where: { fabrico_id: tenantA.fabrico.id } }),
+        ).resolves.toBe(pedidosAntes);
+        await expect(
+            prisma.fichaTecnica.count({ where: { fabrico_id: tenantA.fabrico.id } }),
+        ).resolves.toBe(fichasAntes);
 
         await request(app.getHttpServer())
             .post("/produto-aviamento")
@@ -721,19 +723,24 @@ describe("Isolamento E2E entre fabricos", () => {
             .expect(201);
         expect(pedido.body.fabrico_id).toBe(tenantA.fabrico.id);
 
-        const ficha = await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
+        const pedidoCompleto = await request(app.getHttpServer())
+            .post("/pedidos/completo")
+            .set({ ...auth(tokenA), "Idempotency-Key": `${runId}-fabrico-falso` })
             .send({
-                produto_id: produto.body.id,
-                pedido_id: pedido.body.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 3,
                 fabrico_id: tenantB.fabrico.id,
+                fichas: [
+                    {
+                        produto_id: produto.body.id,
+                        etapa_atual_id: tenantA.etapa.id,
+                        quantidade: 0,
+                        fabrico_id: tenantB.fabrico.id,
+                    },
+                ],
             })
             .expect(201);
-        expect(ficha.body.fabrico_id).toBe(tenantA.fabrico.id);
+        expect(pedidoCompleto.body.fabrico_id).toBe(tenantA.fabrico.id);
+        expect(pedidoCompleto.body.fichas_tecnicas).toHaveLength(1);
+        expect(pedidoCompleto.body.fichas_tecnicas[0].fabrico_id).toBe(tenantA.fabrico.id);
 
         await request(app.getHttpServer())
             .put(`/produtos/${produto.body.id}`)
