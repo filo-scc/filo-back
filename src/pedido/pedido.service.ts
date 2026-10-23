@@ -22,6 +22,7 @@ import {
     proximoNumeroFicha,
     proximoNumeroPedido,
 } from "src/common/utils/concurrency";
+import { assertFichaEditavel } from "src/common/utils/ficha";
 
 type FichaParaTotais = CreatePedidoFichaDto & { defeitos_tecido?: number | null };
 
@@ -305,17 +306,6 @@ export class PedidoService {
 
         this.assertUmaFichaPorProduto(fichasDto);
 
-        for (const fichaDto of fichasExistentesDto) {
-            const temEdicaoDeMatriz =
-                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-
-            if (fichaDto.grade_versao_id != null && !temEdicaoDeMatriz) {
-                throw new BadRequestException(
-                    "Para alterar a grade da ficha, envie também itens ou cores_ids",
-                );
-            }
-        }
-
         const produtoIdsNovos = [
             ...new Set(fichasNovasDto.map((ficha) => Number(ficha.produto_id))),
         ];
@@ -328,7 +318,15 @@ export class PedidoService {
 
                     const pedido = await tx.pedido.findFirst({
                         where: { delete_at: null, id, fabrico_id: fabricoId },
-                        include: { fichas_tecnicas: { where: { delete_at: null } } },
+                        include: {
+                            fichas_tecnicas: {
+                                where: { delete_at: null },
+                                include: {
+                                    ficha_tecnica_itens: true,
+                                    ficha_parceiro: true,
+                                },
+                            },
+                        },
                     });
 
                     if (!pedido) {
@@ -384,12 +382,83 @@ export class PedidoService {
                         }
                     }
 
+                    const fichasConcluidas = fichasExistentesDto
+                        .map((fichaDto) => mapaFichasPedido.get(Number(fichaDto.id))!)
+                        .filter((fichaDb) => fichaDb.concluida);
+
+                    const precoParceiroPorProduto = new Map<
+                        number,
+                        Map<number, Prisma.Decimal | null>
+                    >();
+                    const precoClientePorProduto = new Map<number, Prisma.Decimal | null>();
+
+                    if (fichasConcluidas.length) {
+                        const produtoIdsConcluidos = [
+                            ...new Set(fichasConcluidas.map((f) => f.produto_id)),
+                        ];
+
+                        const parceiroProdutos = await tx.parceiroProduto.findMany({
+                            where: { produto_id: { in: produtoIdsConcluidos } },
+                            select: { produto_id: true, parceiro_id: true, preco: true },
+                        });
+
+                        for (const registro of parceiroProdutos) {
+                            if (!precoParceiroPorProduto.has(registro.produto_id)) {
+                                precoParceiroPorProduto.set(registro.produto_id, new Map());
+                            }
+                            precoParceiroPorProduto
+                                .get(registro.produto_id)!
+                                .set(registro.parceiro_id, registro.preco);
+                        }
+
+                        if (clienteIdEfetivo) {
+                            const clienteProdutos = await tx.clienteProduto.findMany({
+                                where: {
+                                    cliente_id: clienteIdEfetivo,
+                                    produto_id: { in: produtoIdsConcluidos },
+                                },
+                                select: { produto_id: true, preco_padrao: true },
+                            });
+
+                            for (const registro of clienteProdutos) {
+                                precoClientePorProduto.set(
+                                    registro.produto_id,
+                                    registro.preco_padrao,
+                                );
+                            }
+                        }
+                    }
+
                     for (const fichaDto of fichasExistentesDto) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                         if (Number(fichaDto.produto_id) !== fichaDb.produto_id) {
                             throw new BadRequestException(
                                 "Não é permitido alterar o produto da ficha",
+                            );
+                        }
+
+                        assertFichaEditavel(fichaDb, fichaDto, {
+                            precoParceiro:
+                                precoParceiroPorProduto.get(fichaDb.produto_id) ?? new Map(),
+                            precoPadraoCliente: clienteIdEfetivo
+                                ? (precoClientePorProduto.get(fichaDb.produto_id) ?? null)
+                                : undefined,
+                        });
+                    }
+
+                    for (const fichaDto of fichasExistentesDto) {
+                        const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
+                        const temEdicaoDeMatriz =
+                            Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+
+                        if (
+                            !fichaDb.concluida &&
+                            fichaDto.grade_versao_id != null &&
+                            !temEdicaoDeMatriz
+                        ) {
+                            throw new BadRequestException(
+                                "Para alterar a grade da ficha, envie também itens ou cores_ids",
                             );
                         }
                     }
@@ -399,6 +468,12 @@ export class PedidoService {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
                         return { ...fichaDto, produto_id: fichaDb.produto_id };
                     });
+
+                    // Concluída que chegou até aqui é eco: nada dela é regravado (nem matriz, nem parceiros,
+                    // nem preços, nem custo do produto). Só as pendentes seguem para as escritas.
+                    const fichasExistentesEditaveis = fichasExistentesNormalizadas.filter(
+                        (fichaDto) => !mapaFichasPedido.get(Number(fichaDto.id))!.concluida,
+                    );
 
                     const idsParaManter = new Set(idsExistentesPayload);
                     const idsParaRemover = fichasDoPedido
@@ -414,11 +489,11 @@ export class PedidoService {
 
                     if (fichaProduzidaOmitida) {
                         throw new ConflictException(
-                            "Fichas técnicas concluídas ou já produzidas não podem ser removidas do pedido",
+                            "Fichas técnicas já produzidas não podem ser removidas do pedido",
                         );
                     }
 
-                    for (const fichaDto of fichasExistentesNormalizadas) {
+                    for (const fichaDto of fichasExistentesEditaveis) {
                         await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
                     }
 
@@ -446,7 +521,7 @@ export class PedidoService {
                         });
                     }
 
-                    for (const fichaDto of fichasExistentesNormalizadas) {
+                    for (const fichaDto of fichasExistentesEditaveis) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                         if (clienteIdEfetivo) {

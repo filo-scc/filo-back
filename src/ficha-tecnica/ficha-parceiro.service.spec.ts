@@ -140,7 +140,11 @@ describe("FichaParceiroService", () => {
     });
 
     it("remove vínculo existente", async () => {
-        jest.spyOn(service, "findOne").mockResolvedValue({ ficha_id: 1, parceiro_id: 2 } as any);
+        jest.spyOn(service, "findOne").mockResolvedValue({
+            ficha_id: 1,
+            parceiro_id: 2,
+            ficha: { concluida: false },
+        } as any);
         prisma.fichaParceiro.delete.mockResolvedValue({});
 
         await expect(service.remove(1, 2, 10)).resolves.toBe(
@@ -190,5 +194,50 @@ describe("FichaParceiroService", () => {
             new NotFoundException("Parceiro não encontrado ou o fabrico não a possui"),
         );
         expect(prisma.fichaParceiro.findMany).not.toHaveBeenCalled();
+    });
+
+    describe("ficha concluída", () => {
+        const atual = {
+            ficha_id: 1,
+            parceiro_id: 2,
+            operacao: null,
+            quantidade: 9,
+            valor: new Prisma.Decimal("270"),
+            ficha: { concluida: true },
+        };
+
+        it("não permite vincular parceiro", async () => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue({ id: 1, concluida: true });
+
+            await expect(
+                service.create({ ficha_id: 1, parceiro_id: 2 } as any, 10),
+            ).rejects.toThrow(ConflictException);
+            expect(prisma.fichaParceiro.create).not.toHaveBeenCalled();
+        });
+
+        it("update idêntico (operacao '' vs null) é eco e não grava", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue(atual as any);
+
+            await expect(
+                service.update(1, 2, { operacao: "", quantidade: 9, valor: 270 } as any, 10),
+            ).resolves.toEqual(atual);
+            expect(prisma.fichaParceiro.update).not.toHaveBeenCalled();
+        });
+
+        it("update com valor diferente dá 409 sem gravar", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue(atual as any);
+
+            await expect(service.update(1, 2, { valor: 300 } as any, 10)).rejects.toThrow(
+                ConflictException,
+            );
+            expect(prisma.fichaParceiro.update).not.toHaveBeenCalled();
+        });
+
+        it("remove dá 409 sem apagar", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue(atual as any);
+
+            await expect(service.remove(1, 2, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaParceiro.delete).not.toHaveBeenCalled();
+        });
     });
 });

@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Prisma } from "@prisma/client";
+import { Prisma, UnidadeDeMedida } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { TecidosService } from "./tecidos.service";
+import type { UpdateTecidosDto } from "./dto/update-tecidos.dto";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 const { PrismaClientKnownRequestError } = Prisma;
@@ -61,6 +62,12 @@ describe("TecidosService", () => {
         tecido_id: 1,
     };
 
+    const createDto = {
+        nome: "Algodão",
+        custo_unitario: 15,
+        unidade_de_medida: UnidadeDeMedida.METRO,
+    };
+
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -97,7 +104,7 @@ describe("TecidosService", () => {
         it("deve criar um tecido com sucesso", async () => {
             mockPrismaService.tecido.create.mockResolvedValue(mockTecido);
 
-            const dto = { nome: "Algodão" };
+            const dto = createDto;
             const result = await service.create(dto, mockUser);
 
             expect(result).toEqual(mockTecido);
@@ -107,7 +114,7 @@ describe("TecidosService", () => {
         });
 
         it("deve lançar BadRequestException se fabrico_id diferente for informado", async () => {
-            const dto = { nome: "Algodão", fabrico_id: 99 };
+            const dto = { ...createDto, fabrico_id: 99 };
 
             await expect(service.create(dto, mockUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do tecido"),
@@ -123,7 +130,7 @@ describe("TecidosService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "Algodão" }, mockUser)).rejects.toThrow(
+            await expect(service.create(createDto, mockUser)).rejects.toThrow(
                 new ConflictException("Tecido já existe"),
             );
         });
@@ -136,7 +143,7 @@ describe("TecidosService", () => {
                 }),
             );
 
-            await expect(service.create({ nome: "Algodão" }, mockUser)).rejects.toThrow(
+            await expect(service.create(createDto, mockUser)).rejects.toThrow(
                 new NotFoundException("Fabrico não encontrado"),
             );
         });
@@ -221,9 +228,10 @@ describe("TecidosService", () => {
         });
 
         it("deve lançar BadRequestException se tentar alterar o fabrico_id", async () => {
-            await expect(
-                service.update(1, { nome: "Seda", fabrico_id: 99 }, mockUser),
-            ).rejects.toThrow(
+            const updateDto = { nome: "Seda" } as UpdateTecidosDto;
+            Object.assign(updateDto, { fabrico_id: 99 });
+
+            await expect(service.update(1, updateDto, mockUser)).rejects.toThrow(
                 new BadRequestException("Não é permitido alterar o fabrico do tecido"),
             );
         });
