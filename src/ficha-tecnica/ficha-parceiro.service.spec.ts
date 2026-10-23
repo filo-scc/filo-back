@@ -97,7 +97,7 @@ describe("FichaParceiroService", () => {
 
         await expect(service.getAll(10)).resolves.toEqual([{ id: 1 }]);
         expect(prisma.fichaParceiro.findMany).toHaveBeenCalledWith({
-            where: { ficha: { fabrico_id: 10 } },
+            where: { ficha: { delete_at: null, fabrico_id: 10 } },
             include: { ficha: true, parceiro: true },
         });
     });
@@ -106,13 +106,13 @@ describe("FichaParceiroService", () => {
         prisma.fichaParceiro.findFirst.mockResolvedValue({
             ficha_id: 1,
             parceiro_id: 2,
-            ficha: { fabrico_id: 10 },
+            ficha: { delete_at: null, fabrico_id: 10 },
         });
 
         await expect(service.findOne(1, 2, 10)).resolves.toEqual({
             ficha_id: 1,
             parceiro_id: 2,
-            ficha: { fabrico_id: 10 },
+            ficha: { delete_at: null, fabrico_id: 10 },
         });
     });
 
@@ -178,7 +178,7 @@ describe("FichaParceiroService", () => {
             { ficha: { id: 1 } },
         ]);
         expect(prisma.fichaParceiro.findMany).toHaveBeenCalledWith({
-            where: { parceiro_id: 2 },
+            where: { parceiro_id: 2, ficha: { fabrico_id: 10, delete_at: null } },
             include: { ficha: true },
         });
     });

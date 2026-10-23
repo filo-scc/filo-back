@@ -39,6 +39,7 @@ export class ConcluirFichasCronService implements OnModuleInit {
             const agora = new Date();
             const fichasParaConcluir = await this.prisma.fichaTecnica.findMany({
                 where: {
+                    delete_at: null,
                     concluida: false,
                     produzida_em: { lte: setentaEDuasHorasAtras },
                     fabrico: { ativo: true },
@@ -60,12 +61,13 @@ export class ConcluirFichasCronService implements OnModuleInit {
                     await lockPedidos(tx, pedidoIds);
 
                     await tx.fichaTecnica.updateMany({
-                        where: { id: { in: idsFichas }, concluida: false },
+                        where: { delete_at: null, id: { in: idsFichas }, concluida: false },
                         data: { concluida: true },
                     });
                     await tx.fichaEtapa.updateMany({
                         where: {
                             ficha_tecnica_id: { in: idsFichas },
+                            ficha_tecnica: { delete_at: null },
                             data_fim: null,
                         },
                         data: { data_fim: agora },

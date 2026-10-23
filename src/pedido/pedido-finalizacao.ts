@@ -32,7 +32,7 @@ export async function sincronizarFinalizacaoPedido(
     await lockPedidos(tx, [pedidoId]);
 
     const totalFichas = await tx.fichaTecnica.count({
-        where: { pedido_id: pedidoId },
+        where: { delete_at: null, pedido_id: pedidoId },
     });
 
     if (totalFichas === 0) {
@@ -40,19 +40,19 @@ export async function sincronizarFinalizacaoPedido(
     }
 
     const pendentes = await tx.fichaTecnica.count({
-        where: { pedido_id: pedidoId, concluida: false },
+        where: { delete_at: null, pedido_id: pedidoId, concluida: false },
     });
 
     if (pendentes === 0) {
         await tx.pedido.updateMany({
-            where: { id: pedidoId, finalizado: false },
+            where: { delete_at: null, id: pedidoId, finalizado: false },
             data: { finalizado: true },
         });
         return;
     }
 
     await tx.pedido.updateMany({
-        where: { id: pedidoId, finalizado: true },
+        where: { delete_at: null, id: pedidoId, finalizado: true },
         data: { finalizado: false },
     });
 }

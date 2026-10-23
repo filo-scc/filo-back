@@ -23,6 +23,8 @@ import {
     proximoNumeroPedido,
 } from "src/common/utils/concurrency";
 
+type FichaParaTotais = CreatePedidoFichaDto & { defeitos_tecido?: number | null };
+
 const PALETA_13_CORES = [
     "#7FA9B8",
     "#9DB7A5",
@@ -41,7 +43,7 @@ const PALETA_13_CORES = [
 
 const PEDIDO_COMPLETO_INCLUDE = {
     cliente: true,
-    fichas_tecnicas: { include: { fichas_etapas: true } },
+    fichas_tecnicas: { where: { delete_at: null }, include: { fichas_etapas: true } },
 } as const;
 
 @Injectable()
@@ -235,7 +237,7 @@ export class PedidoService {
                     }
 
                     return tx.pedido.findUnique({
-                        where: { id: pedido.id },
+                        where: { delete_at: null, id: pedido.id },
                         include: PEDIDO_COMPLETO_INCLUDE,
                     });
                 },
@@ -325,8 +327,8 @@ export class PedidoService {
                     await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
                     const pedido = await tx.pedido.findFirst({
-                        where: { id, fabrico_id: fabricoId },
-                        include: { fichas_tecnicas: true },
+                        where: { delete_at: null, id, fabrico_id: fabricoId },
+                        include: { fichas_tecnicas: { where: { delete_at: null } } },
                     });
 
                     if (!pedido) {
@@ -434,11 +436,13 @@ export class PedidoService {
                         : new Map<number, number>();
 
                     if (idsParaRemover.length) {
-                        await tx.fichaEtapa.deleteMany({
-                            where: { ficha_tecnica_id: { in: idsParaRemover } },
-                        });
-                        await tx.fichaTecnica.deleteMany({
-                            where: { id: { in: idsParaRemover }, pedido_id: pedido.id },
+                        await tx.fichaTecnica.updateMany({
+                            where: {
+                                delete_at: null,
+                                id: { in: idsParaRemover },
+                                pedido_id: pedido.id,
+                            },
+                            data: { delete_at: new Date() },
                         });
                     }
 
@@ -556,7 +560,7 @@ export class PedidoService {
                         }
                     }
 
-                    const fichasParaTotais: CreatePedidoFichaDto[] = [
+                    const fichasParaTotais: FichaParaTotais[] = [
                         ...fichasExistentesNormalizadas.map((fichaDto) => {
                             const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
@@ -564,6 +568,7 @@ export class PedidoService {
                                 ...fichaDto,
                                 produto_id: fichaDb.produto_id,
                                 quantidade: fichaDb.quantidade,
+                                defeitos_tecido: fichaDb.defeitos_tecido,
                             };
                         }),
                         ...fichasNovas,
@@ -605,7 +610,7 @@ export class PedidoService {
                     await sincronizarFinalizacaoPedido(tx, pedido.id);
 
                     return tx.pedido.findUnique({
-                        where: { id: pedido.id },
+                        where: { delete_at: null, id: pedido.id },
                         include: PEDIDO_COMPLETO_INCLUDE,
                     });
                 },
@@ -661,15 +666,21 @@ export class PedidoService {
         }
     }
 
-    private buscarPedidoPorIdempotencia(
+    private async buscarPedidoPorIdempotencia(
         db: Prisma.TransactionClient | PrismaService,
         fabricoId: number,
         chaveIdempotencia: string,
     ) {
-        return db.pedido.findFirst({
+        const pedido = await db.pedido.findFirst({
             where: { fabrico_id: fabricoId, idempotency_key: chaveIdempotencia },
             include: PEDIDO_COMPLETO_INCLUDE,
         });
+        if (pedido?.delete_at) {
+            throw new ConflictException(
+                "Este pedido foi excluído. Use uma nova chave para criar outro pedido.",
+            );
+        }
+        return pedido;
     }
 
     private async persistirFichaNova(
@@ -1017,7 +1028,7 @@ export class PedidoService {
 
         if (ultimaEtapa?.id === etapaId) {
             await tx.fichaTecnica.updateMany({
-                where: { id: fichaId, produzida_em: null },
+                where: { delete_at: null, id: fichaId, produzida_em: null },
                 data: { produzida_em: dataInicio },
             });
         }
@@ -1144,7 +1155,7 @@ export class PedidoService {
     private async calcularTotais(
         tx: Prisma.TransactionClient,
         data: { cliente_id?: number | null },
-        fichasDto: CreatePedidoFichaDto[],
+        fichasDto: FichaParaTotais[],
         produtoIds: number[],
     ) {
         const produtos = await tx.produto.findMany({
@@ -1186,7 +1197,7 @@ export class PedidoService {
     private async calcularValorTotalDoCliente(
         tx: Prisma.TransactionClient,
         clienteId: number,
-        fichasDto: CreatePedidoFichaDto[],
+        fichasDto: FichaParaTotais[],
     ) {
         const produtosSemPrecoNoPayload = [
             ...new Set(
@@ -1225,17 +1236,23 @@ export class PedidoService {
                         ? ficha.preco_padrao
                         : precoPersistidoPorProduto.get(produtoId);
 
-                return lineTotal(Number(ficha.quantidade) || 0, precoUnitario);
+                // Apenas perdas de tecido reduzem o valor de venda; custo e matriz permanecem integrais.
+                const quantidadeFaturavel = Math.max(
+                    0,
+                    (Number(ficha.quantidade) || 0) - (ficha.defeitos_tecido ?? 0),
+                );
+                return lineTotal(quantidadeFaturavel, precoUnitario);
             }),
         );
     }
 
     async findAll(fabricoId: number) {
         return this.prisma.pedido.findMany({
-            where: { fabrico_id: fabricoId },
+            where: { delete_at: null, fabrico_id: fabricoId },
             include: {
                 cliente: true,
                 fichas_tecnicas: {
+                    where: { delete_at: null },
                     include: { fichas_etapas: true },
                 },
             },
@@ -1245,7 +1262,7 @@ export class PedidoService {
     async getById(id: number, fabricoId: number) {
         // Inclui todas as fichas, concluídas ou não: detalhe e edição do pedido dependem delas.
         const pedido = await this.prisma.pedido.findFirst({
-            where: { id, fabrico_id: fabricoId },
+            where: { delete_at: null, id, fabrico_id: fabricoId },
             include: PEDIDO_COMPLETO_INCLUDE,
         });
 
@@ -1262,7 +1279,7 @@ export class PedidoService {
             await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
             const pedido = await tx.pedido.findFirst({
-                where: { id, fabrico_id: fabricoId },
+                where: { delete_at: null, id, fabrico_id: fabricoId },
             });
 
             if (!pedido) {
@@ -1271,7 +1288,15 @@ export class PedidoService {
 
             this.assertPedidoEditavel(pedido);
 
-            await tx.pedido.delete({ where: { id: pedido.id } });
+            const excluidoEm = new Date();
+            await tx.fichaTecnica.updateMany({
+                where: { pedido_id: pedido.id, fabrico_id: fabricoId, delete_at: null },
+                data: { delete_at: excluidoEm },
+            });
+            await tx.pedido.update({
+                where: { id: pedido.id },
+                data: { delete_at: excluidoEm },
+            });
         });
 
         return `O pedido com o id ${id} foi deletado com sucesso`;
@@ -1293,7 +1318,7 @@ export class PedidoService {
             await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
             const pedido = await tx.pedido.findFirst({
-                where: { id, fabrico_id: fabricoId },
+                where: { delete_at: null, id, fabrico_id: fabricoId },
             });
 
             if (!pedido) {
@@ -1328,7 +1353,7 @@ export class PedidoService {
 
     async findAllCliente(cliente_id: number, fabricoId: number) {
         return this.prisma.pedido.findMany({
-            where: { cliente_id, fabrico_id: fabricoId },
+            where: { delete_at: null, cliente_id, fabrico_id: fabricoId },
         });
     }
 
@@ -1338,6 +1363,7 @@ export class PedidoService {
     ): Promise<string> {
         const pedidosAtivos = await db.pedido.findMany({
             where: {
+                delete_at: null,
                 fabrico_id: fabricoId,
                 finalizado: false,
                 NOT: { cor: { equals: "#FFFFFF", mode: "insensitive" } },

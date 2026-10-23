@@ -133,7 +133,7 @@ export class TransferenciaEtapaService {
         return this.prisma.$transaction(
             async (tx) => {
                 const fichaBase = await tx.fichaTecnica.findFirst({
-                    where: { id: ficha_tecnica_id, fabrico_id: fabricoId },
+                    where: { delete_at: null, id: ficha_tecnica_id, fabrico_id: fabricoId },
                     select: { pedido_id: true },
                 });
                 if (!fichaBase) {
@@ -147,7 +147,7 @@ export class TransferenciaEtapaService {
                 await tx.$queryRaw`SELECT id FROM "fichas-tecnicas" WHERE id = ${ficha_tecnica_id} FOR UPDATE`;
 
                 const ficha = await tx.fichaTecnica.findFirst({
-                    where: { id: ficha_tecnica_id, fabrico_id: fabricoId },
+                    where: { delete_at: null, id: ficha_tecnica_id, fabrico_id: fabricoId },
                 });
                 if (!ficha) {
                     throw new NotFoundException("Ficha técnica não encontrada");
@@ -181,7 +181,7 @@ export class TransferenciaEtapaService {
                     await this.assertRepeticaoIdentica(tx, ficha, dto, quantidadeCanonica);
 
                     return tx.fichaTecnica.findUnique({
-                        where: { id: ficha_tecnica_id },
+                        where: { delete_at: null, id: ficha_tecnica_id },
                         include: {
                             fichas_etapas: true,
                             etapa_atual: true,
@@ -314,7 +314,7 @@ export class TransferenciaEtapaService {
                 });
                 if (ultimaEtapaAtiva?.id === etapa_destino_id) {
                     await tx.fichaTecnica.updateMany({
-                        where: { id: ficha_tecnica_id, produzida_em: null },
+                        where: { delete_at: null, id: ficha_tecnica_id, produzida_em: null },
                         data: { produzida_em: dataInicio },
                     });
                 }

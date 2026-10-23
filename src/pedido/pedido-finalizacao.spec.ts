@@ -47,7 +47,7 @@ describe("sincronizarFinalizacaoPedido", () => {
         await sincronizarFinalizacaoPedido(tx as any, 10);
 
         expect(tx.pedido.updateMany).toHaveBeenCalledWith({
-            where: { id: 10, finalizado: false },
+            where: { delete_at: null, id: 10, finalizado: false },
             data: { finalizado: true },
         });
     });
@@ -59,7 +59,7 @@ describe("sincronizarFinalizacaoPedido", () => {
         await sincronizarFinalizacaoPedido(tx as any, 10);
 
         expect(tx.pedido.updateMany).toHaveBeenCalledWith({
-            where: { id: 10, finalizado: true },
+            where: { delete_at: null, id: 10, finalizado: true },
             data: { finalizado: false },
         });
     });

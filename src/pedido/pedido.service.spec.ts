@@ -1248,11 +1248,11 @@ describe("PedidoService", () => {
                 fabricoId,
             );
 
-            expect(mockPrismaService.fichaEtapa.deleteMany).toHaveBeenCalledWith({
-                where: { ficha_tecnica_id: { in: [200] } },
-            });
-            expect(mockPrismaService.fichaTecnica.deleteMany).toHaveBeenCalledWith({
-                where: { id: { in: [200] }, pedido_id: 100 },
+            expect(mockPrismaService.fichaEtapa.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { delete_at: null, id: { in: [200] }, pedido_id: 100 },
+                data: { delete_at: expect.any(Date) },
             });
             expect(mockPrismaService.fichaTecnica.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
@@ -1516,10 +1516,11 @@ describe("PedidoService", () => {
             expect(result).toEqual(pedidos);
 
             expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 1 },
+                where: { delete_at: null, fabrico_id: 1 },
                 include: {
                     cliente: true,
                     fichas_tecnicas: {
+                        where: { delete_at: null },
                         include: { fichas_etapas: true },
                     },
                 },
@@ -1541,10 +1542,13 @@ describe("PedidoService", () => {
 
             expect(result).toEqual(pedido);
             expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: 1 },
+                where: { delete_at: null, id: 1, fabrico_id: 1 },
                 include: {
                     cliente: true,
-                    fichas_tecnicas: { include: { fichas_etapas: true } },
+                    fichas_tecnicas: {
+                        where: { delete_at: null },
+                        include: { fichas_etapas: true },
+                    },
                 },
             });
         });
@@ -1592,10 +1596,7 @@ describe("PedidoService", () => {
             expect(result).toEqual(pedidos);
 
             expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
-                where: {
-                    cliente_id: 7,
-                    fabrico_id: 1,
-                },
+                where: { delete_at: null, cliente_id: 7, fabrico_id: 1 },
             });
         });
     });
@@ -1806,10 +1807,16 @@ describe("PedidoService", () => {
 
             expect(result).toEqual("O pedido com o id 1 foi deletado com sucesso");
 
-            expect(mockPrismaService.pedido.delete).toHaveBeenCalledWith({
-                where: {
-                    id: 1,
-                },
+            expect(mockPrismaService.pedido.delete).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { pedido_id: 1, fabrico_id: 1, delete_at: null },
+                data: { delete_at: expect.any(Date) },
+            });
+            const exclusao =
+                mockPrismaService.fichaTecnica.updateMany.mock.calls[0][0].data.delete_at;
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { delete_at: exclusao },
             });
         });
 
