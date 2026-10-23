@@ -136,6 +136,52 @@ describe("ProdutoService", () => {
             );
         });
 
+        it("informa o id do produto inativo do próprio fabrico quando o nome está ocupado por ele", async () => {
+            prisma.produto.create.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "5.0.0",
+                }),
+            );
+            prisma.produto.findFirst.mockResolvedValue({ id: 42 });
+
+            const erro = await service
+                .create({ nome: "Camiseta" } as any, mockUser)
+                .catch((e: unknown) => e);
+
+            expect(erro).toBeInstanceOf(ConflictException);
+            expect((erro as ConflictException).getStatus()).toBe(409);
+            expect((erro as ConflictException).getResponse()).toMatchObject({
+                produto_inativo_id: 42,
+                restauravel: true,
+            });
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: { fabrico_id: 10, nome: "Camiseta", ativo: false },
+                select: { id: true },
+            });
+        });
+
+        it("não informa id quando o nome está ocupado por produto ativo ou de outro fabrico", async () => {
+            prisma.produto.create.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "5.0.0",
+                }),
+            );
+            prisma.produto.findFirst.mockResolvedValue(null);
+
+            const erro = await service
+                .create({ nome: "Camiseta" } as any, mockUser)
+                .catch((e: unknown) => e);
+
+            expect((erro as ConflictException).getResponse()).toMatchObject({
+                message: "Já existe um produto com este nome para este fabrico",
+            });
+            expect((erro as ConflictException).getResponse()).not.toHaveProperty(
+                "produto_inativo_id",
+            );
+        });
+
         it("traduz erro P2003 do Prisma no create", async () => {
             prisma.produto.create.mockRejectedValue(
                 new PrismaClientKnownRequestError("fk", {
@@ -329,6 +375,31 @@ describe("ProdutoService", () => {
             expect(prisma.produto.update).not.toHaveBeenCalled();
         });
 
+        it("informa o id do produto inativo ao renomear para nome ocupado por ele", async () => {
+            mockProdutoBloqueado();
+            prisma.produto.update.mockRejectedValue(
+                new PrismaClientKnownRequestError("duplicado", {
+                    code: "P2002",
+                    clientVersion: "5.0.0",
+                }),
+            );
+            prisma.produto.findFirst.mockResolvedValue({ id: 42 });
+
+            const erro = await service
+                .update(1, { nome: "Camiseta" }, mockUser)
+                .catch((e: unknown) => e);
+
+            expect(erro).toBeInstanceOf(ConflictException);
+            expect((erro as ConflictException).getResponse()).toMatchObject({
+                produto_inativo_id: 42,
+                restauravel: true,
+            });
+            expect(prisma.produto.findFirst).toHaveBeenCalledWith({
+                where: { fabrico_id: 10, nome: "Camiseta", ativo: false },
+                select: { id: true },
+            });
+        });
+
         it("rejeita troca para tecido de outro fabrico no update", async () => {
             mockProdutoBloqueado();
             prisma.tecido.findFirst.mockResolvedValue(null);
@@ -479,6 +550,33 @@ describe("ProdutoService", () => {
 
             await expect(service.restore(1, mockUser)).rejects.toThrow(
                 new NotFoundException("Produto não encontrado"),
+            );
+        });
+    });
+
+    describe("findInativos", () => {
+        it("lista apenas produtos inativos do fabrico do usuário", async () => {
+            prisma.produto.findMany.mockResolvedValue([{ id: 42, nome: "Camiseta" }]);
+
+            const res = await service.findInativos(mockUser);
+
+            expect(res).toEqual([{ id: 42, nome: "Camiseta" }]);
+            expect(prisma.produto.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10, ativo: false },
+                select: {
+                    id: true,
+                    nome: true,
+                    foto: true,
+                    tipo_produto_id: true,
+                    delete_at: true,
+                },
+                orderBy: { nome: "asc" },
+            });
+        });
+
+        it("rejeita usuário sem fabrico", async () => {
+            await expect(service.findInativos(mockUserSemFabrico)).rejects.toThrow(
+                new BadRequestException("Usuário não possui um fabrico associado"),
             );
         });
     });

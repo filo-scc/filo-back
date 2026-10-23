@@ -250,9 +250,7 @@ export class ProdutoService {
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    throw new ConflictException(
-                        "Já existe um produto com este nome para este fabrico",
-                    );
+                    throw await this.criarConflitoDeNome(dadosCreate.nome, userFabricoId);
                 }
                 if (error.code === "P2003") {
                     throw new NotFoundException("Relacionamento inválido");
@@ -260,6 +258,52 @@ export class ProdutoService {
             }
             throw error;
         }
+    }
+
+    /**
+     * Monta o 409 de nome duplicado. Quando o nome está ocupado por um produto inativo do mesmo
+     * fabrico, informa o id para restaurá-lo. A busca é restrita ao fabrico do usuário, então
+     * nada é revelado sobre outras fábricas.
+     */
+    private async criarConflitoDeNome(nome: string | undefined, fabricoId: number) {
+        const mensagem = "Já existe um produto com este nome para este fabrico";
+
+        const inativo = nome
+            ? await this.prisma.produto.findFirst({
+                  where: { fabrico_id: fabricoId, nome, ativo: false },
+                  select: { id: true },
+              })
+            : null;
+
+        if (!inativo) {
+            return new ConflictException(mensagem);
+        }
+
+        return new ConflictException({
+            statusCode: 409,
+            error: "Conflict",
+            message: `${mensagem}: o produto está inativo e pode ser restaurado`,
+            produto_inativo_id: inativo.id,
+            restauravel: true,
+        });
+    }
+
+    async findInativos(user: AuthenticatedUser) {
+        const userFabricoId = this.getFabricoId(user);
+        return this.prisma.produto.findMany({
+            where: {
+                fabrico_id: userFabricoId,
+                ativo: false,
+            },
+            select: {
+                id: true,
+                nome: true,
+                foto: true,
+                tipo_produto_id: true,
+                delete_at: true,
+            },
+            orderBy: { nome: "asc" },
+        });
     }
 
     async findAll(user: AuthenticatedUser) {
@@ -403,9 +447,7 @@ export class ProdutoService {
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    throw new ConflictException(
-                        "Já existe um produto com este nome para este fabrico",
-                    );
+                    throw await this.criarConflitoDeNome(dadosUpdate.nome, userFabricoId);
                 }
                 if (error.code === "P2003") {
                     throw new NotFoundException("Relacionamento inválido");
