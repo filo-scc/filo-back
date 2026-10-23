@@ -238,17 +238,19 @@ export class DashboardService {
 
         const [pedidos, fichasProduzidas] = await Promise.all([
             this.prisma.pedido.findMany({
-                where: { fabrico_id: fabrico.id },
+                where: { delete_at: null, fabrico_id: fabrico.id },
                 select: {
                     id: true,
                     data_prevista: true,
                     fichas_tecnicas: {
+                        where: { delete_at: null },
                         select: { concluida: true, produzida_em: true },
                     },
                 },
             }),
             this.prisma.fichaTecnica.findMany({
                 where: {
+                    delete_at: null,
                     fabrico_id: fabrico.id,
                     produzida_em: { gte: periodStartAt, lt: periodEndAt },
                 },
@@ -309,6 +311,7 @@ export class DashboardService {
 
         const fichas = await this.prisma.fichaTecnica.findMany({
             where: {
+                delete_at: null,
                 fabrico_id: fabrico.id,
                 produzida_em: { gte: firstInterval.startAt, lt: lastInterval.endAt },
             },

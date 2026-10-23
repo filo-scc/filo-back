@@ -217,7 +217,7 @@ describe("FichaTecnicaService", () => {
             await service.update(1, { concluida: true } as any, mockUser);
 
             expect(prismaService.pedido.updateMany).toHaveBeenCalledWith({
-                where: { id: 100, finalizado: false },
+                where: { delete_at: null, id: 100, finalizado: false },
                 data: { finalizado: true },
             });
         });
@@ -375,7 +375,12 @@ describe("FichaTecnicaService", () => {
             expect(result).toEqual([fichaData]);
             expect(prismaService.fichaTecnica.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { fabrico_id: 20, concluida: false },
+                    where: {
+                        delete_at: null,
+                        pedido: { delete_at: null },
+                        fabrico_id: 20,
+                        concluida: false,
+                    },
                     include: expect.objectContaining({
                         ficha_parceiro: {
                             include: {
@@ -401,12 +406,16 @@ describe("FichaTecnicaService", () => {
     describe("remove", () => {
         it("deve remover a ficha com sucesso", async () => {
             jest.spyOn(service, "findOne").mockResolvedValue(fichaData as any);
-            prismaService.fichaTecnica.delete.mockResolvedValue(fichaData);
+            prismaService.fichaTecnica.update.mockResolvedValue(fichaData);
 
             const result = await service.remove(1, mockUser);
 
             expect(result).toBe("Ficha técnica excluída com sucesso");
-            expect(prismaService.fichaTecnica.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+            expect(prismaService.fichaTecnica.delete).not.toHaveBeenCalled();
+            expect(prismaService.fichaTecnica.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { delete_at: expect.any(Date) },
+            });
         });
 
         it("deve lançar NotFoundException se a ficha não existir", async () => {

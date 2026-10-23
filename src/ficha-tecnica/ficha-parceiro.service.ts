@@ -15,7 +15,7 @@ export class FichaParceiroService {
 
     async create(data: CreateFichaParceiroDto, fabrico_id: number) {
         const fichaExiste = await this.prisma.fichaTecnica.findFirst({
-            where: { id: data.ficha_id, fabrico_id },
+            where: { delete_at: null, id: data.ficha_id, fabrico_id },
             select: { id: true },
         });
         if (!fichaExiste) {
@@ -54,7 +54,7 @@ export class FichaParceiroService {
     async getAll(fabrico_id: number) {
         try {
             return this.prisma.fichaParceiro.findMany({
-                where: { ficha: { fabrico_id } },
+                where: { ficha: { delete_at: null, fabrico_id } },
                 include: {
                     ficha: true,
                     parceiro: true,
@@ -71,7 +71,7 @@ export class FichaParceiroService {
             where: {
                 ficha_id,
                 parceiro_id,
-                ficha: { fabrico_id },
+                ficha: { delete_at: null, fabrico_id },
             },
             include: {
                 ficha: true,
@@ -127,7 +127,7 @@ export class FichaParceiroService {
 
     async getFichaParceiroByFicha(ficha_id: number, fabrico_id: number) {
         const ficha = await this.prisma.fichaTecnica.findFirst({
-            where: { id: ficha_id, fabrico_id },
+            where: { delete_at: null, id: ficha_id, fabrico_id },
             select: { id: true },
         });
         if (!ficha) {
@@ -150,7 +150,7 @@ export class FichaParceiroService {
         }
 
         return this.prisma.fichaParceiro.findMany({
-            where: { parceiro_id },
+            where: { parceiro_id, ficha: { fabrico_id, delete_at: null } },
             include: { ficha: true },
         });
     }
