@@ -11,6 +11,7 @@ import { FichaTecnicaService } from "./ficha-tecnica.service";
 import { EtapaService } from "src/etapa/etapa.service";
 import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
+import { MSG_FICHA_CONCLUIDA } from "src/common/utils/ficha";
 
 const paraData = (valor: string | null): Date | null => (valor === null ? null : new Date(valor));
 
@@ -28,6 +29,7 @@ export class FichaEtapaService {
                 id,
                 ficha_tecnica: { fabrico_id: fabricoId },
             },
+            include: { ficha_tecnica: { select: { concluida: true } } },
         });
 
         if (!fichaEtapa) {
@@ -116,6 +118,25 @@ export class FichaEtapaService {
     async updateFichaEtapa(id: number, data: UpdateFichaEtapaDto, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user);
         const atual = await this.getFichaEtapaOrFail(id, fabricoId);
+
+        if (atual.ficha_tecnica.concluida) {
+            const mesmaData = (novo: string | null | undefined, antigo: Date | null) =>
+                novo === undefined ||
+                (novo === null ? antigo === null : antigo?.getTime() === new Date(novo).getTime());
+
+            const mudou =
+                (data.observacoes !== undefined &&
+                    (data.observacoes ?? "") !== (atual.observacoes ?? "")) ||
+                !mesmaData(data.data_inicio, atual.data_inicio) ||
+                !mesmaData(data.data_fim, atual.data_fim);
+
+            if (mudou) {
+                throw new ConflictException(MSG_FICHA_CONCLUIDA);
+            }
+
+            return atual;
+        }
+
         this.assertDatasValidas(atual, data);
 
         try {

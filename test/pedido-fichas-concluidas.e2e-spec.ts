@@ -3,7 +3,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import request from "supertest";
 import { App } from "supertest/types";
 import * as bcrypt from "bcrypt";
-import { Cargo } from "@prisma/client";
+import { Cargo, TipoCor } from "@prisma/client";
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/prisma/prisma.service";
 
@@ -203,5 +203,314 @@ describe("Pedido com fichas concluídas (E2E)", () => {
         await expect(prisma.fichaTecnica.count({ where: { pedido_id: ids.pedido } })).resolves.toBe(
             2,
         );
+    });
+
+    describe("ficha concluída imutável (DEV-505) e etapa só pela transferência (DEV-506)", () => {
+        const auth = () => ({ Authorization: `Bearer ${token}` });
+        const lerFicha = (id: number) => prisma.fichaTecnica.findUniqueOrThrow({ where: { id } });
+        const etapas = { inicial: 0, meio: 0, final: 0 };
+        const comMatriz = { pedido: 0, ficha: 0 };
+
+        beforeAll(async () => {
+            // Pedido novo só aceita grade liberada para o fabrico (FabricoGrade).
+            await prisma.fabricoGrade.create({
+                data: { fabrico_id: ids.fabrico, grade_id: ids.grade, ativo: true },
+            });
+            const inicial = await prisma.etapa.findFirstOrThrow({
+                where: { fabrico_id: ids.fabrico, ordem: 1 },
+            });
+            const [meio, final] = await Promise.all(
+                [2, 3].map((ordem) =>
+                    prisma.etapa.create({
+                        data: {
+                            nome: `${runId}-etapa-${ordem}`,
+                            ordem,
+                            ativa: true,
+                            fabrico_id: ids.fabrico,
+                        },
+                    }),
+                ),
+            );
+            etapas.inicial = inicial.id;
+            etapas.meio = meio.id;
+            etapas.final = final.id;
+
+            // Concluída com uma célula na matriz: excluir a matriz deixa de ser um no-op.
+            const [gradeVersaoItem, cor] = await Promise.all([
+                prisma.gradeVersaoItem.create({
+                    data: { grade_versao_id: ids.gradeVersao, tamanho_id: ids.tamanho, posicao: 1 },
+                }),
+                prisma.cor.create({
+                    data: { nome: `${runId}-cor`, tipo: TipoCor.COR, fabrico_id: ids.fabrico },
+                }),
+            ]);
+            const pedido = await prisma.pedido.create({
+                data: {
+                    finalizado: false,
+                    cor: "#FFFFFF",
+                    quantidade: 1,
+                    numero: 2,
+                    fabrico_id: ids.fabrico,
+                },
+            });
+            const ficha = await prisma.fichaTecnica.create({
+                data: {
+                    quantidade: 1,
+                    grade_versao_id: ids.gradeVersao,
+                    etapa_atual_id: inicial.id,
+                    pedido_id: pedido.id,
+                    fabrico_id: ids.fabrico,
+                    produto_id: ids.produtoConcluido,
+                    numero: 3,
+                    concluida: true,
+                    produzida_em: new Date(Date.now() - 80 * 60 * 60 * 1000),
+                },
+            });
+            await prisma.fichaTecnicaItem.create({
+                data: {
+                    ficha_tecnica_id: ficha.id,
+                    cor_id: cor.id,
+                    grade_versao_item_id: gradeVersaoItem.id,
+                    quantidade: 1,
+                },
+            });
+            comMatriz.pedido = pedido.id;
+            comMatriz.ficha = ficha.id;
+        });
+
+        it("PUT /pedidos/completo/:id alterando a concluída responde 409 e não grava nada, nem na pendente", async () => {
+            await request(app.getHttpServer())
+                .put(`/pedidos/completo/${ids.pedido}`)
+                .set(auth())
+                .send({
+                    fichas: [
+                        {
+                            id: ids.fichaConcluida,
+                            produto_id: ids.produtoConcluido,
+                            quantidade: 0,
+                            observacoes: "tentativa de edição",
+                        },
+                        {
+                            id: ids.fichaPendente,
+                            produto_id: ids.produtoPendente,
+                            quantidade: 0,
+                            observacoes: "não deve ser gravada",
+                        },
+                    ],
+                })
+                .expect(409);
+
+            await expect(lerFicha(ids.fichaConcluida)).resolves.toMatchObject({
+                observacoes: null,
+            });
+            await expect(lerFicha(ids.fichaPendente)).resolves.toMatchObject({
+                observacoes: null,
+            });
+        });
+
+        it("PUT /pedidos/completo/:id alterando só a pendente passa e a concluída não é regravada", async () => {
+            const concluidaAntes = await lerFicha(ids.fichaConcluida);
+
+            await request(app.getHttpServer())
+                .put(`/pedidos/completo/${ids.pedido}`)
+                .set(auth())
+                .send({
+                    fichas: [
+                        {
+                            id: ids.fichaConcluida,
+                            produto_id: ids.produtoConcluido,
+                            quantidade: 0,
+                        },
+                        {
+                            id: ids.fichaPendente,
+                            produto_id: ids.produtoPendente,
+                            quantidade: 0,
+                            observacoes: "pendente editada",
+                        },
+                    ],
+                })
+                .expect(200);
+
+            await expect(lerFicha(ids.fichaConcluida)).resolves.toEqual(concluidaAntes);
+            await expect(lerFicha(ids.fichaPendente)).resolves.toMatchObject({
+                observacoes: "pendente editada",
+            });
+        });
+
+        it("ficha na última etapa (produzida_em) ainda não concluída continua editável", async () => {
+            await prisma.fichaTecnica.update({
+                where: { id: ids.fichaPendente },
+                data: { produzida_em: new Date() },
+            });
+
+            await request(app.getHttpServer())
+                .put(`/pedidos/completo/${ids.pedido}`)
+                .set(auth())
+                .send({
+                    fichas: [
+                        {
+                            id: ids.fichaConcluida,
+                            produto_id: ids.produtoConcluido,
+                            quantidade: 0,
+                        },
+                        {
+                            id: ids.fichaPendente,
+                            produto_id: ids.produtoPendente,
+                            quantidade: 0,
+                            observacoes: "editada depois de produzida",
+                        },
+                    ],
+                })
+                .expect(200);
+
+            await expect(lerFicha(ids.fichaPendente)).resolves.toMatchObject({
+                observacoes: "editada depois de produzida",
+            });
+        });
+
+        it("PUT /pedidos/completo/:id omitindo a ficha produzida e ainda não concluída responde 409 e não apaga nada", async () => {
+            await request(app.getHttpServer())
+                .put(`/pedidos/completo/${ids.pedido}`)
+                .set(auth())
+                .send({
+                    fichas: [
+                        {
+                            id: ids.fichaConcluida,
+                            produto_id: ids.produtoConcluido,
+                            quantidade: 0,
+                        },
+                    ],
+                })
+                .expect(409);
+
+            await expect(
+                prisma.fichaTecnica.count({ where: { pedido_id: ids.pedido } }),
+            ).resolves.toBe(2);
+        });
+
+        it("PUT /fichas-tecnicas/:id recusa a concluída com 409 e edita a pendente", async () => {
+            await request(app.getHttpServer())
+                .put(`/fichas-tecnicas/${ids.fichaConcluida}`)
+                .set(auth())
+                .send({ observacoes: "tentativa de edição" })
+                .expect(409);
+            await expect(lerFicha(ids.fichaConcluida)).resolves.toMatchObject({
+                observacoes: null,
+            });
+
+            await request(app.getHttpServer())
+                .put(`/fichas-tecnicas/${ids.fichaPendente}`)
+                .set(auth())
+                .send({ observacoes: "editada pela ficha" })
+                .expect(200);
+            await expect(lerFicha(ids.fichaPendente)).resolves.toMatchObject({
+                observacoes: "editada pela ficha",
+            });
+        });
+
+        it("PUT /fichas-tecnicas/:id recusa mudar as perdas da concluída, mas aceita reenviar o mesmo valor", async () => {
+            for (const campo of ["defeitos_costura", "defeitos_tecido", "retiradas", "sobras"]) {
+                await request(app.getHttpServer())
+                    .put(`/fichas-tecnicas/${comMatriz.ficha}`)
+                    .set(auth())
+                    .send({ [campo]: 1 })
+                    .expect(409);
+            }
+
+            await request(app.getHttpServer())
+                .put(`/fichas-tecnicas/${comMatriz.ficha}`)
+                .set(auth())
+                .send({ defeitos_costura: 0, defeitos_tecido: 0, retiradas: 0, sobras: 0 })
+                .expect(200);
+
+            await expect(lerFicha(comMatriz.ficha)).resolves.toMatchObject({
+                defeitos_costura: 0,
+                defeitos_tecido: 0,
+                retiradas: 0,
+                sobras: 0,
+            });
+        });
+
+        it("DELETE da ficha concluída e de sua matriz responde 409 e mantém tudo", async () => {
+            await request(app.getHttpServer())
+                .delete(`/fichas-tecnicas/${comMatriz.ficha}/itens`)
+                .set(auth())
+                .expect(409);
+            await request(app.getHttpServer())
+                .delete(`/fichas-tecnicas/${comMatriz.ficha}`)
+                .set(auth())
+                .expect(409);
+
+            await expect(lerFicha(comMatriz.ficha)).resolves.toMatchObject({ concluida: true });
+            await expect(
+                prisma.fichaTecnicaItem.count({ where: { ficha_tecnica_id: comMatriz.ficha } }),
+            ).resolves.toBe(1);
+        });
+
+        it("PUT /fichas-tecnicas/:id ignora etapa_atual_id: a etapa só muda pela transferência", async () => {
+            const antes = await lerFicha(ids.fichaPendente);
+
+            await request(app.getHttpServer())
+                .put(`/fichas-tecnicas/${ids.fichaPendente}`)
+                .set(auth())
+                .send({ etapa_atual_id: etapas.final, observacoes: "etapa ignorada" })
+                .expect(200);
+
+            const depois = await lerFicha(ids.fichaPendente);
+            expect(depois.etapa_atual_id).toBe(antes.etapa_atual_id);
+            expect(depois.observacoes).toBe("etapa ignorada");
+        });
+
+        it("POST /fichas-tecnicas não existe mais: a ficha só nasce junto do pedido", async () => {
+            await request(app.getHttpServer())
+                .post("/fichas-tecnicas")
+                .set(auth())
+                .send({
+                    produto_id: ids.produtoPendente,
+                    pedido_id: ids.pedido,
+                    etapa_atual_id: etapas.final,
+                    quantidade: 0,
+                })
+                .expect(404);
+
+            await expect(
+                prisma.fichaTecnica.count({ where: { pedido_id: ids.pedido } }),
+            ).resolves.toBe(2);
+        });
+
+        it("ficha criada pela API já abre o histórico da etapa inicial e pode ser transferida", async () => {
+            const criado = await request(app.getHttpServer())
+                .post("/pedidos/completo")
+                .set({ ...auth(), "Idempotency-Key": `${runId}-nasce-com-historico` })
+                .send({ fichas: [{ produto_id: ids.produtoConcluido, quantidade: 0 }] })
+                .expect(201);
+
+            const fichaId: number = criado.body.fichas_tecnicas[0].id;
+            await expect(lerFicha(fichaId)).resolves.toMatchObject({
+                etapa_atual_id: etapas.inicial,
+            });
+            await expect(
+                prisma.fichaEtapa.findMany({ where: { ficha_tecnica_id: fichaId } }),
+            ).resolves.toEqual([
+                expect.objectContaining({ etapa_id: etapas.inicial, data_fim: null }),
+            ]);
+
+            await request(app.getHttpServer())
+                .post("/fichas-tecnicas/transferir-etapa")
+                .set(auth())
+                .send({
+                    ficha_tecnica_id: fichaId,
+                    etapa_origem_id: etapas.inicial,
+                    etapa_destino_id: etapas.meio,
+                })
+                .expect(201);
+
+            await expect(lerFicha(fichaId)).resolves.toMatchObject({
+                etapa_atual_id: etapas.meio,
+            });
+            await expect(
+                prisma.fichaEtapa.count({ where: { ficha_tecnica_id: fichaId } }),
+            ).resolves.toBe(2);
+        });
     });
 });

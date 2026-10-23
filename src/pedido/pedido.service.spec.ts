@@ -66,6 +66,7 @@ describe("PedidoService", () => {
 
         parceiroProduto: {
             upsert: jest.fn(),
+            findMany: jest.fn(),
         },
 
         clienteProduto: {
@@ -142,6 +143,7 @@ describe("PedidoService", () => {
             _count: { _all: 1 },
         });
         mockPrismaService.clienteProduto.findMany.mockResolvedValue([]);
+        mockPrismaService.parceiroProduto.findMany.mockResolvedValue([]);
     });
 
     it("should be defined", () => {
@@ -1003,41 +1005,33 @@ describe("PedidoService", () => {
         it("deve rejeitar grade_versao_id em ficha existente sem itens ou cores_ids", async () => {
             mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
 
-            await expect(
-                service.updateCompleto(
-                    100,
-                    {
-                        fichas: [
-                            {
-                                id: 200,
-                                produto_id: 5,
-                                quantidade: 30,
-                                grade_versao_id: 31,
-                            },
-                        ],
-                    },
-                    fabricoId,
-                ),
-            ).rejects.toThrow(BadRequestException);
+            const promessa = service.updateCompleto(
+                100,
+                {
+                    fichas: [
+                        {
+                            id: 200,
+                            produto_id: 5,
+                            quantidade: 30,
+                            grade_versao_id: 31,
+                        },
+                    ],
+                },
+                fabricoId,
+            );
 
-            await expect(
-                service.updateCompleto(
-                    100,
-                    {
-                        fichas: [
-                            {
-                                id: 200,
-                                produto_id: 5,
-                                quantidade: 30,
-                                grade_versao_id: 31,
-                            },
-                        ],
-                    },
-                    fabricoId,
-                ),
-            ).rejects.toThrow("Para alterar a grade da ficha, envie também itens ou cores_ids");
+            await expect(promessa).rejects.toThrow(BadRequestException);
+            await expect(promessa).rejects.toThrow(
+                "Para alterar a grade da ficha, envie também itens ou cores_ids",
+            );
 
-            expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaParceiro.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+            expect(mockPrismaService.clienteProduto.upsert).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
         });
 
         it.each([
@@ -1359,6 +1353,210 @@ describe("PedidoService", () => {
             await expect(service.updateCompleto(100, { fichas: [] }, fabricoId)).rejects.toThrow(
                 BadRequestException,
             );
+        });
+
+        describe("pedido misto (uma concluída e uma pendente)", () => {
+            const itensA = [
+                { cor_id: 1, grade_versao_item_id: 11, quantidade: 10 },
+                { cor_id: 1, grade_versao_item_id: 12, quantidade: 20 },
+            ];
+
+            const pedidoMisto = (overB: Record<string, unknown> = {}) => ({
+                id: 100,
+                fabrico_id: 1,
+                cliente_id: 7,
+                finalizado: false,
+                fichas_tecnicas: [
+                    {
+                        id: 200,
+                        produto_id: 5,
+                        pedido_id: 100,
+                        concluida: true,
+                        produzida_em: null,
+                        quantidade: 30,
+                        grade_versao_id: 3,
+                        observacoes: null,
+                        ficha_tecnica_itens: itensA.map((i, k) => ({ id: k + 1, ...i })),
+                        ficha_parceiro: [],
+                    },
+                    {
+                        id: 201,
+                        produto_id: 6,
+                        pedido_id: 100,
+                        concluida: false,
+                        produzida_em: null,
+                        quantidade: 10,
+                        grade_versao_id: 3,
+                        observacoes: null,
+                        ficha_tecnica_itens: [
+                            { id: 9, cor_id: 1, grade_versao_item_id: 11, quantidade: 10 },
+                        ],
+                        ficha_parceiro: [],
+                        ...overB,
+                    },
+                ],
+            });
+
+            const fichaA = (over: Record<string, unknown> = {}) => ({
+                id: 200,
+                produto_id: 5,
+                quantidade: 30,
+                cores_ids: [1],
+                itens: itensA,
+                ...over,
+            });
+            const fichaB = (over: Record<string, unknown> = {}) => ({
+                id: 201,
+                produto_id: 6,
+                quantidade: 10,
+                cores_ids: [1],
+                itens: [
+                    { cor_id: 1, grade_versao_item_id: 11, quantidade: 4 },
+                    { cor_id: 1, grade_versao_item_id: 12, quantidade: 6 },
+                ],
+                ...over,
+            });
+
+            const preparar = (pedido: unknown = pedidoMisto()) => {
+                mockPrismaService.pedido.findFirst.mockResolvedValue(pedido);
+                mockPrismaService.produto.findMany.mockResolvedValue([
+                    { id: 5, custo_total: 10 },
+                    { id: 6, custo_total: 8 },
+                ]);
+                mockPrismaService.cor.findMany.mockResolvedValue([{ id: 1 }]);
+                mockPrismaService.gradeVersaoItem.findMany.mockResolvedValue([
+                    { id: 11 },
+                    { id: 12 },
+                ]);
+                mockPrismaService.fichaTecnicaItem.aggregate.mockResolvedValue({
+                    _sum: { quantidade: 10 },
+                    _count: { _all: 1 },
+                });
+                mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100 });
+            };
+
+            const nenhumaEscritaNaConcluida = () => {
+                expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalledWith({
+                    where: { ficha_tecnica_id: 200 },
+                });
+                expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalledWith(
+                    expect.objectContaining({ where: { id: 200 } }),
+                );
+                expect(mockPrismaService.fichaParceiro.deleteMany).not.toHaveBeenCalledWith({
+                    where: { ficha_id: 200 },
+                });
+            };
+
+            it("alterar a pendente passa e grava só nela", async () => {
+                preparar();
+
+                await service.updateCompleto(100, { fichas: [fichaA(), fichaB()] }, fabricoId);
+
+                expect(mockPrismaService.fichaTecnicaItem.deleteMany).toHaveBeenCalledTimes(1);
+                expect(mockPrismaService.fichaTecnicaItem.deleteMany).toHaveBeenCalledWith({
+                    where: { ficha_tecnica_id: 201 },
+                });
+                expect(mockPrismaService.fichaTecnicaItem.createMany).toHaveBeenCalledTimes(1);
+                nenhumaEscritaNaConcluida();
+            });
+
+            it("alterar a concluída dá 409 sem gravar nada (nem na pendente)", async () => {
+                preparar();
+                const alterada = fichaA({
+                    itens: [
+                        { cor_id: 1, grade_versao_item_id: 11, quantidade: 9 },
+                        { cor_id: 1, grade_versao_item_id: 12, quantidade: 21 },
+                    ],
+                });
+
+                await expect(
+                    service.updateCompleto(100, { fichas: [alterada, fichaB()] }, fabricoId),
+                ).rejects.toThrow(ConflictException);
+
+                expect(mockPrismaService.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+                expect(mockPrismaService.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+                expect(mockPrismaService.fichaTecnica.update).not.toHaveBeenCalled();
+                expect(mockPrismaService.fichaParceiro.deleteMany).not.toHaveBeenCalled();
+                expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+                expect(mockPrismaService.clienteProduto.upsert).not.toHaveBeenCalled();
+                expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
+            });
+
+            it.each([
+                [
+                    "quantidade",
+                    {
+                        quantidade: 31,
+                        itens: [
+                            { cor_id: 1, grade_versao_item_id: 11, quantidade: 10 },
+                            { cor_id: 1, grade_versao_item_id: 12, quantidade: 21 },
+                        ],
+                    },
+                ],
+                ["observações", { observacoes: "x" }],
+                ["preço padrão", { preco_padrao: 99 }],
+                ["parceiro novo", { parceiros: [{ parceiro_id: 9, operacao: null, preco: 4 }] }],
+            ])("alterar %s da concluída dá 409", async (_nome, over) => {
+                preparar();
+                // itens/quantidade consistentes para chegar à validação do helper
+                const payload = fichaA(
+                    "quantidade" in over
+                        ? { ...over, itens: undefined, cores_ids: undefined }
+                        : over,
+                );
+
+                await expect(
+                    service.updateCompleto(100, { fichas: [payload, fichaB()] }, fabricoId),
+                ).rejects.toThrow(ConflictException);
+                expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
+            });
+
+            it("reenviar a concluída idêntica passa sem regravar nada dela", async () => {
+                preparar();
+                const bIgual = { id: 201, produto_id: 6, quantidade: 10 };
+
+                await service.updateCompleto(100, { fichas: [fichaA(), bIgual] }, fabricoId);
+
+                nenhumaEscritaNaConcluida();
+                expect(mockPrismaService.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+                expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledTimes(1);
+            });
+
+            it("eco com células zeradas omitidas e observacoes null também passa", async () => {
+                preparar();
+                const bIgual = { id: 201, produto_id: 6, quantidade: 10 };
+
+                await expect(
+                    service.updateCompleto(
+                        100,
+                        { fichas: [fichaA({ observacoes: null }), bIgual] },
+                        fabricoId,
+                    ),
+                ).resolves.toBeDefined();
+                nenhumaEscritaNaConcluida();
+            });
+
+            it("ficha na última etapa (produzida_em) ainda não concluída continua editável", async () => {
+                preparar(pedidoMisto({ produzida_em: new Date("2026-10-20T10:00:00Z") }));
+
+                await service.updateCompleto(100, { fichas: [fichaA(), fichaB()] }, fabricoId);
+
+                expect(mockPrismaService.fichaTecnicaItem.deleteMany).toHaveBeenCalledWith({
+                    where: { ficha_tecnica_id: 201 },
+                });
+                nenhumaEscritaNaConcluida();
+            });
+
+            it("omitir a ficha concluída dá 409 sem apagar nada", async () => {
+                preparar();
+
+                await expect(
+                    service.updateCompleto(100, { fichas: [fichaB()] }, fabricoId),
+                ).rejects.toThrow(ConflictException);
+                expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+                expect(mockPrismaService.fichaEtapa.deleteMany).not.toHaveBeenCalled();
+            });
         });
     });
 
