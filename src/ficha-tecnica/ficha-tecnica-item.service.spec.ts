@@ -1,12 +1,16 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaTecnicaItemService } from "./ficha-tecnica-item.service";
+import { FichaTecnicaService } from "./ficha-tecnica.service";
 
 const { PrismaClientKnownRequestError, PrismaClientValidationError } = Prisma;
 
 describe("FichaTecnicaItemService", () => {
     let service: FichaTecnicaItemService;
     let prisma: any;
+    const fichaTecnicaService = {
+        sincronizarPedido: jest.fn(),
+    } as unknown as FichaTecnicaService;
 
     const ficha = { id: 1, fabrico_id: 10, grade_versao_id: 20 };
     const itemDto = { cor_id: 30, grade_versao_item_id: 40, quantidade: 5 };
@@ -27,7 +31,7 @@ describe("FichaTecnicaItemService", () => {
             cor: { findMany: jest.fn(), findFirst: jest.fn() },
             gradeVersaoItem: { findMany: jest.fn(), findFirst: jest.fn() },
         };
-        service = new FichaTecnicaItemService(prisma);
+        service = new FichaTecnicaItemService(prisma as any, fichaTecnicaService);
     });
 
     it("lista itens por ficha técnica", async () => {
