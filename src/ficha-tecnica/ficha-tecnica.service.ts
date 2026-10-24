@@ -12,6 +12,7 @@ import { Prisma } from "@prisma/client";
 import { lineTotal, moneyOrZero, sumMoney, toMoney } from "src/common/utils/money";
 import { AuthenticatedUser } from "src/auth/types/authenticated-user";
 import { assertFichaEditavel, MSG_FICHA_CONCLUIDA } from "src/common/utils/ficha";
+import { MSG_PEDIDO_FINALIZADO } from "src/pedido/pedido-finalizacao";
 
 @Injectable()
 export class FichaTecnicaService {
@@ -430,7 +431,7 @@ export class FichaTecnicaService {
         }
 
         if (pedido.finalizado) {
-            throw new ConflictException("Pedido finalizado não pode ser alterado ou excluído");
+            throw new ConflictException(MSG_PEDIDO_FINALIZADO);
         }
     }
 

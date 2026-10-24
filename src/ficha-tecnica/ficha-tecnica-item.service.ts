@@ -12,11 +12,21 @@ import {
     assertMatrizSemMudanca,
     matrizEquivalente,
     MSG_MATRIZ_CONCLUIDA,
+    MSG_FICHA_CONCLUIDA,
 } from "src/common/utils/ficha";
+import {
+    lockPedidos,
+    sincronizarFinalizacaoPedido,
+    assertPedidoNaoFinalizado,
+} from "src/pedido/pedido-finalizacao";
+import { FichaTecnicaService } from "./ficha-tecnica.service";
 
 @Injectable()
 export class FichaTecnicaItemService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly fichaTecnicaService: FichaTecnicaService,
+    ) {}
 
     private validateDuplicados(itens: CreateFichaTecnicaItemDto[]) {
         const chaves = new Set<string>();
@@ -37,6 +47,7 @@ export class FichaTecnicaItemService {
                 fabrico_id: true,
                 grade_versao_id: true,
                 concluida: true,
+                pedido_id: true,
             },
         });
         if (!ficha) {
@@ -648,6 +659,142 @@ export class FichaTecnicaItemService {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
                     throw new ConflictException("Esse item já existe nesta ficha técnica");
+                }
+            }
+            if (error instanceof Prisma.PrismaClientValidationError) {
+                throw new BadRequestException("Dados inválidos");
+            }
+            throw error;
+        }
+    }
+
+    async replaceMatriz(
+        ficha_tecnica_id: number,
+        itens: CreateFichaTecnicaItemDto[],
+        fabrico_id: number,
+    ) {
+        this.validateDuplicados(itens);
+
+        const fichaInicial = await this.getFichaTecnicaOrFail(ficha_tecnica_id, fabrico_id);
+
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+                if (fichaInicial.pedido_id) {
+                    await lockPedidos(tx, [fichaInicial.pedido_id]);
+                    await assertPedidoNaoFinalizado(tx, fichaInicial.pedido_id);
+                }
+
+                await tx.$queryRaw(
+                    Prisma.sql`SELECT id FROM "fichas-tecnicas" WHERE id = ${fichaInicial.id} FOR UPDATE`,
+                );
+
+                const ficha = await tx.fichaTecnica.findFirst({
+                    where: { id: fichaInicial.id, fabrico_id },
+                    select: {
+                        id: true,
+                        fabrico_id: true,
+                        pedido_id: true,
+                        concluida: true,
+                        grade_versao_id: true,
+                        defeitos_costura: true,
+                        defeitos_tecido: true,
+                        retiradas: true,
+                        sobras: true,
+                    },
+                });
+
+                if (!ficha) throw new NotFoundException("Ficha técnica não encontrada");
+
+                if (ficha.pedido_id !== fichaInicial.pedido_id) {
+                    throw new ConflictException(
+                        "A ficha foi alterada por outra operação, tente novamente",
+                    );
+                }
+                if (ficha.concluida) {
+                    throw new ConflictException(MSG_FICHA_CONCLUIDA);
+                }
+
+                const corIds = [...new Set(itens.map((i) => Number(i.cor_id)))];
+                const gradeItemIds = [...new Set(itens.map((i) => Number(i.grade_versao_item_id)))];
+
+                const cores = await tx.cor.findMany({
+                    where: { id: { in: corIds }, fabrico_id: ficha.fabrico_id },
+                    select: { id: true },
+                });
+                if (cores.length !== corIds.length) {
+                    throw new BadRequestException(
+                        "Uma ou mais cores não pertencem ao fabrico da ficha técnica",
+                    );
+                }
+
+                const gradeItens = await tx.gradeVersaoItem.findMany({
+                    where: { id: { in: gradeItemIds }, grade_versao_id: ficha.grade_versao_id },
+                    select: { id: true },
+                });
+                if (gradeItens.length !== gradeItemIds.length) {
+                    throw new BadRequestException(
+                        "Um ou mais itens de grade não pertencem à versão da ficha técnica",
+                    );
+                }
+
+                // 4) substitui a matriz (Atualizar)
+                await tx.fichaTecnicaItem.deleteMany({ where: { ficha_tecnica_id: ficha.id } });
+
+                if (itens.length) {
+                    await tx.fichaTecnicaItem.createMany({
+                        data: itens.map((i) => ({
+                            ficha_tecnica_id: ficha.id,
+                            cor_id: Number(i.cor_id),
+                            grade_versao_item_id: Number(i.grade_versao_item_id),
+                            quantidade: Number(i.quantidade),
+                        })),
+                    });
+                }
+
+                // 5) quantidade da ficha
+                const quantidade = itens.reduce((t, i) => t + Number(i.quantidade), 0);
+                const perdas =
+                    (ficha.defeitos_costura ?? 0) +
+                    (ficha.defeitos_tecido ?? 0) +
+                    (ficha.retiradas ?? 0) +
+                    (ficha.sobras ?? 0);
+
+                if (perdas > quantidade) {
+                    throw new BadRequestException(
+                        "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+                    );
+                }
+
+                await tx.fichaTecnica.update({ where: { id: ficha.id }, data: { quantidade } });
+
+                // 6) totais do pedido, na mesma transação
+                if (ficha.pedido_id) {
+                    await this.fichaTecnicaService.sincronizarPedido(tx, ficha.pedido_id);
+                    await sincronizarFinalizacaoPedido(tx, ficha.pedido_id);
+                }
+
+                const data = await tx.fichaTecnicaItem.findMany({
+                    where: { ficha_tecnica_id: ficha.id },
+                    include: {
+                        cor: true,
+                        grade_versao_item: { include: { tamanho: true, grade_versao: true } },
+                    },
+                    orderBy: [{ cor_id: "asc" }, { grade_versao_item: { posicao: "asc" } }],
+                });
+
+                return { message: "Matriz da ficha técnica salva com sucesso", quantidade, data };
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError) {
+                if (error.code === "P2002") {
+                    throw new ConflictException(
+                        "Já existe um item com essa combinação na ficha técnica",
+                    );
+                }
+                if (error.code === "P2004") {
+                    throw new BadRequestException(
+                        "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
+                    );
                 }
             }
             if (error instanceof Prisma.PrismaClientValidationError) {
