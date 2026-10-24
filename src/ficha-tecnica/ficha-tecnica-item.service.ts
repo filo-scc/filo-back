@@ -48,6 +48,7 @@ export class FichaTecnicaItemService {
                 grade_versao_id: true,
                 concluida: true,
                 pedido_id: true,
+                produto_id: true,
             },
         });
         if (!ficha) {
@@ -700,6 +701,7 @@ export class FichaTecnicaItemService {
                         defeitos_tecido: true,
                         retiradas: true,
                         sobras: true,
+                        produto_id: true,
                     },
                 });
 
@@ -766,6 +768,13 @@ export class FichaTecnicaItemService {
                 }
 
                 await tx.fichaTecnica.update({ where: { id: ficha.id }, data: { quantidade } });
+
+                await this.fichaTecnicaService.sincronizarFichaParceiros(
+                    tx,
+                    ficha.id,
+                    ficha.produto_id,
+                    quantidade,
+                );
 
                 // 6) totais do pedido, na mesma transação
                 if (ficha.pedido_id) {
