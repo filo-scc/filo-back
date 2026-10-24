@@ -39,6 +39,14 @@ const mockPrismaService = {
     clienteProduto: {
         findMany: jest.fn(),
     },
+    fichaParceiro: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+    },
+    parceiroProduto: {
+        findUnique: jest.fn(),
+    },
 };
 
 const mockUser = { fabrico_id: 20 } as AuthenticatedUser;
@@ -111,6 +119,7 @@ describe("FichaTecnicaService", () => {
             prismaService.fichaTecnica.findUnique.mockResolvedValue({
                 concluida: false,
                 grade_versao_id: 30,
+                quantidade: 10,
             });
         });
 
@@ -169,6 +178,28 @@ describe("FichaTecnicaService", () => {
                 where: { ficha_tecnica_id: 1 },
             });
             expect(prismaService.fichaTecnica.update).toHaveBeenCalled();
+        });
+
+        it("troca de grade zera a quantidade e reconcilia os parceiros", async () => {
+            prismaService.gradeVersao.findFirst.mockResolvedValue({ id: 31, grade_id: 5 });
+            prismaService.fichaTecnica.update.mockResolvedValue({
+                ...fichaData,
+                grade_versao_id: 31,
+                quantidade: 0,
+            });
+            prismaService.fichaParceiro.findMany.mockResolvedValueOnce([
+                { parceiro_id: 1, quantidade: 5 },
+                { parceiro_id: 2, quantidade: 7 },
+            ]);
+
+            await service.update(1, { grade_versao_id: 31 } as any, mockUser);
+
+            expect(prismaService.fichaTecnica.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({ grade_versao_id: 31, quantidade: 0 }),
+                }),
+            );
+            expect(prismaService.fichaParceiro.findMany).toHaveBeenCalled();
         });
 
         it("deve lançar BadRequestException se tentar alterar o produto_id", async () => {
@@ -320,6 +351,47 @@ describe("FichaTecnicaService", () => {
                 ).resolves.toEqual(concluida);
                 expect(prismaService.fichaTecnica.update).not.toHaveBeenCalled();
             });
+        });
+
+        it("um parceiro: acompanha a quantidade e recalcula o valor", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData, quantidade: 20 });
+            prismaService.fichaParceiro.findMany.mockResolvedValueOnce([
+                { parceiro_id: 1, quantidade: 5 },
+            ]);
+            prismaService.parceiroProduto.findUnique.mockResolvedValue({ preco: 10 });
+
+            await service.update(1, { quantidade: 20 } as any, mockUser);
+
+            expect(prismaService.fichaParceiro.update).toHaveBeenCalledWith(
+                expect.objectContaining({ data: expect.objectContaining({ quantidade: 20 }) }),
+            );
+        });
+
+        it("vários parceiros, um sem quantidade: zera todos", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData, quantidade: 20 });
+            prismaService.fichaParceiro.findMany.mockResolvedValueOnce([
+                { parceiro_id: 1, quantidade: 5 },
+                { parceiro_id: 2, quantidade: 0 },
+            ]);
+
+            await service.update(1, { quantidade: 20 } as any, mockUser);
+
+            expect(prismaService.fichaParceiro.updateMany).toHaveBeenCalledWith({
+                where: { ficha_id: 1 },
+                data: { quantidade: 0, valor: 0 },
+            });
+        });
+
+        it("vários parceiros, todos com quantidade: preserva", async () => {
+            prismaService.fichaTecnica.update.mockResolvedValue({ ...fichaData, quantidade: 20 });
+            prismaService.fichaParceiro.findMany.mockResolvedValueOnce([
+                { parceiro_id: 1, quantidade: 5 },
+                { parceiro_id: 2, quantidade: 7 },
+            ]);
+
+            await service.update(1, { quantidade: 20 } as any, mockUser);
+
+            expect(prismaService.fichaParceiro.updateMany).not.toHaveBeenCalled();
         });
     });
 

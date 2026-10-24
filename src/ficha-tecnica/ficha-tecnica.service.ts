@@ -87,6 +87,58 @@ export class FichaTecnicaService {
         }
     }
 
+    /**
+     *  - nenhum parceiro: nada a fazer
+     *  - 1 parceiro: quantidade = total; valor = total x preço do vínculo produto-parceiro
+     *  - vários, todos com quantidade (> 0): preserva
+     *  - vários, algum sem quantidade (null ou 0): zera quantidade e valor de TODOS
+     */
+    async sincronizarFichaParceiros(
+        tx: Prisma.TransactionClient,
+        fichaId: number,
+        produtoId: number,
+        quantidadeTotal: number,
+    ) {
+        const relacoes = await tx.fichaParceiro.findMany({
+            where: { ficha_id: fichaId },
+            select: { parceiro_id: true, quantidade: true },
+        });
+
+        if (relacoes.length === 0) return;
+
+        if (relacoes.length === 1) {
+            const [relacao] = relacoes;
+            const vinculo = await tx.parceiroProduto.findUnique({
+                where: {
+                    produto_id_parceiro_id: {
+                        produto_id: produtoId,
+                        parceiro_id: relacao.parceiro_id,
+                    },
+                },
+                select: { preco: true },
+            });
+
+            await tx.fichaParceiro.update({
+                where: {
+                    ficha_id_parceiro_id: { ficha_id: fichaId, parceiro_id: relacao.parceiro_id },
+                },
+                data: {
+                    quantidade: quantidadeTotal,
+                    valor: toMoney(lineTotal(quantidadeTotal, vinculo?.preco)),
+                },
+            });
+            return;
+        }
+
+        const todosComQuantidade = relacoes.every((r) => (r.quantidade ?? 0) > 0);
+        if (todosComQuantidade) return;
+
+        await tx.fichaParceiro.updateMany({
+            where: { ficha_id: fichaId },
+            data: { quantidade: 0, valor: 0 },
+        });
+    }
+
     async findAllByFabricoId(fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
@@ -347,7 +399,7 @@ export class FichaTecnicaService {
                 // Revalida com o lock: a ficha pode ter sido concluída após a leitura inicial.
                 const fichaTx = await tx.fichaTecnica.findUnique({
                     where: { id },
-                    select: { concluida: true, grade_versao_id: true },
+                    select: { concluida: true, grade_versao_id: true, quantidade: true },
                 });
 
                 if (!fichaTx) {
@@ -358,7 +410,11 @@ export class FichaTecnicaService {
                     throw new ConflictException(MSG_FICHA_CONCLUIDA);
                 }
 
-                if (novaGradeVersaoId && novaGradeVersaoId !== fichaTx.grade_versao_id) {
+                const gradeMudou =
+                    novaGradeVersaoId !== undefined &&
+                    novaGradeVersaoId !== fichaTx.grade_versao_id;
+
+                if (gradeMudou) {
                     await tx.fichaTecnicaItem.deleteMany({ where: { ficha_tecnica_id: id } });
                 }
 
@@ -379,6 +435,7 @@ export class FichaTecnicaService {
                         ...dadosEditaveis,
                         fabrico_id: fabricoId,
                         ...(novaGradeVersaoId ? { grade_versao_id: novaGradeVersaoId } : {}),
+                        ...(gradeMudou ? { quantidade: 0 } : {}),
                     },
                     include: {
                         produto: true,
@@ -395,6 +452,18 @@ export class FichaTecnicaService {
                         },
                     },
                 });
+
+                const quantidadeMudou =
+                    data.quantidade !== undefined && Number(data.quantidade) !== fichaTx.quantidade;
+
+                if (quantidadeMudou || gradeMudou) {
+                    await this.sincronizarFichaParceiros(
+                        tx,
+                        id,
+                        ficha.produto_id,
+                        fichaAtualizada.quantidade,
+                    );
+                }
 
                 if (ficha.pedido_id) {
                     await this.sincronizarPedido(tx, ficha.pedido_id);
