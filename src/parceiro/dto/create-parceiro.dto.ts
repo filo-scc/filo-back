@@ -1,4 +1,4 @@
-import { IsString, IsOptional, ValidateNested, Length, IsEnum } from "class-validator";
+import { IsString, IsOptional, ValidateNested, Length, IsEnum, IsInt, Min } from "class-validator";
 
 export enum FormaPagamentoEnum {
     PIX = "PIX",
@@ -20,9 +20,11 @@ export class CreateParceiroDto {
     @Length(9, 11)
     telefone?: string;
 
+    /** Etapa do parceiro. Na atualização, `null` remove o vínculo e omitir o campo o mantém. */
     @IsOptional()
-    @IsString()
-    categoria?: string;
+    @IsInt()
+    @Min(1)
+    etapa_id?: number | null;
 
     @IsOptional()
     @IsEnum(FormaPagamentoEnum, {
