@@ -272,15 +272,86 @@ describe("FabricoGradeService", () => {
 
             expect(resultado.message).toEqual("Vínculo atualizado com sucesso");
             expect(resultado.data.ativo).toBe(false);
-            expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalled();
+            expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalledWith({
+                where: { id: 10 },
+                data: { ativo: false },
+                include: { fabrico: true, grade: true },
+            });
         });
 
-        it("deve lançar BadRequestException se o ADMIN tentar trocar o fabrico do vínculo existente", async () => {
-            jest.spyOn(service, "findOne").mockResolvedValue(mockFabricoGrade as any);
+        it("deve permitir reativar o vínculo alterando apenas ativo", async () => {
+            jest.spyOn(service, "findOne").mockResolvedValue({
+                ...mockFabricoGrade,
+                ativo: false,
+            } as any);
+            mockPrismaService.fabricoGrade.update.mockResolvedValue(mockFabricoGrade);
 
-            await expect(service.update(10, { fabrico_id: 99 }, mockAdminUser)).rejects.toThrow(
-                new BadRequestException("Não é permitido alterar o fabrico da grade"),
+            await service.update(10, { ativo: true }, mockAdminUser);
+
+            expect(mockPrismaService.fabricoGrade.update).toHaveBeenCalledWith(
+                expect.objectContaining({ data: { ativo: true } }),
             );
+        });
+
+        it.each([
+            ["diferente", 99],
+            ["igual ao atual", 1],
+            ["nulo", null],
+        ])(
+            "deve recusar fabrico_id %s no payload sem consultar ou alterar o vínculo",
+            async (_caso, fabricoId) => {
+                const findOne = jest.spyOn(service, "findOne");
+
+                await expect(
+                    service.update(10, { ativo: true, fabrico_id: fabricoId }, mockAdminUser),
+                ).rejects.toThrow(
+                    new BadRequestException("Não é permitido alterar o fabrico da grade"),
+                );
+                expect(findOne).not.toHaveBeenCalled();
+                expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
+            },
+        );
+
+        it.each([
+            ["diferente", 3],
+            ["igual ao atual", 2],
+            ["nulo", null],
+        ])(
+            "deve recusar grade_id %s no payload e manter a grade original",
+            async (_caso, gradeId) => {
+                const findOne = jest.spyOn(service, "findOne");
+
+                await expect(
+                    service.update(10, { ativo: true, grade_id: gradeId }, mockAdminUser),
+                ).rejects.toThrow(
+                    new BadRequestException("Não é permitido alterar a grade do vínculo"),
+                );
+                expect(findOne).not.toHaveBeenCalled();
+                expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
+            },
+        );
+
+        it("deve recusar payload sem ativo booleano", async () => {
+            await expect(
+                service.update(10, { ativo: "false" } as any, mockAdminUser),
+            ).rejects.toThrow(new BadRequestException("Informe o campo ativo como booleano"));
+            await expect(service.update(10, {} as any, mockAdminUser)).rejects.toThrow(
+                new BadRequestException("Informe o campo ativo como booleano"),
+            );
+            expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ["GERENTE", mockGerenteUser],
+            ["PROPRIETARIO", mockProprietarioUser],
+        ])("deve recusar %s mesmo em chamada direta ao service", async (_cargo, user) => {
+            await expect(service.update(10, { ativo: true }, user)).rejects.toThrow(
+                new ForbiddenException(
+                    "Usuário não tem permissão para alterar vínculo de grade com fabrico",
+                ),
+            );
+            expect(mockPrismaService.fabricoGrade.findFirst).not.toHaveBeenCalled();
+            expect(mockPrismaService.fabricoGrade.update).not.toHaveBeenCalled();
         });
 
         it("deve lançar BadRequestException em caso de erro de validação do Prisma", async () => {

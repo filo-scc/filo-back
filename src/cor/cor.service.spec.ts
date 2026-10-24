@@ -13,13 +13,13 @@ describe("CorService", () => {
     let service: CorService;
     let prisma: any;
 
+    const userFabricoId = 10;
+
     const mockUser: AuthenticatedUser = {
         id: 1,
         cargo: "PROPRIETARIO",
-        fabrico_id: 10,
+        fabrico_id: userFabricoId,
     } as AuthenticatedUser;
-
-    const userFabricoId = mockUser.fabrico_id;
 
     beforeEach(() => {
         prisma = {
