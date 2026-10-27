@@ -690,7 +690,7 @@ export class FichaTecnicaItemService {
                 );
 
                 const ficha = await tx.fichaTecnica.findFirst({
-                    where: { id: fichaInicial.id, fabrico_id },
+                    where: { delete_at: null, id: fichaInicial.id, fabrico_id },
                     select: {
                         id: true,
                         fabrico_id: true,

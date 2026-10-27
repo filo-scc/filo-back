@@ -10,6 +10,7 @@ describe("FichaTecnicaItemService", () => {
     let prisma: any;
     const fichaTecnicaService = {
         sincronizarPedido: jest.fn(),
+        sincronizarFichaParceiros: jest.fn(),
     } as unknown as FichaTecnicaService;
 
     const ficha = { id: 1, fabrico_id: 10, grade_versao_id: 20 };
@@ -483,6 +484,42 @@ describe("FichaTecnicaItemService", () => {
         await expect(service.create(1, itemDto as any, 10)).rejects.toThrow(
             new ConflictException("Esse item já existe nesta ficha técnica"),
         );
+    });
+
+    describe("replaceMatriz", () => {
+        it("retorna 404 sem escritas quando a ficha é excluída antes da releitura", async () => {
+            prisma.fichaTecnica.findFirst
+                .mockResolvedValueOnce({ ...ficha, pedido_id: 9 })
+                .mockResolvedValueOnce(null);
+            prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+            prisma.pedido = {
+                findUnique: jest.fn().mockResolvedValue({ finalizado: false }),
+            };
+            prisma.fichaTecnica.update = jest.fn();
+            const sincronizarParceiros = jest.mocked(
+                fichaTecnicaService.sincronizarFichaParceiros,
+            );
+            const sincronizarPedido = jest.mocked(fichaTecnicaService.sincronizarPedido);
+            sincronizarParceiros.mockClear();
+            sincronizarPedido.mockClear();
+
+            await expect(service.replaceMatriz(1, [itemDto], 10)).rejects.toThrow(
+                new NotFoundException("Ficha técnica não encontrada"),
+            );
+
+            expect(prisma.pedido.findUnique).toHaveBeenCalledWith({
+                where: { delete_at: null, id: 9 },
+                select: { finalizado: true },
+            });
+            expect(prisma.fichaTecnica.findFirst).toHaveBeenLastCalledWith(
+                expect.objectContaining({ where: { delete_at: null, id: 1, fabrico_id: 10 } }),
+            );
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(sincronizarParceiros).not.toHaveBeenCalled();
+            expect(sincronizarPedido).not.toHaveBeenCalled();
+        });
     });
 
     describe("ficha concluída", () => {

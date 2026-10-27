@@ -62,7 +62,7 @@ export async function sincronizarFinalizacaoPedido(
 
 export async function assertPedidoNaoFinalizado(tx: Prisma.TransactionClient, pedidoId: number) {
     const pedido = await tx.pedido.findUnique({
-        where: { id: pedidoId },
+        where: { delete_at: null, id: pedidoId },
         select: { finalizado: true },
     });
 
