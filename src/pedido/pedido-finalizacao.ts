@@ -1,4 +1,7 @@
 import { Prisma } from "@prisma/client";
+import { ConflictException, NotFoundException } from "@nestjs/common";
+
+export const MSG_PEDIDO_FINALIZADO = "Pedido finalizado não pode ser alterado ou excluído";
 
 /**
  * Trava as linhas dos pedidos (FOR UPDATE) em ordem crescente de id.
@@ -55,4 +58,18 @@ export async function sincronizarFinalizacaoPedido(
         where: { delete_at: null, id: pedidoId, finalizado: true },
         data: { finalizado: false },
     });
+}
+
+export async function assertPedidoNaoFinalizado(tx: Prisma.TransactionClient, pedidoId: number) {
+    const pedido = await tx.pedido.findUnique({
+        where: { id: pedidoId },
+        select: { finalizado: true },
+    });
+
+    if (!pedido) {
+        throw new NotFoundException("Pedido não encontrado para este fabrico");
+    }
+    if (pedido.finalizado) {
+        throw new ConflictException(MSG_PEDIDO_FINALIZADO);
+    }
 }
