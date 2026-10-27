@@ -70,7 +70,7 @@ describe("FichaEtapaService", () => {
         await expect(service.getByEtapa(20, gerenteFabrico30)).resolves.toEqual([{ id: 1 }]);
         expect(etapaService.getById).toHaveBeenCalledWith(20, 30);
         expect(prisma.fichaEtapa.findMany).toHaveBeenCalledWith({
-            where: { etapa_id: 20, ficha_tecnica: { fabrico_id: 30 } },
+            where: { etapa_id: 20, ficha_tecnica: { delete_at: null, fabrico_id: 30 } },
             include: { ficha_tecnica: true },
         });
     });
@@ -89,7 +89,7 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
-            ficha_tecnica: { fabrico_id: 30 },
+            ficha_tecnica: { delete_at: null, fabrico_id: 30 },
         });
         prisma.fichaEtapa.update.mockResolvedValue({
             id: 1,
@@ -122,7 +122,7 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
-            ficha_tecnica: { fabrico_id: 30 },
+            ficha_tecnica: { delete_at: null, fabrico_id: 30 },
         });
         prisma.fichaEtapa.update.mockResolvedValue({
             id: 1,
@@ -164,7 +164,7 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
-            ficha_tecnica: { fabrico_id: 30 },
+            ficha_tecnica: { delete_at: null, fabrico_id: 30 },
         });
         prisma.fichaEtapa.update.mockResolvedValue({ id: 1 });
 
@@ -180,7 +180,7 @@ describe("FichaEtapaService", () => {
             etapa_id: 20,
             data_inicio,
             data_fim,
-            ficha_tecnica: { fabrico_id: 30 },
+            ficha_tecnica: { delete_at: null, fabrico_id: 30 },
         });
 
         it("rejeita data_inicio posterior a data_fim enviadas juntas", async () => {
@@ -400,7 +400,7 @@ describe("FichaEtapaService", () => {
             id: 1,
             ficha_tecnica_id: 10,
             etapa_id: 20,
-            ficha_tecnica: { fabrico_id: 30 },
+            ficha_tecnica: { delete_at: null, fabrico_id: 30 },
         });
         prisma.fichaEtapa.update.mockRejectedValue(
             new PrismaClientKnownRequestError("duplicado", {

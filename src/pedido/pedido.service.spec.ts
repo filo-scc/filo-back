@@ -1,10 +1,15 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
+import { Prisma } from "@prisma/client";
 
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
 import { toMoney } from "src/common/utils/money";
+import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import type { CreatePedidoFichaParceiroDto } from "./dto/create-pedido-completo.dto";
 
 describe("PedidoService", () => {
     let service: PedidoService;
@@ -34,6 +39,7 @@ describe("PedidoService", () => {
 
         produto: {
             findMany: jest.fn(),
+            findUnique: jest.fn(),
             findFirst: jest.fn(),
             update: jest.fn(),
             updateMany: jest.fn(),
@@ -683,6 +689,137 @@ describe("PedidoService", () => {
             fichas_tecnicas: [{ id: 200, produto_id: 5, quantidade: 30, pedido_id: 100 }],
         };
 
+        describe("preço de parceiro e custo recalculado", () => {
+            let serviceComRecalculo: PedidoService;
+            let precoGravado: Prisma.Decimal | null;
+            let custoGravado: Prisma.Decimal;
+
+            beforeEach(async () => {
+                precoGravado = toMoney(4);
+                custoGravado = toMoney(12);
+
+                mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+                mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100 });
+                mockPrismaService.produto.findFirst.mockResolvedValue({ id: 5 });
+                mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
+                mockPrismaService.etapa.findMany.mockResolvedValue([
+                    { id: 2, nome: "Costura", ordem: 1 },
+                    { id: 3, nome: "Embalagem", ordem: 2 },
+                ]);
+                mockPrismaService.produto.findMany.mockImplementation(async () => [
+                    { id: 5, custo_total: custoGravado },
+                ]);
+                mockPrismaService.produto.findUnique.mockImplementation(async () => ({
+                    id: 5,
+                    fabrico_id: fabricoId,
+                    tecido: null,
+                    quantidade_tecido: null,
+                    custo_tecido: toMoney(6),
+                    custo_operacional: toMoney(2),
+                    outros_custos: null,
+                    produtoAviamentos: [],
+                    parceiro_produto: [{ preco: precoGravado, parceiro: { categoria: "Costura" } }],
+                }));
+                mockPrismaService.parceiroProduto.upsert.mockImplementation(
+                    async ({ update }: { update: { preco?: Prisma.Decimal | null } }) => {
+                        if (update.preco !== undefined) precoGravado = update.preco;
+                        return { produto_id: 5, parceiro_id: 9, preco: precoGravado };
+                    },
+                );
+                mockPrismaService.produto.update.mockImplementation(
+                    async ({ data }: { data: { custo_total: Prisma.Decimal } }) => {
+                        custoGravado = data.custo_total;
+                        return { id: 5, custo_total: custoGravado };
+                    },
+                );
+
+                const module = await Test.createTestingModule({
+                    providers: [
+                        PedidoService,
+                        ProdutoService,
+                        { provide: PrismaService, useValue: mockPrismaService },
+                    ],
+                }).compile();
+                serviceComRecalculo = module.get<PedidoService>(PedidoService);
+            });
+
+            const cenarios: {
+                descricao: string;
+                parceiro: CreatePedidoFichaParceiroDto;
+                precoEsperado: number | null;
+                custoUnitarioEsperado: number;
+                custoPedidoEsperado: number;
+            }[] = [
+                {
+                    descricao: "ausente preserva o preço gravado",
+                    parceiro: { parceiro_id: 9 },
+                    precoEsperado: 4,
+                    custoUnitarioEsperado: 12,
+                    custoPedidoEsperado: 360,
+                },
+                {
+                    descricao: "null explícito limpa o preço gravado",
+                    parceiro: { parceiro_id: 9, preco: null },
+                    precoEsperado: null,
+                    custoUnitarioEsperado: 8,
+                    custoPedidoEsperado: 240,
+                },
+                {
+                    descricao: "valor informado atualiza o preço gravado",
+                    parceiro: { parceiro_id: 9, preco: 7.5 },
+                    precoEsperado: 7.5,
+                    custoUnitarioEsperado: 15.5,
+                    custoPedidoEsperado: 465,
+                },
+                {
+                    descricao: "zero é um valor válido e não mantém o preço anterior",
+                    parceiro: { parceiro_id: 9, preco: 0 },
+                    precoEsperado: 0,
+                    custoUnitarioEsperado: 8,
+                    custoPedidoEsperado: 240,
+                },
+            ];
+
+            it.each(cenarios)(
+                "$descricao, recalculando o custo do produto e do pedido",
+                async ({ parceiro, precoEsperado, custoUnitarioEsperado, custoPedidoEsperado }) => {
+                    await serviceComRecalculo.updateCompleto(
+                        100,
+                        {
+                            fichas: [
+                                {
+                                    id: 200,
+                                    produto_id: 5,
+                                    quantidade: 30,
+                                    parceiros: [parceiro],
+                                },
+                            ],
+                        },
+                        fabricoId,
+                    );
+
+                    expect(precoGravado).toEqual(
+                        precoEsperado === null ? null : toMoney(precoEsperado),
+                    );
+                    expect(custoGravado).toEqual(toMoney(custoUnitarioEsperado));
+                    expect(mockPrismaService.produto.update).toHaveBeenCalledWith({
+                        where: { id: 5 },
+                        data: {
+                            custo_tecido: toMoney(6),
+                            custo_total: toMoney(custoUnitarioEsperado),
+                        },
+                    });
+                    expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                        where: { id: 100 },
+                        data: expect.objectContaining({
+                            quantidade: 30,
+                            custo_total: toMoney(custoPedidoEsperado),
+                        }),
+                    });
+                },
+            );
+        });
+
         it("deve rejeitar ficha nova de produto que ja tem ficha no pedido", async () => {
             await expect(
                 service.updateCompleto(
@@ -1105,11 +1242,11 @@ describe("PedidoService", () => {
                 fabricoId,
             );
 
-            expect(mockPrismaService.fichaEtapa.deleteMany).toHaveBeenCalledWith({
-                where: { ficha_tecnica_id: { in: [200] } },
-            });
-            expect(mockPrismaService.fichaTecnica.deleteMany).toHaveBeenCalledWith({
-                where: { id: { in: [200] }, pedido_id: 100 },
+            expect(mockPrismaService.fichaEtapa.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { delete_at: null, id: { in: [200] }, pedido_id: 100 },
+                data: { delete_at: expect.any(Date) },
             });
             expect(mockPrismaService.fichaTecnica.create).toHaveBeenCalledWith({
                 data: expect.objectContaining({
@@ -1577,10 +1714,11 @@ describe("PedidoService", () => {
             expect(result).toEqual(pedidos);
 
             expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 1 },
+                where: { delete_at: null, fabrico_id: 1 },
                 include: {
                     cliente: true,
                     fichas_tecnicas: {
+                        where: { delete_at: null },
                         include: { fichas_etapas: true },
                     },
                 },
@@ -1602,10 +1740,13 @@ describe("PedidoService", () => {
 
             expect(result).toEqual(pedido);
             expect(mockPrismaService.pedido.findFirst).toHaveBeenCalledWith({
-                where: { id: 1, fabrico_id: 1 },
+                where: { delete_at: null, id: 1, fabrico_id: 1 },
                 include: {
                     cliente: true,
-                    fichas_tecnicas: { include: { fichas_etapas: true } },
+                    fichas_tecnicas: {
+                        where: { delete_at: null },
+                        include: { fichas_etapas: true },
+                    },
                 },
             });
         });
@@ -1653,15 +1794,91 @@ describe("PedidoService", () => {
             expect(result).toEqual(pedidos);
 
             expect(mockPrismaService.pedido.findMany).toHaveBeenCalledWith({
-                where: {
-                    cliente_id: 7,
-                    fabrico_id: 1,
-                },
+                where: { delete_at: null, cliente_id: 7, fabrico_id: 1 },
             });
         });
     });
 
     describe("update", () => {
+        describe("campos opcionais", () => {
+            beforeEach(() => {
+                mockPrismaService.pedido.findFirst.mockResolvedValue({
+                    id: 1,
+                    fabrico_id: fabricoId,
+                    finalizado: false,
+                    data_prevista: new Date("2026-10-20T00:00:00.000Z"),
+                    observacoes: "Observação existente",
+                    cliente_id: 7,
+                });
+            });
+
+            it("deve preservar campos omitidos ao atualizar somente o custo", async () => {
+                await service.update(1, { custo_total: 140.75 }, fabricoId);
+
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: undefined,
+                        observacoes: undefined,
+                        cliente_id: undefined,
+                        custo_total: toMoney(140.75),
+                    }),
+                });
+                expect(mockPrismaService.cliente.findFirst).not.toHaveBeenCalled();
+            });
+
+            it("deve aceitar null explícito no DTO e limpar os campos", async () => {
+                const dto = plainToInstance(UpdatePedidoDto, {
+                    data_prevista: null,
+                    observacoes: null,
+                    cliente_id: null,
+                });
+
+                expect(await validate(dto)).toEqual([]);
+
+                await service.update(1, dto, fabricoId);
+
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: null,
+                        observacoes: null,
+                        cliente_id: null,
+                    }),
+                });
+                expect(mockPrismaService.cliente.findFirst).not.toHaveBeenCalled();
+            });
+
+            it("deve atualizar os campos preenchidos e validar o cliente no fabrico", async () => {
+                mockPrismaService.cliente.findFirst.mockResolvedValue({
+                    id: 8,
+                    fabrico_id: fabricoId,
+                });
+
+                await service.update(
+                    1,
+                    {
+                        data_prevista: "2026-10-25T00:00:00.000Z",
+                        observacoes: "Observação atualizada",
+                        cliente_id: 8,
+                    },
+                    fabricoId,
+                );
+
+                expect(mockPrismaService.cliente.findFirst).toHaveBeenCalledWith({
+                    where: { id: 8, fabrico_id: fabricoId },
+                });
+                expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                    where: { id: 1 },
+                    data: expect.objectContaining({
+                        data_prevista: new Date("2026-10-25T00:00:00.000Z"),
+                        observacoes: "Observação atualizada",
+                        cliente_id: 8,
+                    }),
+                });
+            });
+        });
+
         it("deve atualizar um pedido", async () => {
             const pedidoAtualizado = {
                 id: 1,
@@ -1788,10 +2005,16 @@ describe("PedidoService", () => {
 
             expect(result).toEqual("O pedido com o id 1 foi deletado com sucesso");
 
-            expect(mockPrismaService.pedido.delete).toHaveBeenCalledWith({
-                where: {
-                    id: 1,
-                },
+            expect(mockPrismaService.pedido.delete).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { pedido_id: 1, fabrico_id: 1, delete_at: null },
+                data: { delete_at: expect.any(Date) },
+            });
+            const exclusao =
+                mockPrismaService.fichaTecnica.updateMany.mock.calls[0][0].data.delete_at;
+            expect(mockPrismaService.pedido.update).toHaveBeenCalledWith({
+                where: { id: 1 },
+                data: { delete_at: exclusao },
             });
         });
 

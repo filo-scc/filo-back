@@ -27,7 +27,7 @@ export class FichaEtapaService {
         const fichaEtapa = await this.prisma.fichaEtapa.findFirst({
             where: {
                 id,
-                ficha_tecnica: { fabrico_id: fabricoId },
+                ficha_tecnica: { delete_at: null, fabrico_id: fabricoId },
             },
             include: { ficha_tecnica: { select: { concluida: true } } },
         });
@@ -80,7 +80,7 @@ export class FichaEtapaService {
         const fichasEtapas = await this.prisma.fichaEtapa.findMany({
             where: {
                 etapa_id,
-                ficha_tecnica: { fabrico_id: fabricoId },
+                ficha_tecnica: { delete_at: null, fabrico_id: fabricoId },
             },
             include: {
                 ficha_tecnica: true,

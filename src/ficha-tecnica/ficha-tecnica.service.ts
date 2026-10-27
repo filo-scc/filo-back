@@ -20,10 +20,7 @@ export class FichaTecnicaService {
 
     private async assertPedidoDoFabrico(pedidoId: number, fabricoId: number) {
         const pedido = await this.prisma.pedido.findFirst({
-            where: {
-                id: Number(pedidoId),
-                fabrico_id: Number(fabricoId),
-            },
+            where: { delete_at: null, id: Number(pedidoId), fabrico_id: Number(fabricoId) },
             select: { id: true },
         });
 
@@ -142,7 +139,12 @@ export class FichaTecnicaService {
     async findAllByFabricoId(fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { fabrico_id: Number(fabrico_id), concluida: false },
+                where: {
+                    delete_at: null,
+                    pedido: { delete_at: null },
+                    fabrico_id: Number(fabrico_id),
+                    concluida: false,
+                },
                 include: {
                     produto: {
                         include: {
@@ -197,7 +199,12 @@ export class FichaTecnicaService {
     async findAllByEtapaId(id: number, fabrico_id: number) {
         try {
             return await this.prisma.fichaTecnica.findMany({
-                where: { etapa_atual_id: Number(id), fabrico_id: fabrico_id },
+                where: {
+                    delete_at: null,
+                    pedido: { delete_at: null },
+                    etapa_atual_id: Number(id),
+                    fabrico_id: fabrico_id,
+                },
                 include: {
                     produto: true,
                     etapa_atual: true,
@@ -228,7 +235,7 @@ export class FichaTecnicaService {
 
     async findOne(id: number, fabrico_id: number) {
         const fichaBase = await this.prisma.fichaTecnica.findFirst({
-            where: { id, fabrico_id: fabrico_id },
+            where: { delete_at: null, id, fabrico_id: fabrico_id },
             select: { produto_id: true },
         });
 
@@ -237,7 +244,7 @@ export class FichaTecnicaService {
         }
 
         const ficha = await this.prisma.fichaTecnica.findFirst({
-            where: { id, fabrico_id: fabrico_id },
+            where: { delete_at: null, id, fabrico_id: fabrico_id },
             include: {
                 produto: {
                     include: {
@@ -491,7 +498,7 @@ export class FichaTecnicaService {
         db: Prisma.TransactionClient | PrismaService = this.prisma,
     ) {
         const pedido = await db.pedido.findFirst({
-            where: { id: pedidoId },
+            where: { delete_at: null, id: pedidoId },
             select: { finalizado: true },
         });
 
@@ -508,16 +515,17 @@ export class FichaTecnicaService {
         await tx.$queryRaw`SELECT id FROM "pedidos" WHERE id = ${pedidoId} FOR UPDATE`;
 
         const pedido = await tx.pedido.findUnique({
-            where: { id: pedidoId },
+            where: { delete_at: null, id: pedidoId },
             select: { cliente_id: true },
         });
 
         if (!pedido) return;
 
         const fichasDoPedido = await tx.fichaTecnica.findMany({
-            where: { pedido_id: pedidoId },
+            where: { delete_at: null, pedido_id: pedidoId },
             select: {
                 quantidade: true,
+                defeitos_tecido: true,
                 produto: {
                     select: {
                         id: true,
@@ -557,7 +565,11 @@ export class FichaTecnicaService {
             valorTotal = sumMoney(
                 fichasDoPedido.map((f) => {
                     const preco = mapaPrecos.get(f.produto?.id ?? -1);
-                    return lineTotal(f.quantidade ?? 0, preco);
+                    const quantidadeFaturavel = Math.max(
+                        0,
+                        (f.quantidade ?? 0) - (f.defeitos_tecido ?? 0),
+                    );
+                    return lineTotal(quantidadeFaturavel, preco);
                 }),
             );
         }
@@ -590,9 +602,10 @@ export class FichaTecnicaService {
                 await this.assertPedidoEditavel(ficha.pedido_id, tx);
             }
 
-            // deleteMany com concluida:false garante a regra mesmo com corrida
-            const { count } = await tx.fichaTecnica.deleteMany({
-                where: { id, concluida: false },
+            // A condição preserva o bloqueio de fichas concluídas durante a exclusão lógica.
+            const { count } = await tx.fichaTecnica.updateMany({
+                where: { id, concluida: false, delete_at: null },
+                data: { delete_at: new Date() },
             });
 
             if (count === 0) {

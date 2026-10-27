@@ -41,7 +41,7 @@ export class FichaTecnicaItemService {
 
     private async getFichaTecnicaOrFail(ficha_tecnica_id: number, fabrico_id: number) {
         const ficha = await this.prisma.fichaTecnica.findFirst({
-            where: { id: Number(ficha_tecnica_id), fabrico_id: fabrico_id },
+            where: { delete_at: null, id: Number(ficha_tecnica_id), fabrico_id: fabrico_id },
             select: {
                 id: true,
                 fabrico_id: true,
@@ -84,7 +84,7 @@ export class FichaTecnicaItemService {
     async findOne(id: number, fabrico_id: number) {
         try {
             const item = await this.prisma.fichaTecnicaItem.findFirst({
-                where: { id, ficha_tecnica: { fabrico_id: fabrico_id } },
+                where: { id, ficha_tecnica: { delete_at: null, fabrico_id: fabrico_id } },
                 include: {
                     ficha_tecnica: true,
                     cor: true,
@@ -690,7 +690,7 @@ export class FichaTecnicaItemService {
                 );
 
                 const ficha = await tx.fichaTecnica.findFirst({
-                    where: { id: fichaInicial.id, fabrico_id },
+                    where: { delete_at: null, id: fichaInicial.id, fabrico_id },
                     select: {
                         id: true,
                         fabrico_id: true,

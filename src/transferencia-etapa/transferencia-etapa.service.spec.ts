@@ -93,7 +93,7 @@ describe("TransferenciaEtapaService", () => {
             },
         });
         expect(prisma.fichaTecnica.updateMany).toHaveBeenCalledWith({
-            where: { id: 10, produzida_em: null },
+            where: { delete_at: null, id: 10, produzida_em: null },
             data: { produzida_em: expect.any(Date) },
         });
         expect(prisma.fichaTecnica.update).toHaveBeenCalledWith(
@@ -872,7 +872,7 @@ describe("TransferenciaEtapaService", () => {
             select: { id: true },
         });
         expect(prisma.fichaTecnica.updateMany).toHaveBeenCalledWith({
-            where: { id: 10, produzida_em: null },
+            where: { delete_at: null, id: 10, produzida_em: null },
             data: { produzida_em: expect.any(Date) },
         });
     });
