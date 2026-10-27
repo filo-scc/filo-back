@@ -11,7 +11,7 @@ describe("ParceiroController", () => {
         getById: jest.Mock;
         update: jest.Mock;
         delete: jest.Mock;
-        getParceirosByFabricoECategoria: jest.Mock;
+        getParceirosByEtapa: jest.Mock;
     };
 
     const user: AuthenticatedUser = {
@@ -31,7 +31,7 @@ describe("ParceiroController", () => {
             getById: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
-            getParceirosByFabricoECategoria: jest.fn(),
+            getParceirosByEtapa: jest.fn(),
         };
 
         const module: TestingModule = await Test.createTestingModule({
@@ -66,14 +66,11 @@ describe("ParceiroController", () => {
         expect(parceiroService.getAll).toHaveBeenCalledWith(user);
     });
 
-    it("consulta por categoria usando o usuario autenticado", async () => {
-        parceiroService.getParceirosByFabricoECategoria.mockResolvedValue([]);
+    it("consulta por etapa usando o usuario autenticado", async () => {
+        parceiroService.getParceirosByEtapa.mockResolvedValue([]);
 
-        await expect(controller.getByCategoria(user, "Costura")).resolves.toEqual([]);
-        expect(parceiroService.getParceirosByFabricoECategoria).toHaveBeenCalledWith(
-            "Costura",
-            user,
-        );
+        await expect(controller.findByEtapa(user, 5)).resolves.toEqual([]);
+        expect(parceiroService.getParceirosByEtapa).toHaveBeenCalledWith(5, user);
     });
 
     it("busca, atualiza e remove repassando o usuario autenticado", () => {
