@@ -164,7 +164,7 @@ export class ProdutoService {
                 return total.plus(moneyOrZero(vinculo.custo));
             }
 
-            // Aviamento guarda custo_unitario com até 3 casas; multiplica e só então arredonda.
+            // Aviamento guarda custo_unitario com até 3 casas, multiplica e só então arredonda.
             return total.plus(
                 toMoney(
                     new Prisma.Decimal(vinculo.quantidade || 0).times(
