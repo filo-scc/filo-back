@@ -496,9 +496,7 @@ describe("FichaTecnicaItemService", () => {
                 findUnique: jest.fn().mockResolvedValue({ finalizado: false }),
             };
             prisma.fichaTecnica.update = jest.fn();
-            const sincronizarParceiros = jest.mocked(
-                fichaTecnicaService.sincronizarFichaParceiros,
-            );
+            const sincronizarParceiros = jest.mocked(fichaTecnicaService.sincronizarFichaParceiros);
             const sincronizarPedido = jest.mocked(fichaTecnicaService.sincronizarPedido);
             sincronizarParceiros.mockClear();
             sincronizarPedido.mockClear();
