@@ -718,7 +718,7 @@ describe("PedidoService", () => {
                     custo_operacional: toMoney(2),
                     outros_custos: null,
                     produtoAviamentos: [],
-                    parceiro_produto: [{ preco: precoGravado, parceiro: { categoria: "Costura" } }],
+                    parceiro_produto: [{ preco: precoGravado, parceiro: { etapa_id: 2 } }],
                 }));
                 mockPrismaService.parceiroProduto.upsert.mockImplementation(
                     async ({ update }: { update: { preco?: Prisma.Decimal | null } }) => {
