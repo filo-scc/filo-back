@@ -39,11 +39,15 @@ describe("PUT /fichas-tecnicas/:id/matriz (E2E)", () => {
 
     const auth = () => ({ Authorization: `Bearer ${token}` });
 
-    const put = (fichaId: number, itens: unknown) =>
+    const put = (fichaId: number, itens: unknown, perdas: object = {}) =>
         request(app.getHttpServer())
             .put(`/fichas-tecnicas/${fichaId}/matriz`)
             .set(auth())
-            .send({ itens });
+            .send({ itens, ...perdas });
+
+    const matrizCom = (quantidade: number): ItemMatriz[] => [
+        { cor_id: fixtures.corId, grade_versao_item_id: fixtures.gradeVersaoItemId, quantidade },
+    ];
 
     const snapshot = async () => {
         const [itens, fichaDb, pedidoDb] = await Promise.all([
@@ -232,6 +236,80 @@ describe("PUT /fichas-tecnicas/:id/matriz (E2E)", () => {
         expect(depois.itens).toEqual(antes.itens);
         expect(depois.fichaDb.quantidade).toBe(antes.fichaDb.quantidade);
         expect(depois.pedidoDb.quantidade).toBe(antes.pedidoDb.quantidade);
+    });
+
+    // ---------- perdas no mesmo request ----------
+
+    it("aumenta quantidade e perdas juntas", async () => {
+        await prisma.fichaTecnica.update({
+            where: { id: ficha.fichaId },
+            data: { defeitos_costura: 8 },
+        });
+
+        await put(ficha.fichaId, matrizCom(20), { defeitos_costura: 15 }).expect(200);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.quantidade).toBe(20);
+        expect(depois.fichaDb.defeitos_costura).toBe(15);
+        expect(depois.pedidoDb.quantidade).toBe(20);
+    });
+
+    it("reduz quantidade e perdas juntas", async () => {
+        await prisma.fichaTecnica.update({
+            where: { id: ficha.fichaId },
+            data: { defeitos_costura: 8 },
+        });
+
+        await put(ficha.fichaId, matrizCom(3), { defeitos_costura: 2 }).expect(200);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.quantidade).toBe(3);
+        expect(depois.fichaDb.defeitos_costura).toBe(2);
+        expect(depois.pedidoDb.quantidade).toBe(3);
+    });
+
+    it("perdas enviadas maiores que a nova quantidade: 400 e nada muda", async () => {
+        const antes = await snapshot();
+
+        await put(ficha.fichaId, novaMatriz, { defeitos_costura: 12 }).expect(400);
+
+        const depois = await snapshot();
+        expect(depois.itens).toEqual(antes.itens);
+        expect(depois.fichaDb.quantidade).toBe(antes.fichaDb.quantidade);
+        expect(depois.fichaDb.defeitos_costura).toBe(antes.fichaDb.defeitos_costura);
+        expect(depois.pedidoDb.quantidade).toBe(antes.pedidoDb.quantidade);
+    });
+
+    it("soma as perdas enviadas com as gravadas que não foram enviadas", async () => {
+        await prisma.fichaTecnica.update({
+            where: { id: ficha.fichaId },
+            data: { retiradas: 6 },
+        });
+
+        await put(ficha.fichaId, novaMatriz, { defeitos_costura: 4 }).expect(400);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.quantidade).toBe(10);
+    });
+
+    it("sem perdas no request mantém as gravadas", async () => {
+        await prisma.fichaTecnica.update({
+            where: { id: ficha.fichaId },
+            data: { defeitos_tecido: 2 },
+        });
+
+        await put(ficha.fichaId, novaMatriz).expect(200);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.quantidade).toBe(9);
+        expect(depois.fichaDb.defeitos_tecido).toBe(2);
+    });
+
+    it("perda negativa retorna 400 (DTO)", async () => {
+        await put(ficha.fichaId, novaMatriz, { sobras: -1 }).expect(400);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.quantidade).toBe(10);
     });
 
     // ---------- 409 ----------

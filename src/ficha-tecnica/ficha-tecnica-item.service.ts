@@ -21,6 +21,9 @@ import {
 } from "src/pedido/pedido-finalizacao";
 import { FichaTecnicaService } from "./ficha-tecnica.service";
 
+const CAMPOS_PERDA = ["defeitos_costura", "defeitos_tecido", "retiradas", "sobras"] as const;
+type PerdasFicha = Partial<Record<(typeof CAMPOS_PERDA)[number], number>>;
+
 @Injectable()
 export class FichaTecnicaItemService {
     constructor(
@@ -673,6 +676,7 @@ export class FichaTecnicaItemService {
         ficha_tecnica_id: number,
         itens: CreateFichaTecnicaItemDto[],
         fabrico_id: number,
+        perdas?: PerdasFicha,
     ) {
         this.validateDuplicados(itens);
 
@@ -753,21 +757,28 @@ export class FichaTecnicaItemService {
                     });
                 }
 
-                // 5) quantidade da ficha
+                // 5) quantidade e perdas, gravadas juntas
                 const quantidade = itens.reduce((t, i) => t + Number(i.quantidade), 0);
-                const perdas =
-                    (ficha.defeitos_costura ?? 0) +
-                    (ficha.defeitos_tecido ?? 0) +
-                    (ficha.retiradas ?? 0) +
-                    (ficha.sobras ?? 0);
+                const perdasEnviadas: PerdasFicha = {};
+                for (const campo of CAMPOS_PERDA) {
+                    const valor = perdas?.[campo];
+                    if (valor != null) perdasEnviadas[campo] = valor;
+                }
+                const totalPerdas = CAMPOS_PERDA.reduce(
+                    (total, campo) => total + (perdasEnviadas[campo] ?? ficha[campo] ?? 0),
+                    0,
+                );
 
-                if (perdas > quantidade) {
+                if (totalPerdas > quantidade) {
                     throw new BadRequestException(
                         "A soma das perdas não pode ser maior que a quantidade da ficha técnica",
                     );
                 }
 
-                await tx.fichaTecnica.update({ where: { id: ficha.id }, data: { quantidade } });
+                await tx.fichaTecnica.update({
+                    where: { id: ficha.id },
+                    data: { quantidade, ...perdasEnviadas },
+                });
 
                 await this.fichaTecnicaService.sincronizarFichaParceiros(
                     tx,
