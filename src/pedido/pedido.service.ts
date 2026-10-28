@@ -451,12 +451,11 @@ export class PedidoService {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
                         const temEdicaoDeMatriz =
                             Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-
-                        if (
-                            !fichaDb.concluida &&
+                        const trocouGrade =
                             fichaDto.grade_versao_id != null &&
-                            !temEdicaoDeMatriz
-                        ) {
+                            Number(fichaDto.grade_versao_id) !== fichaDb.grade_versao_id;
+
+                        if (!fichaDb.concluida && trocouGrade && !temEdicaoDeMatriz) {
                             throw new BadRequestException(
                                 "Para alterar a grade da ficha, envie também itens ou cores_ids",
                             );
@@ -552,8 +551,11 @@ export class PedidoService {
 
                         if (temEdicaoDeMatriz) {
                             let gradeVersaoId = fichaDb.grade_versao_id;
+                            const trocouGrade =
+                                fichaDto.grade_versao_id != null &&
+                                Number(fichaDto.grade_versao_id) !== fichaDb.grade_versao_id;
 
-                            if (fichaDto.grade_versao_id) {
+                            if (trocouGrade) {
                                 const gradeMap = await this.alinharGradesDosProdutos(
                                     tx,
                                     [fichaDto],
