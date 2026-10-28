@@ -12,7 +12,8 @@ const mockPrismaService = {
     fichaTecnica: {
         update: jest.fn(),
         delete: jest.fn(),
-        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
@@ -158,7 +159,7 @@ describe("FichaTecnicaService", () => {
             await service.update(1, { concluida: true } as any, mockUser);
 
             expect(prismaService.pedido.updateMany).toHaveBeenCalledWith({
-                where: { id: 100, finalizado: false },
+                where: { delete_at: null, id: 100, finalizado: false },
                 data: { finalizado: true },
             });
         });
@@ -403,7 +404,12 @@ describe("FichaTecnicaService", () => {
             expect(result).toEqual([fichaData]);
             expect(prismaService.fichaTecnica.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { fabrico_id: 20, concluida: false },
+                    where: {
+                        delete_at: null,
+                        pedido: { delete_at: null },
+                        fabrico_id: 20,
+                        concluida: false,
+                    },
                     include: expect.objectContaining({
                         ficha_parceiro: {
                             include: {
@@ -436,8 +442,9 @@ describe("FichaTecnicaService", () => {
             const result = await service.remove(1, mockUser);
 
             expect(result).toBe("Ficha técnica excluída com sucesso");
-            expect(prismaService.fichaTecnica.deleteMany).toHaveBeenCalledWith({
-                where: { id: 1, concluida: false },
+            expect(prismaService.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { id: 1, concluida: false, delete_at: null },
+                data: { delete_at: expect.any(Date) },
             });
         });
 
@@ -445,7 +452,7 @@ describe("FichaTecnicaService", () => {
             jest.spyOn(service, "findOne").mockRejectedValue(new NotFoundException());
 
             await expect(service.remove(99, mockUser)).rejects.toThrow(NotFoundException);
-            expect(prismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(prismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
         });
 
         it("recusa com 409 ficha concluída sem apagar", async () => {
@@ -455,7 +462,7 @@ describe("FichaTecnicaService", () => {
             } as any);
 
             await expect(service.remove(1, mockUser)).rejects.toThrow(ConflictException);
-            expect(prismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(prismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
         });
 
         it("recusa com 409 se a ficha foi concluída entre a leitura e a exclusão", async () => {
@@ -463,7 +470,7 @@ describe("FichaTecnicaService", () => {
                 ...fichaData,
                 concluida: false,
             } as any);
-            prismaService.fichaTecnica.deleteMany.mockResolvedValueOnce({ count: 0 });
+            prismaService.fichaTecnica.updateMany.mockResolvedValueOnce({ count: 0 });
 
             await expect(service.remove(1, mockUser)).rejects.toThrow(ConflictException);
         });

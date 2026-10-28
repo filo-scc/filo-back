@@ -21,15 +21,6 @@ export class ProdutoService {
         }
     }
 
-    private normalizarNome(valor: string | null | undefined) {
-        return String(valor ?? "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .trim()
-            .toLocaleLowerCase("pt-BR")
-            .replace(/\s+/g, " ");
-    }
-
     private getFabricoId(user: AuthenticatedUser): number {
         if (!user?.fabrico_id) {
             throw new BadRequestException("Usuário não possui um fabrico associado");
@@ -154,9 +145,8 @@ export class ProdutoService {
 
         const etapasParaCusto = etapasAtivas.slice(0, -1);
         const custoEtapas = etapasParaCusto.reduce((total, etapa) => {
-            const nomeEtapa = this.normalizarNome(etapa.nome);
             const precos = produto.parceiro_produto
-                .filter((vinculo) => this.normalizarNome(vinculo.parceiro?.categoria) === nomeEtapa)
+                .filter((vinculo) => vinculo.parceiro?.etapa_id === etapa.id)
                 .map((vinculo) => moneyOrZero(vinculo.preco))
                 .filter((preco) => preco.greaterThan(0));
 
@@ -174,7 +164,7 @@ export class ProdutoService {
                 return total.plus(moneyOrZero(vinculo.custo));
             }
 
-            // Aviamento guarda custo_unitario com até 3 casas; multiplica e só então arredonda.
+            // Aviamento guarda custo_unitario com até 3 casas, multiplica e só então arredonda.
             return total.plus(
                 toMoney(
                     new Prisma.Decimal(vinculo.quantidade || 0).times(

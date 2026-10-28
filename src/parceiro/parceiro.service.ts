@@ -12,6 +12,8 @@ import { UpdateParceiroDto } from "./dto/update-parceiro.dto";
 import { ProdutoService } from "src/produto/produto.service";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
+const ETAPA_DO_PARCEIRO = { select: { id: true, nome: true, ativa: true } } as const;
+
 @Injectable()
 export class ParceiroService {
     constructor(
@@ -38,6 +40,30 @@ export class ParceiroService {
         }
     }
 
+    /**
+     * Confere que a etapa pertence ao fabrico do usuário e pode receber o vínculo. Etapa de outro
+     * fabrico e etapa inexistente dão a mesma resposta. Etapa inativa só é aceita quando o parceiro
+     * já está nela (reenviar o valor atual não é um vínculo novo).
+     */
+    private async assertEtapaVinculavel(
+        etapaId: number,
+        fabricoId: number,
+        etapaAtualId: number | null = null,
+    ) {
+        const etapa = await this.prisma.etapa.findFirst({
+            where: { id: etapaId, fabrico_id: fabricoId },
+            select: { id: true, ativa: true },
+        });
+
+        if (!etapa) {
+            throw new BadRequestException("Etapa inválida");
+        }
+
+        if (!etapa.ativa && etapa.id !== etapaAtualId) {
+            throw new BadRequestException("Não é possível vincular o parceiro a uma etapa inativa");
+        }
+    }
+
     async getAll(user: AuthenticatedUser) {
         const fabricoId = this.getTenantFabricoId(user);
 
@@ -46,6 +72,7 @@ export class ParceiroService {
                 where: { fabrico_id: fabricoId },
                 include: {
                     endereco: true,
+                    etapa: ETAPA_DO_PARCEIRO,
                     parceiro_produto: { include: { produto: true } },
                 },
             });
@@ -65,6 +92,7 @@ export class ParceiroService {
             },
             include: {
                 endereco: true,
+                etapa: ETAPA_DO_PARCEIRO,
                 parceiro_produto: { include: { produto: true } },
             },
         });
@@ -92,6 +120,10 @@ export class ParceiroService {
             throw new ConflictException("Já existe um parceiro com esse nome nesse fabrico");
         }
 
+        if (dadosparceiro.etapa_id) {
+            await this.assertEtapaVinculavel(dadosparceiro.etapa_id, fabricoId);
+        }
+
         const enderecoCriado = await this.enderecoService.create(endereco ?? {});
 
         await this.prisma.parceiro.create({
@@ -100,7 +132,6 @@ export class ParceiroService {
                 fabrico_id: fabricoId,
                 telefone: dadosparceiro.telefone ?? null,
                 endereco: { connect: { id: enderecoCriado.id } },
-                categoria: dadosparceiro.categoria ?? null,
             },
             include: { endereco: true },
         });
@@ -127,6 +158,14 @@ export class ParceiroService {
             if (existente) {
                 throw new ConflictException("Já existe uma parceiro com esse nome nesse fabrico");
             }
+        }
+
+        if (dadosparceiro.etapa_id) {
+            await this.assertEtapaVinculavel(
+                dadosparceiro.etapa_id,
+                fabricoId,
+                parceiroAtual.etapa_id,
+            );
         }
 
         if (endereco) {
@@ -168,14 +207,15 @@ export class ParceiroService {
         return { message: "Parceiro foi removido com sucesso" };
     }
 
-    async getParceirosByFabricoECategoria(categoria: string, user: AuthenticatedUser) {
+    async getParceirosByEtapa(etapaId: number, user: AuthenticatedUser) {
         const fabricoId = this.getTenantFabricoId(user);
 
         return await this.prisma.parceiro.findMany({
             where: {
                 fabrico_id: fabricoId,
-                categoria: categoria,
+                etapa_id: etapaId,
             },
+            include: { etapa: ETAPA_DO_PARCEIRO },
         });
     }
 }
