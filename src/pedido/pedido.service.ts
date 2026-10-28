@@ -26,6 +26,8 @@ import { assertFichaEditavel } from "src/common/utils/ficha";
 
 type FichaParaTotais = CreatePedidoFichaDto & { defeitos_tecido?: number | null };
 
+const MENSAGEM_SEM_ETAPA_ATIVA = "Cadastre ao menos uma etapa ativa antes de criar fichas técnicas";
+
 const PALETA_13_CORES = [
     "#7FA9B8",
     "#9DB7A5",
@@ -921,6 +923,11 @@ export class PedidoService {
                     "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
                 );
             }
+        }
+
+        // Sem etapa ativa a ficha nasceria sem etapa atual e ficaria fora do Kanban: nem é criada.
+        if (fichasDto.length > 0 && !etapaPadrao) {
+            throw new BadRequestException(MENSAGEM_SEM_ETAPA_ATIVA);
         }
 
         return new Map(
