@@ -196,8 +196,8 @@ describe("Concorrencia E2E com PostgreSQL", () => {
         }
     });
 
-    it("retorna o mesmo pedido para a mesma chave de idempotencia concorrente", async () => {
-        const idempotencyKey = `${runId}-idempotente`;
+    it.each([true, false])("valida chave concorrente com conteúdo igual: %s", async (igual) => {
+        const idempotencyKey = `${runId}-idempotente-${igual}`;
         const lock = await holdLock(
             prisma,
             Prisma.sql`SELECT pg_advisory_xact_lock(1, ${fixtures.fabricoId})`,
@@ -216,7 +216,10 @@ describe("Concorrencia E2E com PostgreSQL", () => {
                         .post("/pedidos/completo")
                         .set(auth(token))
                         .set("Idempotency-Key", idempotencyKey)
-                        .send(completePayload(fixtures, idempotencyKey)),
+                        .send({
+                            ...completePayload(fixtures, idempotencyKey),
+                            ...(igual ? {} : { observacoes: "conteúdo diferente" }),
+                        }),
             );
 
             await waitForBlocked(
@@ -235,16 +238,31 @@ describe("Concorrencia E2E com PostgreSQL", () => {
             lock.release();
             const [first, second] = await requests;
 
-            expect(first.status).toBe(201);
-            expect(second.status).toBe(201);
-            expect(first.body.id).toBe(second.body.id);
+            expect([first.status, second.status].sort()).toEqual(igual ? [201, 201] : [201, 409]);
+            const vencedor = first.status === 201 ? first : second;
+            if (igual) expect(first.body.id).toBe(second.body.id);
+            const persistido = await prisma.pedido.findUniqueOrThrow({
+                where: { id: vencedor.body.id },
+            });
+            expect(persistido.idempotency_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+            expect(persistido.observacoes).toBe(vencedor.body.observacoes);
+            const repeticao = await request(app.getHttpServer())
+                .post("/pedidos/completo")
+                .set(auth(token))
+                .set("Idempotency-Key", idempotencyKey)
+                .send({
+                    ...completePayload(fixtures, idempotencyKey),
+                    ...(persistido.observacoes ? { observacoes: persistido.observacoes } : {}),
+                });
+            expect(repeticao.status).toBe(201);
+            expect(repeticao.body.id).toBe(vencedor.body.id);
             await expect(
                 prisma.pedido.count({
                     where: { fabrico_id: fixtures.fabricoId, idempotency_key: idempotencyKey },
                 }),
             ).resolves.toBe(1);
             await expect(
-                prisma.fichaTecnica.count({ where: { pedido_id: first.body.id } }),
+                prisma.fichaTecnica.count({ where: { pedido_id: vencedor.body.id } }),
             ).resolves.toBe(1);
         } finally {
             lock.release();

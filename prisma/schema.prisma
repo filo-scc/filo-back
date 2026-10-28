@@ -603,6 +603,7 @@ model Pedido {
   valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
   idempotency_key String? @db.VarChar(128)
+  idempotency_fingerprint String? @db.VarChar(64)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

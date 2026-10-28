@@ -13,6 +13,7 @@ import { CreatePedidoDto } from "./dto/create-pedido.dto";
 import { CreatePedidoCompletoDto, CreatePedidoFichaDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import { fingerprintPedido } from "./pedido-fingerprint";
 import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
 import { lineTotal, moneyOrZero, sumMoney, toMoneyOrNull } from "src/common/utils/money";
 import {
@@ -124,12 +125,15 @@ export class PedidoService {
             throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
         }
 
+        const fingerprint = fingerprintPedido(data);
+
         // Replay antes das validações que dependem de estado mutável (cliente, produto ativo):
         // um retry idêntico de um pedido já criado precisa devolver o pedido, não um erro.
         const existente = await this.buscarPedidoPorIdempotencia(
             this.prisma,
             fabricoId,
             chaveIdempotencia,
+            fingerprint,
         );
 
         if (existente) {
@@ -172,6 +176,7 @@ export class PedidoService {
                             tx,
                             fabricoId,
                             chaveIdempotencia,
+                            fingerprint,
                         );
 
                         if (existente) {
@@ -215,7 +220,8 @@ export class PedidoService {
                             quantidade: totais.quantidade,
                             valor_total: totais.valor_total,
                             custo_total: totais.custo_total,
-                            ...(chaveIdempotencia ? { idempotency_key: chaveIdempotencia } : {}),
+                            idempotency_key: chaveIdempotencia,
+                            idempotency_fingerprint: fingerprint,
                         },
                     });
 
@@ -256,6 +262,7 @@ export class PedidoService {
                             this.prisma,
                             fabricoId,
                             chaveIdempotencia,
+                            fingerprint,
                         );
 
                         if (existente) {
@@ -747,6 +754,7 @@ export class PedidoService {
         db: Prisma.TransactionClient | PrismaService,
         fabricoId: number,
         chaveIdempotencia: string,
+        fingerprint: string,
     ) {
         const pedido = await db.pedido.findFirst({
             where: { fabrico_id: fabricoId, idempotency_key: chaveIdempotencia },
@@ -755,6 +763,14 @@ export class PedidoService {
         if (pedido?.delete_at) {
             throw new ConflictException(
                 "Este pedido foi excluído. Use uma nova chave para criar outro pedido.",
+            );
+        }
+        if (
+            pedido?.idempotency_fingerprint != null &&
+            pedido.idempotency_fingerprint !== fingerprint
+        ) {
+            throw new ConflictException(
+                "Esta chave de idempotência já foi usada com outro conteúdo. Use uma nova chave para criar outro pedido.",
             );
         }
         return pedido;
