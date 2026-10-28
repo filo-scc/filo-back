@@ -21,6 +21,9 @@ const mockPrismaService = {
     produto: {
         findMany: jest.fn(),
     },
+    fichaTecnica: {
+        updateMany: jest.fn(),
+    },
     $transaction: jest.fn(),
 };
 
@@ -521,6 +524,140 @@ describe("EtapaService", () => {
             await expect(service.delete(2, admin)).resolves.toEqual(etapaFabrico2);
             expect(mockPrismaService.etapa.findUnique).toHaveBeenCalledWith({ where: { id: 2 } });
             expect(mockPrismaService.etapa.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+        });
+    });
+
+    describe("quando a última etapa ativa muda (produzida_em)", () => {
+        const ultimaEtapaId = 9;
+        const carimbo = (fabricoId: number) => ({
+            where: {
+                delete_at: null,
+                fabrico_id: fabricoId,
+                concluida: false,
+                etapa_atual_id: ultimaEtapaId,
+                produzida_em: null,
+            },
+            data: { produzida_em: expect.any(Date) },
+        });
+
+        // A consulta da última etapa é a única com orderBy; getById usa só id e fabrico.
+        const ultimaEtapaAtiva = (resultado: { id: number } | null = { id: ultimaEtapaId }) =>
+            mockPrismaService.etapa.findFirst.mockImplementation(
+                ({ orderBy }: { orderBy?: unknown }) =>
+                    Promise.resolve(orderBy ? resultado : etapaFabrico1),
+            );
+
+        beforeEach(() => {
+            mockPrismaService.icone.findUnique.mockResolvedValue({ id: 99 });
+            mockPrismaService.etapa.create.mockResolvedValue(etapaFabrico1);
+            mockPrismaService.etapa.update.mockResolvedValue(etapaFabrico1);
+            mockPrismaService.etapa.delete.mockResolvedValue(etapaFabrico1);
+            ultimaEtapaAtiva();
+        });
+
+        it("etapa ativa criada: carimba as fichas abertas da nova última etapa, só do próprio fabrico", async () => {
+            await service.create({ ...etapaFabrico1, fabrico_id: undefined }, gerenteFabrico1);
+
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { fabrico_id: 1, ativa: true },
+                orderBy: { ordem: "desc" },
+                select: { id: true },
+            });
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledTimes(1);
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith(carimbo(1));
+        });
+
+        it("só marca quem ainda não tem produzida_em: o carimbo existente nunca é limpo nem regravado", async () => {
+            await service.create({ ...etapaFabrico1, fabrico_id: undefined }, gerenteFabrico1);
+
+            const { where, data } = mockPrismaService.fichaTecnica.updateMany.mock.calls[0][0];
+            expect(where.produzida_em).toBeNull();
+            expect(where.concluida).toBe(false);
+            expect(Object.keys(data)).toEqual(["produzida_em"]);
+        });
+
+        it("etapa criada já inativa não pode ser a última: não carimba", async () => {
+            mockPrismaService.etapa.create.mockResolvedValue({ ...etapaFabrico1, ativa: false });
+
+            await service.create(
+                { ...etapaFabrico1, ativa: false, fabrico_id: undefined },
+                gerenteFabrico1,
+            );
+
+            expect(mockPrismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ["mudar a ordem", { ordem: 7 }],
+            ["desativar a etapa", { ativa: false }],
+        ])("update ao %s recalcula a última etapa e carimba", async (_nome, dto) => {
+            await service.update(1, dto, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith(carimbo(1));
+        });
+
+        it("reativar uma etapa também recalcula a última etapa", async () => {
+            mockPrismaService.etapa.findFirst.mockImplementation(
+                ({ orderBy }: { orderBy?: unknown }) =>
+                    Promise.resolve(
+                        orderBy ? { id: ultimaEtapaId } : { ...etapaFabrico1, ativa: false },
+                    ),
+            );
+
+            await service.update(1, { ativa: true }, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith(carimbo(1));
+        });
+
+        it("update que não muda ordem nem ativa não toca nas fichas", async () => {
+            await service.update(1, { nome: "Corte" }, gerenteFabrico1);
+            await service.update(1, { ordem: 1, ativa: true }, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
+        });
+
+        it("update por admin carimba no fabrico da etapa alterada", async () => {
+            mockPrismaService.etapa.findUnique.mockResolvedValue(etapaFabrico2);
+            mockPrismaService.etapa.findFirst.mockImplementation(
+                ({ orderBy }: { orderBy?: unknown }) =>
+                    Promise.resolve(orderBy ? { id: ultimaEtapaId } : etapaFabrico2),
+            );
+
+            await service.update(2, { fabrico_id: 2, ordem: 5 }, admin);
+
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith(
+                expect.objectContaining({ where: { fabrico_id: 2, ativa: true } }),
+            );
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith(carimbo(2));
+        });
+
+        it("excluir uma etapa ativa recalcula a última etapa e carimba", async () => {
+            await service.delete(1, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).toHaveBeenCalledWith(carimbo(1));
+        });
+
+        it("excluir uma etapa inativa não muda a última etapa: não carimba", async () => {
+            mockPrismaService.etapa.delete.mockResolvedValue({ ...etapaFabrico1, ativa: false });
+
+            await service.delete(1, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
+        });
+
+        it("fábrica sem nenhuma etapa ativa depois da mudança: não carimba ninguém", async () => {
+            ultimaEtapaAtiva(null);
+
+            await service.update(1, { ativa: false }, gerenteFabrico1);
+
+            expect(mockPrismaService.fichaTecnica.updateMany).not.toHaveBeenCalled();
+        });
+
+        it("propaga a falha do carimbo antes de recalcular os custos (mesma transação)", async () => {
+            mockPrismaService.fichaTecnica.updateMany.mockRejectedValueOnce(new Error("falha"));
+
+            await expect(service.update(1, { ordem: 7 }, gerenteFabrico1)).rejects.toThrow("falha");
+            expect(mockProdutoService.recalcularCustosTotais).not.toHaveBeenCalled();
         });
     });
 });
