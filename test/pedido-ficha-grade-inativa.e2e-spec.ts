@@ -225,6 +225,7 @@ describe("Ficha com versão de grade inativa (E2E)", () => {
         const depois = await snapshot();
         expect(depois.fichaDb.grade_versao_id).toBe(fixtures.gradeVersaoId);
         expect(quantidades(depois.itens)).toEqual(quantidades(matrizV1));
+        expect(depois.produtoDb.grade_versao_id).toBe(fixtures.gradeVersaoId);
     });
 
     // ---------- trocar de grade continua valendo as regras ----------
