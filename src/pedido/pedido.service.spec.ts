@@ -4,6 +4,7 @@ import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { Prisma } from "@prisma/client";
 
+import { fingerprintPedido } from "./pedido-fingerprint";
 import { PedidoService } from "./pedido.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProdutoService } from "../produto/produto.service";
@@ -516,6 +517,119 @@ describe("PedidoService", () => {
                     valor_total: toMoney("3.03"),
                 }),
             });
+        });
+
+        it("persiste SHA-256 e aceita replay com propriedades em outra ordem e chave no header", async () => {
+            prepararCenarioFeliz();
+            await service.createCompleto(dtoBase, fabricoId);
+            const fingerprint = fingerprintPedido(dtoBase);
+            expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+            expect(mockPrismaService.pedido.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({ idempotency_fingerprint: fingerprint }),
+            });
+            const existente = { id: 100, idempotency_fingerprint: fingerprint };
+            mockPrismaService.pedido.findFirst.mockResolvedValue(existente);
+            mockPrismaService.pedido.create.mockClear();
+            const payload = {
+                fichas: dtoBase.fichas.map((ficha) => ({
+                    ...ficha,
+                    itens: ficha.itens.map(({ quantidade, cor_id, grade_versao_item_id }) => ({
+                        quantidade,
+                        grade_versao_item_id,
+                        cor_id,
+                    })),
+                })),
+                cliente_id: dtoBase.cliente_id,
+            };
+            await expect(service.createCompleto(payload, fabricoId, "chave-base")).resolves.toEqual(
+                existente,
+            );
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+        });
+
+        it.each(["observacoes", "preco", "matriz", "parceiro"])(
+            "recusa mudança de %s sem escrita",
+            async (campo) => {
+                const payload = structuredClone(dtoBase);
+                const alterado = {
+                    ...payload,
+                    observacoes: campo === "observacoes" ? "Outro pedido" : undefined,
+                };
+                if (campo === "preco") alterado.fichas[0].preco_padrao = 21;
+                if (campo === "matriz") alterado.fichas[0].itens[0].cor_id = 2;
+                if (campo === "parceiro") alterado.fichas[0].parceiros[0].preco = 5;
+                mockPrismaService.pedido.findFirst.mockResolvedValue({
+                    id: 100,
+                    idempotency_fingerprint: fingerprintPedido(dtoBase),
+                });
+                await expect(service.createCompleto(alterado, fabricoId)).rejects.toThrow(
+                    ConflictException,
+                );
+                expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+                expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            },
+        );
+
+        it("recusa conteúdo divergente depois de aguardar a trava da fábrica", async () => {
+            prepararCenarioFeliz();
+            mockPrismaService.pedido.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+                id: 100,
+                idempotency_fingerprint: fingerprintPedido({ ...dtoBase, observacoes: "vencedor" }),
+            });
+            await expect(service.createCompleto(dtoBase, fabricoId)).rejects.toThrow(
+                ConflictException,
+            );
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.parceiroProduto.upsert).not.toHaveBeenCalled();
+        });
+
+        it.each([true, false])(
+            "valida fingerprint após P2002 (mesmo conteúdo: %s)",
+            async (igual) => {
+                prepararCenarioFeliz();
+                mockPrismaService.$transaction.mockRejectedValueOnce(
+                    new Prisma.PrismaClientKnownRequestError("unique", {
+                        code: "P2002",
+                        clientVersion: "test",
+                        meta: { target: ["fabrico_id", "idempotency_key"] },
+                    }),
+                );
+                const existente = {
+                    id: 100,
+                    idempotency_fingerprint: fingerprintPedido(
+                        igual ? dtoBase : { ...dtoBase, observacoes: "diferente" },
+                    ),
+                };
+                mockPrismaService.pedido.findFirst
+                    .mockResolvedValueOnce(null)
+                    .mockResolvedValueOnce(existente);
+                const resultado = service.createCompleto(dtoBase, fabricoId);
+                if (igual) await expect(resultado).resolves.toEqual(existente);
+                else await expect(resultado).rejects.toThrow(ConflictException);
+            },
+        );
+
+        it("distingue null, zero e omitido e preserva ordem das fichas", () => {
+            expect(fingerprintPedido(dtoBase)).not.toBe(
+                fingerprintPedido({ ...dtoBase, cliente_id: null }),
+            );
+            expect(fingerprintPedido({ ...dtoBase, cliente_id: null })).not.toBe(
+                fingerprintPedido({ ...dtoBase, cliente_id: undefined }),
+            );
+            const semPreco = {
+                ...dtoBase,
+                fichas: [{ ...dtoBase.fichas[0], preco_padrao: undefined }],
+            };
+            expect(fingerprintPedido(semPreco)).not.toBe(
+                fingerprintPedido({
+                    ...semPreco,
+                    fichas: [{ ...semPreco.fichas[0], preco_padrao: 0 }],
+                }),
+            );
+            const fichas = [dtoBase.fichas[0], { ...dtoBase.fichas[0], produto_id: 6 }];
+            expect(fingerprintPedido({ ...dtoBase, fichas })).not.toBe(
+                fingerprintPedido({ ...dtoBase, fichas: [...fichas].reverse() }),
+            );
         });
 
         it("deve reutilizar o pedido quando a chave de idempotência já existe", async () => {
