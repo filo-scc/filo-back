@@ -154,6 +154,7 @@ export class FichaTecnicaItemController {
             ficha_tecnica_id,
             data.itens,
             (req as any).user.fabrico_id,
+            data,
         );
     }
 }
