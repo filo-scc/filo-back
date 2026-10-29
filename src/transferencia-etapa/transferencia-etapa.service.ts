@@ -63,7 +63,7 @@ export class TransferenciaEtapaService {
             select: { etapa_id: true },
         });
 
-        if (origemRegistrada?.etapa_id !== etapa_origem_id) {
+        if ((origemRegistrada?.etapa_id ?? null) !== etapa_origem_id) {
             throw new ConflictException(
                 "A etapa de origem informada difere da usada na transferência já realizada para esta etapa",
             );
@@ -190,7 +190,8 @@ export class TransferenciaEtapaService {
                     });
                 }
 
-                // A origem informada precisa bater com a etapa atual real da ficha.
+                // A origem informada precisa bater com a etapa atual real da ficha; origem nula só
+                // vale para a ficha que ainda não tem etapa (a transferência abre o primeiro histórico).
                 if (ficha.etapa_atual_id !== etapa_origem_id) {
                     throw new BadRequestException(
                         "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
@@ -218,11 +219,15 @@ export class TransferenciaEtapaService {
                 );
 
                 const [etapaOrigem, etapaDestino] = await Promise.all([
-                    tx.etapa.findFirst({ where: { id: etapa_origem_id, fabrico_id: fabricoId } }),
+                    etapa_origem_id === null
+                        ? null
+                        : tx.etapa.findFirst({
+                              where: { id: etapa_origem_id, fabrico_id: fabricoId },
+                          }),
                     tx.etapa.findFirst({ where: { id: etapa_destino_id, fabrico_id: fabricoId } }),
                 ]);
 
-                if (!etapaOrigem || !etapaDestino) {
+                if ((etapa_origem_id !== null && !etapaOrigem) || !etapaDestino) {
                     throw new BadRequestException(
                         "A etapa não pertence ao mesmo fabrico da ficha técnica",
                     );
@@ -232,7 +237,7 @@ export class TransferenciaEtapaService {
                     throw new BadRequestException("A etapa de destino está inativa");
                 }
 
-                if (etapaDestino.ordem <= etapaOrigem.ordem) {
+                if (etapaOrigem && etapaDestino.ordem <= etapaOrigem.ordem) {
                     throw new BadRequestException(
                         "Não é permitido retornar para etapas anteriores",
                     );
@@ -253,21 +258,24 @@ export class TransferenciaEtapaService {
                     );
                 }
 
-                // 1. Finaliza a etapa anterior (só age se ainda estiver aberta)
-                const fichaEtapaAberta = await tx.fichaEtapa.findFirst({
-                    where: { ficha_tecnica_id, etapa_id: etapa_origem_id, data_fim: null },
-                });
+                // 1. Finaliza a etapa anterior (só age se ainda estiver aberta). A ficha sem etapa
+                // não tem etapa anterior: o histórico começa na etapa de destino.
+                if (etapa_origem_id !== null) {
+                    const fichaEtapaAberta = await tx.fichaEtapa.findFirst({
+                        where: { ficha_tecnica_id, etapa_id: etapa_origem_id, data_fim: null },
+                    });
 
-                if (!fichaEtapaAberta) {
-                    throw new BadRequestException(
-                        "Não foi encontrada uma etapa em andamento correspondente à ficha técnica",
-                    );
+                    if (!fichaEtapaAberta) {
+                        throw new BadRequestException(
+                            "Não foi encontrada uma etapa em andamento correspondente à ficha técnica",
+                        );
+                    }
+
+                    await tx.fichaEtapa.update({
+                        where: { id: fichaEtapaAberta.id },
+                        data: { data_fim: new Date() },
+                    });
                 }
-
-                await tx.fichaEtapa.update({
-                    where: { id: fichaEtapaAberta.id },
-                    data: { data_fim: new Date() },
-                });
 
                 // 2. Abre a nova etapa
                 const dataInicio = new Date();

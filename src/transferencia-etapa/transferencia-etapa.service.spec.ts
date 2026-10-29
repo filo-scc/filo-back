@@ -1021,4 +1021,159 @@ describe("TransferenciaEtapaService", () => {
             "falha no pedido",
         );
     });
+
+    describe("ficha sem etapa atual (origem nula)", () => {
+        const dtoSemOrigem = { ...dtoBase, etapa_origem_id: null };
+        const fichaSemEtapa = {
+            id: 10,
+            fabrico_id: fabricoId,
+            produto_id: 5,
+            pedido_id: pedidoId,
+            quantidade: 100,
+            etapa_atual_id: null,
+        };
+        const etapaDestino = { id: 2, fabrico_id: fabricoId, ativa: true, ordem: 2 };
+
+        const expectNenhumaEscrita = () => {
+            expect(prisma.fichaEtapa.create).not.toHaveBeenCalled();
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.updateMany).not.toHaveBeenCalled();
+        };
+
+        beforeEach(() => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue(fichaSemEtapa);
+            // Sem origem, só o destino é buscado; depois vem a consulta da última etapa ativa.
+            prisma.etapa.findFirst.mockReset();
+            prisma.etapa.findFirst
+                .mockResolvedValueOnce(etapaDestino)
+                .mockResolvedValueOnce({ id: 3 });
+        });
+
+        it("abre o primeiro histórico na etapa de destino, sem fechar nenhuma etapa anterior", async () => {
+            const resultado = await service.transferir(dtoSemOrigem as any, fabricoId);
+
+            expect(prisma.etapa.findFirst).toHaveBeenNthCalledWith(1, {
+                where: { id: 2, fabrico_id: fabricoId },
+            });
+            expect(prisma.fichaEtapa.findFirst).not.toHaveBeenCalled();
+            expect(prisma.fichaEtapa.update).not.toHaveBeenCalled();
+            expect(prisma.fichaEtapa.create).toHaveBeenCalledWith({
+                data: { ficha_tecnica_id: 10, etapa_id: 2, data_inicio: expect.any(Date) },
+            });
+            expect(prisma.fichaTecnica.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 10 },
+                    data: expect.objectContaining({ etapa_atual_id: 2 }),
+                }),
+            );
+            expect(fichaTecnicaService.sincronizarPedido).toHaveBeenCalledWith(prisma, pedidoId);
+            expect(resultado).toEqual({ id: 10, etapa_atual_id: 2 });
+        });
+
+        it("pode ir direto para a última etapa ativa e então marca produzida_em", async () => {
+            prisma.etapa.findFirst.mockReset();
+            prisma.etapa.findFirst
+                .mockResolvedValueOnce(etapaDestino)
+                .mockResolvedValueOnce({ id: 2 });
+
+            await service.transferir(dtoSemOrigem as any, fabricoId);
+
+            expect(prisma.fichaTecnica.updateMany).toHaveBeenCalledWith({
+                where: { delete_at: null, id: 10, produzida_em: null },
+                data: { produzida_em: expect.any(Date) },
+            });
+        });
+
+        it("rejeita origem nula quando a ficha já tem etapa, sem escrever nada", async () => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue({
+                ...fichaSemEtapa,
+                etapa_atual_id: 1,
+            });
+
+            await expect(service.transferir(dtoSemOrigem as any, fabricoId)).rejects.toThrow(
+                new BadRequestException(
+                    "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
+                ),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita origem informada quando a ficha não tem etapa, sem escrever nada", async () => {
+            await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+                new BadRequestException(
+                    "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
+                ),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita destino de outro fabrico", async () => {
+            prisma.etapa.findFirst.mockReset();
+            prisma.etapa.findFirst.mockResolvedValueOnce(null);
+
+            await expect(service.transferir(dtoSemOrigem as any, fabricoId)).rejects.toThrow(
+                new BadRequestException("A etapa não pertence ao mesmo fabrico da ficha técnica"),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita destino inativo", async () => {
+            prisma.etapa.findFirst.mockReset();
+            prisma.etapa.findFirst.mockResolvedValueOnce({ ...etapaDestino, ativa: false });
+
+            await expect(service.transferir(dtoSemOrigem as any, fabricoId)).rejects.toThrow(
+                new BadRequestException("A etapa de destino está inativa"),
+            );
+            expectNenhumaEscrita();
+        });
+
+        it("rejeita destino que a ficha já percorreu", async () => {
+            prisma.fichaEtapa.findUnique.mockResolvedValue({ id: 55 });
+
+            await expect(service.transferir(dtoSemOrigem as any, fabricoId)).rejects.toThrow(
+                ConflictException,
+            );
+            expectNenhumaEscrita();
+        });
+
+        describe("repetição depois da primeira transferência", () => {
+            const fichaJaNoDestino = { ...fichaSemEtapa, etapa_atual_id: 2 };
+
+            beforeEach(() => {
+                prisma.fichaTecnica.findFirst.mockResolvedValue(fichaJaNoDestino);
+                prisma.fichaTecnica.findUnique.mockResolvedValue({ id: 10, etapa_atual_id: 2 });
+                prisma.fichaParceiro.findMany.mockResolvedValue([]);
+                prisma.parceiroProduto.findMany.mockResolvedValue([]);
+            });
+
+            it("repetir com origem nula devolve a ficha sem novo histórico e sem escrever", async () => {
+                // A primeira transferência não fechou etapa nenhuma: não há origem registrada.
+                prisma.fichaEtapa.findFirst.mockResolvedValue(null);
+
+                const resultado = await service.transferir(dtoSemOrigem as any, fabricoId);
+
+                expect(resultado).toEqual({ id: 10, etapa_atual_id: 2 });
+                expectNenhumaEscrita();
+            });
+
+            it("origem nula é conflito quando a ficha chegou ao destino saindo de outra etapa", async () => {
+                prisma.fichaEtapa.findFirst.mockResolvedValue({ etapa_id: 1 });
+
+                await expect(service.transferir(dtoSemOrigem as any, fabricoId)).rejects.toThrow(
+                    ConflictException,
+                );
+                expectNenhumaEscrita();
+            });
+
+            it("origem informada é conflito quando a ficha entrou sem etapa anterior", async () => {
+                prisma.fichaEtapa.findFirst.mockResolvedValue(null);
+
+                await expect(service.transferir(dtoBase as any, fabricoId)).rejects.toThrow(
+                    ConflictException,
+                );
+                expectNenhumaEscrita();
+            });
+        });
+    });
 });

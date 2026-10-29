@@ -7,6 +7,7 @@ import {
     IsPositive,
     IsString,
     Min,
+    ValidateIf,
     ValidateNested,
 } from "class-validator";
 
@@ -55,8 +56,10 @@ export class TransferirEtapaDto {
     @IsInt()
     ficha_tecnica_id: number;
 
+    // `null` explícito marca a ficha que ainda não tem etapa; omitir o campo continua inválido.
+    @ValidateIf((dto: TransferirEtapaDto) => dto.etapa_origem_id !== null)
     @IsInt()
-    etapa_origem_id: number;
+    etapa_origem_id: number | null;
 
     @IsInt()
     etapa_destino_id: number;

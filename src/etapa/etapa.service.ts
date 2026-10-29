@@ -94,6 +94,34 @@ export class EtapaService {
         return String(alvo ?? "").includes("ordem");
     }
 
+    // `produzida_em` só é gravado quando a ficha entra na última etapa ativa. Se a última etapa muda
+    // (nova etapa, reativação, desativação, ordem ou exclusão), as fichas abertas que já estavam na
+    // etapa que passa a ser a última nunca seriam carimbadas, não teriam para onde ser transferidas e
+    // o job de conclusão não as veria. Quem já tem `produzida_em` continua produzida (o carimbo não é
+    // limpo) e o job segue concluindo pela data original.
+    private async carimbarFichasNaUltimaEtapa(tx: Prisma.TransactionClient, fabricoId: number) {
+        const ultimaEtapaAtiva = await tx.etapa.findFirst({
+            where: { fabrico_id: fabricoId, ativa: true },
+            orderBy: { ordem: "desc" },
+            select: { id: true },
+        });
+
+        if (!ultimaEtapaAtiva) {
+            return;
+        }
+
+        await tx.fichaTecnica.updateMany({
+            where: {
+                delete_at: null,
+                fabrico_id: fabricoId,
+                concluida: false,
+                etapa_atual_id: ultimaEtapaAtiva.id,
+                produzida_em: null,
+            },
+            data: { produzida_em: new Date() },
+        });
+    }
+
     async create(data: CreateEtapaDto, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
         const dadosEtapa = { ...data };
@@ -122,6 +150,9 @@ export class EtapaService {
                         fabrico_id: fabricoId,
                     },
                 });
+                if (etapa.ativa) {
+                    await this.carimbarFichasNaUltimaEtapa(tx, fabricoId);
+                }
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
@@ -239,6 +270,9 @@ export class EtapaService {
                         ...dadosEtapa,
                     },
                 });
+                if (mudouOrdemOuAtiva) {
+                    await this.carimbarFichasNaUltimaEtapa(tx, etapaAtual.fabrico_id);
+                }
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
@@ -270,6 +304,9 @@ export class EtapaService {
             const etapaRemovida = await tx.etapa.delete({
                 where: { id },
             });
+            if (etapaRemovida.ativa) {
+                await this.carimbarFichasNaUltimaEtapa(tx, etapaRemovida.fabrico_id);
+            }
             await this.produtoService.recalcularCustosTotais(produtoIds, tx);
             return etapaRemovida;
         });
