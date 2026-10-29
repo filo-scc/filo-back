@@ -762,7 +762,7 @@ export class FichaTecnicaItemService {
                 const perdasEnviadas: PerdasFicha = {};
                 for (const campo of CAMPOS_PERDA) {
                     const valor = perdas?.[campo];
-                    if (valor != null) perdasEnviadas[campo] = valor;
+                    if (valor !== undefined) perdasEnviadas[campo] = valor;
                 }
                 const totalPerdas = CAMPOS_PERDA.reduce(
                     (total, campo) => total + (perdasEnviadas[campo] ?? ficha[campo] ?? 0),

@@ -312,6 +312,54 @@ describe("PUT /fichas-tecnicas/:id/matriz (E2E)", () => {
         expect(depois.fichaDb.quantidade).toBe(10);
     });
 
+    it.each<[string, unknown]>([
+        ["null", null],
+        ["false", false],
+        ["true", true],
+        ["string vazia", ""],
+        ["string numérica", "5"],
+        ["decimal", 1.5],
+    ])("perda inválida (%s) retorna 400 e não altera a ficha", async (_nome, valor) => {
+        const antes = await snapshot();
+
+        await put(ficha.fichaId, novaMatriz, { defeitos_costura: valor }).expect(400);
+
+        const depois = await snapshot();
+        expect(depois.itens).toEqual(antes.itens);
+        expect(depois.fichaDb.quantidade).toBe(antes.fichaDb.quantidade);
+        expect(depois.fichaDb.defeitos_costura).toBe(antes.fichaDb.defeitos_costura);
+        expect(depois.pedidoDb.quantidade).toBe(antes.pedidoDb.quantidade);
+    });
+
+    it.each(["defeitos_costura", "defeitos_tecido", "retiradas", "sobras"])(
+        "null em %s retorna 400 (não vira 'manter' nem 'limpar')",
+        async (campo) => {
+            await prisma.fichaTecnica.update({
+                where: { id: ficha.fichaId },
+                data: { [campo]: 2 },
+            });
+
+            await put(ficha.fichaId, novaMatriz, { [campo]: null }).expect(400);
+
+            const depois = await snapshot();
+            expect(depois.fichaDb[campo as "sobras"]).toBe(2);
+            expect(depois.fichaDb.quantidade).toBe(10);
+        },
+    );
+
+    it("perda 0 é aceita e grava 0", async () => {
+        await prisma.fichaTecnica.update({
+            where: { id: ficha.fichaId },
+            data: { defeitos_costura: 3 },
+        });
+
+        await put(ficha.fichaId, novaMatriz, { defeitos_costura: 0 }).expect(200);
+
+        const depois = await snapshot();
+        expect(depois.fichaDb.defeitos_costura).toBe(0);
+        expect(depois.fichaDb.quantidade).toBe(9);
+    });
+
     // ---------- 409 ----------
 
     it("ficha concluída retorna 409 e não altera nada", async () => {
