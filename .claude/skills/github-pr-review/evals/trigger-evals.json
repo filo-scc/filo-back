@@ -1,0 +1,12 @@
+[
+  { "query": "Use $github-pr-review para revisar o PR 82 deste repositório.", "should_trigger": true },
+  { "query": "Revise https://github.com/filo-scc/filo-back/pull/80 em duas passagens.", "should_trigger": true },
+  { "query": "Quero um relatório local de findings verificáveis deste pull request.", "should_trigger": true },
+  { "query": "Use $github-pr-review com gh pr checkout 77.", "should_trigger": true },
+  { "query": "Analise este PR do filo-front sem publicar comentários.", "should_trigger": true },
+  { "query": "Implemente a correção do bug descrito no PR.", "should_trigger": false },
+  { "query": "Faça merge e publique o release agora.", "should_trigger": false },
+  { "query": "Audite este service especificamente para isolamento entre fábricas, sem PR.", "should_trigger": false },
+  { "query": "Explique o que este commit faz, sem realizar uma revisão.", "should_trigger": false },
+  { "query": "Crie uma pull request com minhas alterações locais.", "should_trigger": false }
+]

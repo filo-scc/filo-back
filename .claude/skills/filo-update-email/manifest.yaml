@@ -1,0 +1,194 @@
+schema_version: "1.0"
+identity:
+  name: filo-update-email
+  display_name: FILO Update Email
+  summary: Cria HTML de email para comunicar novidades verificadas do FILO aos usuários dos dois modos de produção.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Arthur Capistrano
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories:
+    - filo-back
+    - filo-front
+  canonical_repository: filo-back
+  objective: Transformar mudanças verificadas e seu estado real de disponibilidade em um HTML de email claro, compatível e pronto para revisão humana.
+  non_objectives:
+    - Consultar destinatários, acessar dados de clientes ou enviar a campanha.
+    - Declarar como lançada uma mudança presente apenas em PR, branch ou planejamento.
+    - Substituir a plataforma de envio, sua classificação legal ou seu rodapé obrigatório.
+invocation:
+  mode: both
+  triggers:
+    - Pedido para criar email de anúncio de versão ou novidades do FILO.
+    - Transformação de release notes, PRs ou lista verificada de mudanças em HTML de comunicação.
+  anti_triggers:
+    - Pedido para enviar a campanha, consultar destinatários ou configurar automação de marketing.
+    - Changelog técnico interno sem intenção de comunicação aos usuários.
+    - Criação de página web, newsletter de outro produto ou mensagem individual.
+input:
+  mode: contextual
+  parameters:
+    - name: release
+      type: string
+      required: true
+      origin: usuário ou fonte de release autorizada
+      validation: Nome ou versão não vazia e coerente com as fontes.
+      default: null
+      example: FILO Update 0.8
+      description: Identificador público da atualização.
+    - name: source
+      type: artifact-or-list
+      required: true
+      origin: release notes, PRs, commits, diff ou lista fornecida pelo usuário
+      validation: Cada afirmação publicada deve apontar para evidência verificável e autorizada.
+      default: null
+      example: PRs 80 e 62 e respectivas notas de release
+      description: Evidências das mudanças e de seu público aplicável.
+    - name: availability
+      type: enum
+      required: false
+      origin: usuário ou evidência de release/deploy
+      validation: Um de draft, scheduled ou released; scheduled/released exigem estado e data comprovados.
+      default: draft
+      example: released
+      description: Estado editorial e operacional da comunicação.
+    - name: release_date
+      type: date-or-null
+      required: false
+      origin: usuário ou evidência de release/deploy
+      validation: Data real em ISO 8601 ou linguagem natural inequívoca; obrigatória para scheduled/released.
+      default: null
+      example: 2026-10-15
+      description: Data comprovada de agendamento ou disponibilidade.
+    - name: cta_url
+      type: https-url
+      required: false
+      origin: parâmetro do usuário ou URL canônica do produto
+      validation: URL HTTPS sem credenciais, token ou parâmetro sensível.
+      default: https://filo.app.br
+      example: https://filo.app.br
+      description: Destino do botão principal.
+    - name: hero_image_url
+      type: https-url
+      required: false
+      origin: parâmetro do usuário ou asset público canônico
+      validation: URL HTTPS pública, estável e sem dados sensíveis.
+      default: https://hirvdgkyveznasgetdvr.supabase.co/storage/v1/object/public/uploads/2/WhatsApp%20Image%202026-06-10%20at%2013.44.29.jpeg
+      example: https://cdn.example.com/filo/update-08.png
+      description: Imagem opcional de abertura; o conteúdo deve continuar compreensível sem ela.
+    - name: feedback_url
+      type: https-url-or-null
+      required: false
+      origin: usuário ou contexto canônico autorizado
+      validation: URL HTTPS sem credenciais; omitir quando não comprovada.
+      default: null
+      example: https://filo.app.br/feedback
+      description: Destino opcional para feedback.
+    - name: output
+      type: path
+      required: false
+      origin: usuário ou convenção da skill
+      validation: Caminho local gravável, terminado em .html, sem sobrescrever arquivo existente sem autorização.
+      default: email-filo-update-<versao>.html
+      example: email-filo-update-0-8.html
+      description: Arquivo HTML que será criado no repositório atual.
+  artifacts:
+    - AGENTS.md
+    - fontes verificáveis das novidades
+    - assets/email-template.html
+  preconditions:
+    - A versão, as fontes e o público afetado foram identificados.
+    - Mudanças sem prova de disponibilidade permanecem como rascunho NÃO ENVIAR.
+    - Nenhuma fonte contém dado real de cliente a ser reproduzido.
+output:
+  format: html-and-markdown-summary
+  artifact: email-filo-update-<versao>.html
+  required_sections:
+    - Comentários Subject, Preheader, Release status e Sources
+    - Preheader oculto e abertura
+    - Novidades agrupadas pelo público aplicável
+    - Chamada para ação
+    - Rodapé compatível com a plataforma de envio
+  no_findings: Se não houver novidade verificável, não produzir artefato pronto para envio; explicar quais evidências faltam.
+  insufficient_evidence: Gerar somente rascunho marcado como NÃO ENVIAR ou interromper a geração quando não houver conteúdo verificável suficiente.
+  limitations:
+    - Compatibilidade deve ser validada pelo script e, quando possível, por inspeção desktop e móvel.
+    - Classificação legal, lista de destinatários e envio pertencem à plataforma e ao responsável humano.
+  prohibited_claims:
+    - Afirmar disponibilidade sem evidência de release ou deploy.
+    - Declarar que o email foi enviado, aprovado ou juridicamente classificado.
+workflow:
+  required_steps:
+    - Aplicar AGENTS.md e validar entradas conforme este manifest.
+    - Ler references/content-protocol.md e montar a matriz mudança, evidência, disponibilidade, público e benefício.
+    - Classificar cada novidade entre todos, fabricação sob demanda e produção própria.
+    - Compor o HTML com assets/email-template.html e assets/email-components.html.
+    - Aplicar references/email-compatibility.md e remover todos os marcadores.
+    - Executar scripts/validate-email-html.mjs e corrigir todos os erros.
+    - Entregar arquivo, metadados, fontes, status, validações e limitações.
+  improvisation: O agente pode adaptar texto e seleção de componentes à quantidade de novidades, sem inventar fatos, disponibilidade ou audiência.
+permissions:
+  tools:
+    - name: read
+      access: allow
+      enforcement: documented
+    - name: grep
+      access: allow
+      enforcement: documented
+    - name: bash
+      access: ask
+      enforcement: human-gated
+    - name: edit-local-html
+      access: allow
+      enforcement: enforced
+    - name: browser-read
+      access: ask
+      enforcement: human-gated
+    - name: recipients-or-database
+      access: deny
+      enforcement: documented
+    - name: email-send
+      access: deny
+      enforcement: documented
+  bash:
+    - node .agents/skills/filo-update-email/scripts/validate-email-html.mjs <arquivo>
+    - git diff --check
+  network: ask
+  external_write: deny
+resources:
+  references:
+    - references/content-protocol.md
+    - references/email-compatibility.md
+    - references/contract-examples.md
+  scripts:
+    - scripts/validate-email-html.mjs
+  assets:
+    - assets/email-template.html
+    - assets/email-components.html
+composition:
+  complements:
+    - github-pr-review para entender mudanças candidatas sem presumir que estejam lançadas
+    - api-contract-review quando uma novidade depende de compatibilidade entre frontend e backend
+  does_not_replace:
+    - verificação de release e deploy
+    - aprovação editorial, legal ou operacional da campanha
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: null
+  minimum_categories:
+    positive: 1
+    negative: 1
+    adversarial: 1
+    prompt_injection: 1
+    insufficient_evidence: 1
+  minimum_trigger_cases: 10
+examples:
+  positive: Use $filo-update-email para criar o email do FILO Update 0.8 a partir dos PRs listados, lançado em 15 de outubro de 2026.
+  negative: Envie agora esta campanha para todos os endereços cadastrados no banco.
+  output: Arquivo HTML validado, acompanhado de assunto, preheader, fontes, estado de disponibilidade e limitações.
