@@ -8,6 +8,7 @@ import {
     Delete,
     Patch,
     Put,
+    Query,
     UseGuards,
 } from "@nestjs/common";
 import { ProdutoService } from "./produto.service";
@@ -38,8 +39,8 @@ export class ProdutoController {
 
     @Roles("PROPRIETARIO", "GERENTE")
     @Get("/fabrico")
-    findAllFabrico(@CurrentUser() user: AuthenticatedUser) {
-        return this.service.findAllFabrico(user);
+    findAllFabrico(@CurrentUser() user: AuthenticatedUser, @Query("busca") busca = "") {
+        return this.service.findAllFabrico(user, busca);
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
@@ -81,7 +82,8 @@ export class ProdutoController {
     getUnassociatedProductsForClient(
         @Param("cliente_id", ParseIntPipe) cliente_id: number,
         @CurrentUser() user: AuthenticatedUser,
+        @Query("busca") busca = "",
     ) {
-        return this.service.getUnassociatedProductsForClient(cliente_id, user);
+        return this.service.getUnassociatedProductsForClient(cliente_id, user, busca);
     }
 }
