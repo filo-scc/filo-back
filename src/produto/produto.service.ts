@@ -462,11 +462,7 @@ export class ProdutoService {
         }
     }
 
-    async getUnassociatedProductsForClient(
-        clienteId: number,
-        user: AuthenticatedUser,
-        busca = "",
-    ) {
+    async getUnassociatedProductsForClient(clienteId: number, user: AuthenticatedUser, busca = "") {
         const userFabricoId = this.getFabricoId(user);
         const produtos = await this.prisma.produto.findMany({
             where: {
