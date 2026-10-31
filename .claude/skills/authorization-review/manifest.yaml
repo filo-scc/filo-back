@@ -1,0 +1,118 @@
+schema_version: "1.0"
+identity:
+  name: authorization-review
+  display_name: Authorization Review
+  summary: Verifica autenticação, papéis, autorização por ação e recurso e revogação de sessões no FILO.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories: [filo-back, filo-front]
+  canonical_repository: filo-back
+  objective: Demonstrar que cada ator recebe a decisão de acesso vigente em todos os caminhos relevantes, inclusive chamada direta à API e sessão alterada.
+  non_objectives:
+    - Substituir auditoria especializada de cruzamento entre fábricas.
+    - Considerar botão oculto ou rota privada como enforcement de backend.
+    - Alterar papéis, permissões ou sessões sem autorização.
+invocation:
+  mode: both
+  triggers:
+    - Mudança em auth, JWT, guards, decorators, rotas protegidas ou refresh token.
+    - Alteração de usuários, cargos, capacidades administrativas ou revogação.
+    - Investigação de ação permitida ou negada por papel e recurso.
+  anti_triggers:
+    - Risco central de cruzamento tenant por fabrico_id, tratado por tenant-isolation-review.
+    - Mudança puramente visual sem efeito em sessão ou capacidade.
+    - Contrato de payload sem decisão de acesso.
+input:
+  mode: contextual
+  parameters:
+    - name: target
+      type: string-or-artifact
+      required: true
+      origin: Pedido do usuário, diff, PR, rota ou fluxo local.
+      validation: Deve conter uma superfície de autenticação, autorização, papel, recurso ou sessão verificável.
+      default: null
+      example: PATCH /usuarios/:id e RolesGuard
+      description: Fluxo cuja decisão de acesso será revisada.
+    - name: actor_matrix
+      type: array
+      required: false
+      origin: Modelo vigente de papéis e contexto autenticado.
+      validation: Papéis e capacidades devem vir do código ou documentação canônica, nunca ser inventados.
+      default: [nao-autenticado, GERENTE, PROPRIETARIO, ADMIN]
+      example: "ADMIN global; GERENTE da fábrica A"
+      description: Atores e estados de sessão relevantes ao fluxo.
+  artifacts:
+    - AGENTS.md
+    - docs/ai/DOMAIN_INVARIANTS.md
+    - guards, decorators, strategy, controller, service e testes afetados
+  preconditions:
+    - O modo e o escopo da análise foram confirmados.
+    - O ponto efetivo de enforcement está disponível ou será declarado como ausente.
+    - Nenhuma credencial ou sessão real será usada.
+output:
+  format: markdown
+  artifact: null
+  required_sections:
+    - Matriz ator × ação × recurso
+    - Sessão e revogação
+    - Findings e candidatos descartados
+    - Verificações e limitações
+  no_findings: Declarar nenhum finding mantido no escopo e preservar matriz, evidências e limitações.
+  insufficient_evidence: Classificar a decisão como não comprovada e solicitar guard, service, modelo de papéis ou estado de sessão necessário.
+  limitations:
+    - Registrar janela de revogação desconhecida e caminhos não inspecionados.
+    - Distinguir autorização de plataforma e autorização tenant.
+  prohibited_claims:
+    - Não afirmar segurança com base apenas no frontend.
+    - Não inventar capacidade para usuário sem fábrica ou papel não implementado.
+workflow:
+  required_steps:
+    - Aplicar AGENTS.md e INV-AUTH vigentes.
+    - Fixar ator, papel, fábrica, ação, recurso e estado da sessão.
+    - Seguir autenticação, guards, controller, service, query e serialização.
+    - Cobrir caminhos permitido, negado, sessão alterada e chamada direta.
+    - Contestar candidatos e entregar matriz, findings e limitações.
+  improvisation: O agente pode selecionar atores e checks proporcionais, mas não ampliar o modelo de capacidades nem alterar permissões.
+permissions:
+  tools:
+    - { name: filesystem-read, access: allow, enforcement: documented }
+    - { name: grep-glob, access: allow, enforcement: documented }
+    - { name: shell-readonly, access: allow, enforcement: documented }
+    - { name: local-edit, access: deny, enforcement: documented }
+    - { name: secrets, access: deny, enforcement: documented }
+    - { name: database-write, access: deny, enforcement: documented }
+    - { name: github-write, access: deny, enforcement: documented }
+  bash:
+    - git status --short
+    - git diff e git show sobre o escopo
+    - testes não destrutivos de auth e autorização
+  network: deny
+  external_write: deny
+resources:
+  references: [references/protocol.md]
+  scripts: []
+  assets: []
+composition:
+  complements:
+    - tenant-isolation-review quando o recurso pertence a uma fábrica
+    - api-contract-review quando erros e respostas de acesso afetam consumidores
+    - github-pr-review para consolidar a revisão completa de PR
+  does_not_replace:
+    - tenant-isolation-review quando o risco central é acesso A→B
+    - data-integrity-review para atomicidade de mutações autorizadas
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: ../../evals/authorization-review/cases.json
+  minimum_categories: { positive: 5, negative: 5, adversarial: 3, prompt_injection: 1, insufficient_evidence: 1 }
+  minimum_trigger_cases: 10
+examples:
+  positive: Revise se a troca de papel invalida sessões incompatíveis e se a chamada direta à API é negada.
+  negative: Audite exclusivamente se um pedido da fábrica B pode ser lido por um gerente da fábrica A.
+  output: "## Matriz de autorização\n| Ator | Ação | Recurso | Decisão esperada | Enforcement |\n\n## Sessão e revogação\nJanela observada, findings e limitações."

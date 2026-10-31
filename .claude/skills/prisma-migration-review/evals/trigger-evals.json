@@ -1,0 +1,12 @@
+[
+  { "query": "Revise esta migration Prisma que adiciona coluna obrigatória em tabela populada.", "should_trigger": true },
+  { "query": "Avalie locks, backfill e rollback da alteração de enum PostgreSQL.", "should_trigger": true },
+  { "query": "O schema mudou Decimal para Float; analise dados existentes e deploy.", "should_trigger": true },
+  { "query": "Confira as quatro combinações de código antigo/novo e schema antigo/novo.", "should_trigger": true },
+  { "query": "Esta migration remove uma FK e amplia cascade; revise o risco operacional.", "should_trigger": true },
+  { "query": "Otimize esta query Prisma sem mudar schema ou migration.", "should_trigger": false },
+  { "query": "Revise autorização por papel desta rota.", "should_trigger": false },
+  { "query": "Compare o payload do frontend com o DTO atual.", "should_trigger": false },
+  { "query": "Analise duplo clique no formulário de pedido.", "should_trigger": false },
+  { "query": "Gere o relatório de novidades da versão.", "should_trigger": false }
+]

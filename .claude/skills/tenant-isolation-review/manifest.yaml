@@ -1,0 +1,144 @@
+schema_version: "1.0"
+identity:
+  name: tenant-isolation-review
+  display_name: Tenant Isolation Review
+  summary: Audita caminhos concretos de leitura, mutação e associação entre fábricas no FILO.
+governance:
+  owner: Gheyson
+  reviewers:
+    - Arthur Capistrano
+    - Lucas de Holanda
+  lifecycle_status: ativa-informativa
+  last_review: 2026-09-12
+  next_review: 2026-11-30
+scope:
+  repositories:
+    - filo-back
+    - filo-front
+  canonical_repository: filo-back
+  objective: Demonstrar se recursos com posse direta ou derivada permanecem limitados à fábrica autorizada em todas as superfícies relevantes.
+  non_objectives:
+    - Fazer revisão genérica de segurança sem superfície multi-tenant.
+    - Substituir uma matriz completa de papéis e revogação de sessão.
+    - Implementar correções ou publicar findings sem autorização separada.
+invocation:
+  mode: both
+  triggers:
+    - Mudança ou investigação envolvendo fabrico_id ou recurso pertencente a uma fábrica.
+    - ID controlado pelo cliente usado para ler, criar, atualizar, excluir ou relacionar recurso tenant.
+    - Job, cache, upload, relatório ou contrato que possa misturar dados de fábricas.
+  anti_triggers:
+    - Revisão genérica de PR sem mudança ou hipótese multi-tenant concreta.
+    - Alteração puramente visual sem estado, cache, identidade ou dados de fábrica.
+    - Autorização por papel sem possível cruzamento entre fábricas, que pertence a authorization-review.
+input:
+  mode: contextual
+  parameters:
+    - name: target
+      type: string-or-artifact
+      required: true
+      origin: usuário, diff, PR ou contexto autorizado
+      validation: Deve identificar um fluxo, artefato ou superfície multi-tenant concreta.
+      default: null
+      example: PATCH /pedidos/:id e seu service
+      description: Fluxo, diff, código, endpoint, job ou contrato que será auditado.
+    - name: review_mode
+      type: enum
+      required: false
+      origin: usuário ou inferência inequívoca do pedido
+      validation: Um de revisão de diff/PR, auditoria de fluxo ou desenho de testes.
+      description: Revisão de diff/PR, auditoria de fluxo ou desenho de testes; deve ser inferido quando inequívoco.
+      default: auditoria de fluxo
+      example: revisão de diff/PR
+    - name: actor_context
+      type: object
+      required: false
+      origin: contexto autenticado documentado, código ou usuário
+      validation: Deve separar papel, identidade e fábrica sem tratar input do cliente como prova de autorização.
+      default: null
+      example: "{ role: GERENTE, fabrico_id: 10 }"
+      description: Papel, identidade e fábrica do ator, quando já estiverem disponíveis.
+  artifacts:
+    - AGENTS.md
+    - docs/ai/DOMAIN_INVARIANTS.md
+  preconditions:
+    - O repositório e o modo da análise foram confirmados.
+    - Existe código do backend ou evidência equivalente para concluir sobre enforcement.
+    - Fixtures e exemplos não contêm dados reais de clientes.
+output:
+  format: markdown
+  artifact: null
+  required_sections:
+    - Contexto de autorização
+    - Matriz A/B
+    - Findings mantidos
+    - Candidatos descartados
+    - Verificações e limitações
+  no_findings: Concluir com `Nenhum finding de isolamento mantido` e preservar cobertura, descartes e limitações.
+  insufficient_evidence: Parar a conclusão afetada, classificar o ponto como não comprovado e indicar o artefato necessário.
+  limitations:
+    - O frontend pode demonstrar exposição ou contrato inseguro, mas não comprova enforcement sem o backend.
+    - Ausência de finding não prova isolamento fora das superfícies e caminhos auditados.
+  prohibited_claims:
+    - Declarar autorização garantida por rota privada, botão oculto ou fabrico_id enviado pelo cliente.
+    - Afirmar isolamento total sem percorrer posse derivada e casos negativos A/B relevantes.
+workflow:
+  required_steps:
+    - Aplicar AGENTS.md e as invariantes tenant vigentes.
+    - Fixar modo, ator, fábrica autorizada, recurso e raiz de posse.
+    - Percorrer posse derivada e IDs controlados pelo cliente.
+    - Executar ou modelar a matriz negativa com fábricas A e B.
+    - Contestar cada candidato contra o comportamento real.
+    - Entregar findings completos, descartes e limitações.
+  improvisation: O agente pode escolher buscas e checks não destrutivos proporcionais ao fluxo, sem ampliar a auditoria para áreas sem relação multi-tenant.
+permissions:
+  tools:
+    - name: read
+      access: allow
+      enforcement: documented
+    - name: glob
+      access: allow
+      enforcement: documented
+    - name: grep
+      access: allow
+      enforcement: documented
+    - name: bash
+      access: ask
+      enforcement: human-gated
+    - name: edit
+      access: deny
+      enforcement: documented
+  bash:
+    - git status --short
+    - git diff --check
+    - comandos de teste não destrutivos proporcionais ao escopo
+  network: deny
+  external_write: deny
+resources:
+  references:
+    - references/protocol.md
+  scripts: []
+  assets: []
+composition:
+  complements:
+    - authorization-review para matriz completa de papéis, ações, recursos e sessões
+    - api-contract-review quando o contrato frontend/backend influencia o isolamento
+    - data-integrity-review quando relações cruzadas ou batch podem persistir estado inválido
+  does_not_replace:
+    - github-pr-review para revisão completa de um pull request
+    - authorization-review quando o risco central não envolve cruzamento entre fábricas
+evaluation:
+  behavioral: evals/evals.json
+  triggers: evals/trigger-evals.json
+  legacy_source: ../../evals/tenant-isolation-review/cases.json
+  minimum_categories:
+    positive: 5
+    negative: 5
+    adversarial: 3
+    prompt_injection: 1
+    insufficient_evidence: 1
+  minimum_trigger_cases: 10
+examples:
+  positive: Audite a atualização de pedido e confirme se o novo cliente pertence à fábrica do usuário autenticado.
+  negative: Revise se a rota de login exige senha forte, sem investigar recursos ou dados de fábricas.
+  output: "## Matriz A/B\n| Operação | A→A | A→B | Evidência |\n\n## Findings mantidos\nFinding completo ou `Nenhum finding de isolamento mantido`."

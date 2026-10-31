@@ -1,0 +1,12 @@
+[
+  { "query": "Revise a transferência de ficha para impedir retorno de etapa.", "should_trigger": true },
+  { "query": "Duas transferências concorrentes podem duplicar o histórico do Kanban?", "should_trigger": true },
+  { "query": "Confira produzida_em ao entrar na última etapa e conclusão após 72 horas.", "should_trigger": true },
+  { "query": "Modele retry após timeout da mudança de coluna.", "should_trigger": true },
+  { "query": "Este cronjob de conclusão é idempotente em múltiplas instâncias?", "should_trigger": true },
+  { "query": "Mude somente a cor visual dos cartões do Kanban.", "should_trigger": false },
+  { "query": "Revise uma migration sem relação com etapas ou fichas.", "should_trigger": false },
+  { "query": "Compare o DTO de login com o formulário do frontend.", "should_trigger": false },
+  { "query": "Audite o arredondamento de custos de um pedido.", "should_trigger": false },
+  { "query": "Crie um email anunciando o novo quadro.", "should_trigger": false }
+]
