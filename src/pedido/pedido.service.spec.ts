@@ -335,6 +335,44 @@ describe("PedidoService", () => {
             mockPrismaService.pedido.findUnique.mockResolvedValue({ id: 100, numero: 7 });
         };
 
+        it("recusa com 400 criar o pedido quando a fábrica não tem etapa ativa, sem gravar nada", async () => {
+            prepararCenarioFeliz();
+            mockPrismaService.etapa.findFirst.mockReset();
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+            const promessa = service.createCompleto(dtoBase, fabricoId);
+
+            await expect(promessa).rejects.toThrow(BadRequestException);
+            await expect(promessa).rejects.toThrow(
+                "Cadastre ao menos uma etapa ativa antes de criar fichas técnicas",
+            );
+            expect(mockPrismaService.etapa.findFirst).toHaveBeenCalledWith({
+                where: { fabrico_id: fabricoId, ativa: true },
+                orderBy: { ordem: "asc" },
+                select: { id: true },
+            });
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
+            expect(mockPrismaService.fichaEtapa.create).not.toHaveBeenCalled();
+        });
+
+        it("etapa informada que não está ativa continua com a mensagem própria", async () => {
+            prepararCenarioFeliz();
+            mockPrismaService.etapa.findFirst.mockReset();
+            mockPrismaService.etapa.findFirst.mockResolvedValue({ id: 2 });
+            mockPrismaService.etapa.findMany.mockResolvedValue([]);
+
+            await expect(
+                service.createCompleto(
+                    { ...dtoBase, fichas: [{ ...dtoBase.fichas[0], etapa_atual_id: 77 }] },
+                    fabricoId,
+                ),
+            ).rejects.toThrow(
+                "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
+            );
+            expect(mockPrismaService.pedido.create).not.toHaveBeenCalled();
+        });
+
         it("deve criar pedido, ficha e vínculos dentro de uma única transação", async () => {
             prepararCenarioFeliz();
 
@@ -1314,6 +1352,47 @@ describe("PedidoService", () => {
 
             expect(mockPrismaService.fichaEtapa.deleteMany).not.toHaveBeenCalled();
             expect(mockPrismaService.fichaTecnica.deleteMany).not.toHaveBeenCalled();
+            expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
+        });
+
+        it("recusa com 400 adicionar ficha nova quando a fábrica não tem etapa ativa, sem alterar o pedido", async () => {
+            mockPrismaService.pedido.findFirst.mockResolvedValue(pedidoExistente);
+            mockPrismaService.cliente.findFirst.mockResolvedValue({ id: 7, fabrico_id: 1 });
+            mockPrismaService.produto.findMany
+                .mockResolvedValueOnce([{ id: 6, grade_versao_id: 3 }])
+                .mockResolvedValueOnce([{ id: 6 }])
+                .mockResolvedValueOnce([{ id: 6, custo_total: 8 }]);
+            mockPrismaService.produto.findFirst.mockResolvedValue({ id: 6 });
+            mockPrismaService.gradeVersao.findFirst.mockResolvedValue({ id: 3, grade_id: 2 });
+            mockPrismaService.fabricoGrade.findFirst.mockResolvedValue({ id: 1 });
+            mockPrismaService.parceiro.findMany.mockResolvedValue([{ id: 9 }]);
+            mockPrismaService.etapa.findFirst.mockReset();
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+            const promessa = service.updateCompleto(
+                100,
+                {
+                    cliente_id: 7,
+                    fichas: [
+                        {
+                            produto_id: 6,
+                            grade_versao_id: 3,
+                            quantidade: 10,
+                            preco_padrao: 15,
+                            cores_ids: [1],
+                            itens: [{ cor_id: 1, grade_versao_item_id: 11, quantidade: 10 }],
+                            parceiros: [{ parceiro_id: 9, preco: 2 }],
+                        },
+                    ],
+                },
+                fabricoId,
+            );
+
+            await expect(promessa).rejects.toThrow(BadRequestException);
+            await expect(promessa).rejects.toThrow(
+                "Cadastre ao menos uma etapa ativa antes de criar fichas técnicas",
+            );
+            expect(mockPrismaService.fichaTecnica.create).not.toHaveBeenCalled();
             expect(mockPrismaService.pedido.update).not.toHaveBeenCalled();
         });
 
