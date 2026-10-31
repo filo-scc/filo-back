@@ -258,6 +258,22 @@ describe("ProdutoService", () => {
                 orderBy: { nome: "asc" },
             });
         });
+
+        it("filtra produtos pelo nome sem diferenciar caixa ou acentos", async () => {
+            prisma.produto.findMany.mockResolvedValue([
+                { id: 1, nome: "Camisa Básica", tecido: {} },
+                { id: 2, nome: "Calça", tecido: {} },
+            ]);
+
+            const res = await service.findAllFabrico(mockUser, "BASI");
+
+            expect(res).toEqual([{ id: 1, nome: "Camisa Básica", tecido: {} }]);
+            expect(prisma.produto.findMany).toHaveBeenCalledWith({
+                where: { fabrico_id: 10, ativo: true },
+                include: { tecido: true },
+                orderBy: { nome: "asc" },
+            });
+        });
     });
 
     describe("getById", () => {
@@ -595,6 +611,17 @@ describe("ProdutoService", () => {
                 },
                 orderBy: { nome: "asc" },
             });
+        });
+
+        it("filtra os produtos não associados sem diferenciar caixa ou acentos", async () => {
+            prisma.produto.findMany.mockResolvedValue([
+                { id: 1, nome: "Camisa Básica" },
+                { id: 2, nome: "Calça" },
+            ]);
+
+            const res = await service.getUnassociatedProductsForClient(5, mockUser, "BASI");
+
+            expect(res).toEqual([{ id: 1, nome: "Camisa Básica" }]);
         });
     });
 

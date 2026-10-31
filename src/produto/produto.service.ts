@@ -307,9 +307,9 @@ export class ProdutoService {
         });
     }
 
-    async findAllFabrico(user: AuthenticatedUser) {
+    async findAllFabrico(user: AuthenticatedUser, busca = "") {
         const userFabricoId = this.getFabricoId(user);
-        return this.prisma.produto.findMany({
+        const produtos = await this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
                 ativo: true,
@@ -319,6 +319,21 @@ export class ProdutoService {
             },
             orderBy: { nome: "asc" },
         });
+
+        const buscaNormalizada = this.normalizarTextoBusca(busca);
+        if (!buscaNormalizada) return produtos;
+
+        return produtos.filter((produto) =>
+            this.normalizarTextoBusca(produto.nome).includes(buscaNormalizada),
+        );
+    }
+
+    private normalizarTextoBusca(valor: unknown) {
+        return String(valor ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLocaleLowerCase("pt-BR")
+            .trim();
     }
 
     private async getByIdWithStatus(id: number, user: AuthenticatedUser, exigirAtivo: boolean) {
@@ -447,9 +462,13 @@ export class ProdutoService {
         }
     }
 
-    async getUnassociatedProductsForClient(clienteId: number, user: AuthenticatedUser) {
+    async getUnassociatedProductsForClient(
+        clienteId: number,
+        user: AuthenticatedUser,
+        busca = "",
+    ) {
         const userFabricoId = this.getFabricoId(user);
-        return this.prisma.produto.findMany({
+        const produtos = await this.prisma.produto.findMany({
             where: {
                 fabrico_id: userFabricoId,
                 ativo: true,
@@ -461,5 +480,12 @@ export class ProdutoService {
             },
             orderBy: { nome: "asc" },
         });
+
+        const buscaNormalizada = this.normalizarTextoBusca(busca);
+        if (!buscaNormalizada) return produtos;
+
+        return produtos.filter((produto) =>
+            this.normalizarTextoBusca(produto.nome).includes(buscaNormalizada),
+        );
     }
 }
