@@ -85,7 +85,7 @@ describe("ProdutoAviamentoService", () => {
     });
 
     describe("Criando relacionamento produto-aviamento", () => {
-        const dto = { produto_id: 1, aviamento_id: 2, custo: 15.5 };
+        const dto = { produto_id: 1, aviamento_id: 2, custo: 15.5, quantidade: 1 };
 
         it("deve criar um relacionamento com sucesso", async () => {
             prisma.produto.findFirst.mockResolvedValue({ id: 1, fabrico_id: 10 });

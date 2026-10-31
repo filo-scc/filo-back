@@ -4,7 +4,8 @@ import {
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { FichaTecnica, Prisma } from "@prisma/client";
+import { lineTotal, toMoney } from "src/common/utils/money";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ProdutoService } from "src/produto/produto.service";
 import { FichaTecnicaService } from "src/ficha-tecnica/ficha-tecnica.service";
@@ -43,6 +44,83 @@ export class TransferenciaEtapaService {
         }
     }
 
+    /**
+     * A ficha já está na etapa de destino: só é repetição legítima se o que foi pedido agora
+     * coincide com o que a transferência original aplicou. Divergências viram 409.
+     */
+    private async assertRepeticaoIdentica(
+        tx: Prisma.TransactionClient,
+        ficha: FichaTecnica,
+        dto: TransferirEtapaDto,
+        quantidadeCanonica: number,
+    ) {
+        const { ficha_tecnica_id, etapa_origem_id, relatorio, parceiros = [] } = dto;
+
+        // Com o destino aberto, a etapa encerrada por último é a origem da transição que levou a ficha até ele.
+        const origemRegistrada = await tx.fichaEtapa.findFirst({
+            where: { ficha_tecnica_id, data_fim: { not: null } },
+            orderBy: { data_fim: "desc" },
+            select: { etapa_id: true },
+        });
+
+        if ((origemRegistrada?.etapa_id ?? null) !== etapa_origem_id) {
+            throw new ConflictException(
+                "A etapa de origem informada difere da usada na transferência já realizada para esta etapa",
+            );
+        }
+
+        if (
+            relatorio &&
+            ((relatorio.quantidade !== undefined &&
+                Number(relatorio.quantidade) !== quantidadeCanonica) ||
+                relatorio.defeitos_costura !== (ficha.defeitos_costura ?? 0) ||
+                relatorio.defeitos_tecido !== (ficha.defeitos_tecido ?? 0) ||
+                relatorio.retiradas !== (ficha.retiradas ?? 0) ||
+                relatorio.sobras !== (ficha.sobras ?? 0))
+        ) {
+            throw new ConflictException(
+                "O relatório informado difere do já registrado nesta ficha técnica, que já está na etapa de destino",
+            );
+        }
+
+        if (parceiros.length === 0) {
+            return;
+        }
+
+        const parceiroIds = parceiros.map((parceiro) => parceiro.parceiro_id);
+        const [fichaParceiros, parceiroProdutos] = await Promise.all([
+            tx.fichaParceiro.findMany({
+                where: { ficha_id: ficha_tecnica_id, parceiro_id: { in: parceiroIds } },
+            }),
+            tx.parceiroProduto.findMany({
+                where: { produto_id: ficha.produto_id, parceiro_id: { in: parceiroIds } },
+            }),
+        ]);
+
+        const parceirosIguais = parceiros.every((parceiro) => {
+            const registrado = fichaParceiros.find((fp) => fp.parceiro_id === parceiro.parceiro_id);
+            const vinculo = parceiroProdutos.find((pp) => pp.parceiro_id === parceiro.parceiro_id);
+            if (!registrado || !vinculo || vinculo.preco === null) {
+                return false;
+            }
+
+            const quantidadeEsperada =
+                parceiros.length === 1 ? quantidadeCanonica : (parceiro.quantidade ?? 0);
+
+            return (
+                (registrado.operacao ?? null) === (parceiro.operacao ?? null) &&
+                (registrado.quantidade ?? 0) === quantidadeEsperada &&
+                toMoney(vinculo.preco).equals(toMoney(parceiro.preco))
+            );
+        });
+
+        if (!parceirosIguais) {
+            throw new ConflictException(
+                "Os parceiros informados diferem dos já registrados nesta ficha técnica, que já está na etapa de destino",
+            );
+        }
+    }
+
     async transferir(dto: TransferirEtapaDto, fabricoId: number) {
         const {
             ficha_tecnica_id,
@@ -55,7 +133,7 @@ export class TransferenciaEtapaService {
         return this.prisma.$transaction(
             async (tx) => {
                 const fichaBase = await tx.fichaTecnica.findFirst({
-                    where: { id: ficha_tecnica_id, fabrico_id: fabricoId },
+                    where: { delete_at: null, id: ficha_tecnica_id, fabrico_id: fabricoId },
                     select: { pedido_id: true },
                 });
                 if (!fichaBase) {
@@ -69,7 +147,7 @@ export class TransferenciaEtapaService {
                 await tx.$queryRaw`SELECT id FROM "fichas-tecnicas" WHERE id = ${ficha_tecnica_id} FOR UPDATE`;
 
                 const ficha = await tx.fichaTecnica.findFirst({
-                    where: { id: ficha_tecnica_id, fabrico_id: fabricoId },
+                    where: { delete_at: null, id: ficha_tecnica_id, fabrico_id: fabricoId },
                 });
                 if (!ficha) {
                     throw new NotFoundException("Ficha técnica não encontrada");
@@ -87,25 +165,6 @@ export class TransferenciaEtapaService {
                     );
                 }
 
-                // Se já está na etapa destino não repete nada
-                if (ficha.etapa_atual_id === etapa_destino_id) {
-                    return tx.fichaTecnica.findUnique({
-                        where: { id: ficha_tecnica_id },
-                        include: {
-                            fichas_etapas: true,
-                            etapa_atual: true,
-                            ficha_parceiro: { include: { parceiro: true } },
-                        },
-                    });
-                }
-
-                // A origem informada precisa bater com a etapa atual real da ficha.
-                if (ficha.etapa_atual_id !== etapa_origem_id) {
-                    throw new BadRequestException(
-                        "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
-                    );
-                }
-
                 // A quantidade canônica vem da matriz (FichaTecnicaItem). Se a matriz ainda
                 // não foi preenchida (soma 0), mantém a quantidade atual da ficha.
                 const matriz = await tx.fichaTecnicaItem.aggregate({
@@ -115,6 +174,29 @@ export class TransferenciaEtapaService {
                 const somaMatriz = Number(matriz?._sum?.quantidade ?? 0);
                 const quantidadeAtual = Number(ficha.quantidade ?? 0);
                 const quantidadeCanonica = somaMatriz > 0 ? somaMatriz : quantidadeAtual;
+
+                // Repetição da mesma transferência devolve a ficha sem novo histórico. Dados
+                // diferentes dos já aplicados são conflito, nunca sucesso silencioso (INV-KAN-006).
+                if (ficha.etapa_atual_id === etapa_destino_id) {
+                    await this.assertRepeticaoIdentica(tx, ficha, dto, quantidadeCanonica);
+
+                    return tx.fichaTecnica.findUnique({
+                        where: { delete_at: null, id: ficha_tecnica_id },
+                        include: {
+                            fichas_etapas: true,
+                            etapa_atual: true,
+                            ficha_parceiro: { include: { parceiro: true } },
+                        },
+                    });
+                }
+
+                // A origem informada precisa bater com a etapa atual real da ficha; origem nula só
+                // vale para a ficha que ainda não tem etapa (a transferência abre o primeiro histórico).
+                if (ficha.etapa_atual_id !== etapa_origem_id) {
+                    throw new BadRequestException(
+                        "A etapa de origem informada não corresponde à etapa atual da ficha técnica",
+                    );
+                }
 
                 if (
                     relatorio?.quantidade !== undefined &&
@@ -137,11 +219,15 @@ export class TransferenciaEtapaService {
                 );
 
                 const [etapaOrigem, etapaDestino] = await Promise.all([
-                    tx.etapa.findFirst({ where: { id: etapa_origem_id, fabrico_id: fabricoId } }),
+                    etapa_origem_id === null
+                        ? null
+                        : tx.etapa.findFirst({
+                              where: { id: etapa_origem_id, fabrico_id: fabricoId },
+                          }),
                     tx.etapa.findFirst({ where: { id: etapa_destino_id, fabrico_id: fabricoId } }),
                 ]);
 
-                if (!etapaOrigem || !etapaDestino) {
+                if ((etapa_origem_id !== null && !etapaOrigem) || !etapaDestino) {
                     throw new BadRequestException(
                         "A etapa não pertence ao mesmo fabrico da ficha técnica",
                     );
@@ -151,7 +237,7 @@ export class TransferenciaEtapaService {
                     throw new BadRequestException("A etapa de destino está inativa");
                 }
 
-                if (etapaDestino.ordem <= etapaOrigem.ordem) {
+                if (etapaOrigem && etapaDestino.ordem <= etapaOrigem.ordem) {
                     throw new BadRequestException(
                         "Não é permitido retornar para etapas anteriores",
                     );
@@ -172,21 +258,24 @@ export class TransferenciaEtapaService {
                     );
                 }
 
-                // 1. Finaliza a etapa anterior (só age se ainda estiver aberta)
-                const fichaEtapaAberta = await tx.fichaEtapa.findFirst({
-                    where: { ficha_tecnica_id, etapa_id: etapa_origem_id, data_fim: null },
-                });
+                // 1. Finaliza a etapa anterior (só age se ainda estiver aberta). A ficha sem etapa
+                // não tem etapa anterior: o histórico começa na etapa de destino.
+                if (etapa_origem_id !== null) {
+                    const fichaEtapaAberta = await tx.fichaEtapa.findFirst({
+                        where: { ficha_tecnica_id, etapa_id: etapa_origem_id, data_fim: null },
+                    });
 
-                if (!fichaEtapaAberta) {
-                    throw new BadRequestException(
-                        "Não foi encontrada uma etapa em andamento correspondente à ficha técnica",
-                    );
+                    if (!fichaEtapaAberta) {
+                        throw new BadRequestException(
+                            "Não foi encontrada uma etapa em andamento correspondente à ficha técnica",
+                        );
+                    }
+
+                    await tx.fichaEtapa.update({
+                        where: { id: fichaEtapaAberta.id },
+                        data: { data_fim: new Date() },
+                    });
                 }
-
-                await tx.fichaEtapa.update({
-                    where: { id: fichaEtapaAberta.id },
-                    data: { data_fim: new Date() },
-                });
 
                 // 2. Abre a nova etapa
                 const dataInicio = new Date();
@@ -233,7 +322,7 @@ export class TransferenciaEtapaService {
                 });
                 if (ultimaEtapaAtiva?.id === etapa_destino_id) {
                     await tx.fichaTecnica.updateMany({
-                        where: { id: ficha_tecnica_id, produzida_em: null },
+                        where: { delete_at: null, id: ficha_tecnica_id, produzida_em: null },
                         data: { produzida_em: dataInicio },
                     });
                 }
@@ -253,6 +342,9 @@ export class TransferenciaEtapaService {
                         );
                     }
 
+                    // Duas casas, ROUND_HALF_UP, antes de qualquer gravação: o valor da ficha sai deste mesmo preço.
+                    const preco = toMoney(p.preco);
+
                     await tx.parceiroProduto.upsert({
                         where: {
                             produto_id_parceiro_id: {
@@ -263,18 +355,16 @@ export class TransferenciaEtapaService {
                         create: {
                             produto_id: ficha.produto_id,
                             parceiro_id: p.parceiro_id,
-                            preco: p.preco,
+                            preco,
                         },
-                        update: { preco: p.preco },
+                        update: { preco },
                     });
 
                     const parceiroUnico = parceiros.length === 1;
                     const quantidadeEfetiva = parceiroUnico
                         ? quantidadeCanonica
                         : (p.quantidade ?? 0);
-                    const valor = parceiroUnico
-                        ? Number((quantidadeEfetiva * p.preco).toFixed(2))
-                        : undefined;
+                    const valor = lineTotal(quantidadeEfetiva, preco);
 
                     await tx.fichaParceiro.upsert({
                         where: {

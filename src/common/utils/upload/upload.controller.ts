@@ -1,4 +1,12 @@
-import { Body, Controller, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import {
+    Body,
+    Controller,
+    Post,
+    UploadedFile,
+    UseFilters,
+    UseGuards,
+    UseInterceptors,
+} from "@nestjs/common";
 
 import { FileInterceptor } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
@@ -13,9 +21,12 @@ import { CurrentUser } from "src/common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 import { UploadContextDto } from "./dto/upload-context.dto";
 import { Cargo } from "@prisma/client";
+import { MulterExceptionFilter } from "./multer-exception.filter";
+import { uploadFileFilter } from "./upload-file.filter";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("PROPRIETARIO", "ADMIN", "GERENTE")
+@UseFilters(MulterExceptionFilter)
 @Controller("upload")
 export class UploadController {
     constructor(private readonly uploadService: UploadService) {}
@@ -27,15 +38,7 @@ export class UploadController {
             limits: {
                 fileSize: 5 * 1024 * 1024,
             },
-            fileFilter: (req, file, callback) => {
-                const tiposAceitos = ["image/jpeg", "image/png", "image/webp"];
-
-                if (!tiposAceitos.includes(file.mimetype)) {
-                    return callback(new Error("Formato inválido. Use JPG, PNG ou WEBP."), false);
-                }
-
-                callback(null, true);
-            },
+            fileFilter: uploadFileFilter,
         }),
     )
     async upload(

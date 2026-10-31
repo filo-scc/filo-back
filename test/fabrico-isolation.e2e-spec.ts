@@ -75,7 +75,6 @@ async function createTenantFixtures(prisma: PrismaClient, label: "a" | "b") {
     const parceiro = await prisma.parceiro.create({
         data: {
             nome: `${runId}-parceiro-${label}`,
-            categoria: `${runId}-costura-${label}`,
             fabrico_id: fabrico.id,
         },
     });
@@ -136,6 +135,8 @@ const sharedIds = {
     tamanhoId: 0,
     gradeId: 0,
     gradeVersaoId: 0,
+    gradeExclusivaBId: 0,
+    gradeVersaoExclusivaBId: 0,
 };
 
 describe("Isolamento E2E entre fabricos", () => {
@@ -145,6 +146,8 @@ describe("Isolamento E2E entre fabricos", () => {
     let tenantB: TenantFixtures;
     let tokenA: string;
     let tokenB: string;
+    let tokenAdmin: string;
+    const adminEmail = `${runId}-admin@filo.test`;
 
     beforeAll(async () => {
         const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -176,10 +179,36 @@ describe("Isolamento E2E entre fabricos", () => {
         sharedIds.gradeId = grade.id;
         sharedIds.gradeVersaoId = gradeVersao.id;
 
+        const gradeExclusivaB = await prisma.grade.create({
+            data: { nome: `${runId}-grade-exclusiva-b`, ativo: true },
+        });
+        const gradeVersaoExclusivaB = await prisma.gradeVersao.create({
+            data: { grade_id: gradeExclusivaB.id, versao: 1, ativo: true },
+        });
+        sharedIds.gradeExclusivaBId = gradeExclusivaB.id;
+        sharedIds.gradeVersaoExclusivaBId = gradeVersaoExclusivaB.id;
+
         tenantA = await createTenantFixtures(prisma, "a");
         tenantB = await createTenantFixtures(prisma, "b");
+        await prisma.fabricoGrade.createMany({
+            data: [
+                { fabrico_id: tenantA.fabrico.id, grade_id: grade.id, ativo: true },
+                { fabrico_id: tenantB.fabrico.id, grade_id: grade.id, ativo: true },
+                { fabrico_id: tenantB.fabrico.id, grade_id: gradeExclusivaB.id, ativo: true },
+            ],
+        });
+        await prisma.usuario.create({
+            data: {
+                email: adminEmail,
+                nome: `${runId}-admin`,
+                senha: await bcrypt.hash(password, 10),
+                cargo: Cargo.ADMIN,
+                fabrico_id: null,
+            },
+        });
         tokenA = await login(app, tenantA.user.email);
         tokenB = await login(app, tenantB.user.email);
+        tokenAdmin = await login(app, adminEmail);
     });
 
     afterAll(async () => {
@@ -218,13 +247,19 @@ describe("Isolamento E2E entre fabricos", () => {
         await prisma.etapa.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.tipoProduto.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.usuario.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
+        await prisma.usuario.deleteMany({ where: { email: adminEmail } });
+        await prisma.fabricoGrade.deleteMany({ where: { fabrico_id: { in: fabricoIds } } });
         await prisma.fabrico.deleteMany({ where: { id: { in: fabricoIds } } });
         await prisma.gradeVersaoItem.deleteMany({
             where: { grade_versao_id: sharedIds.gradeVersaoId },
         });
         await prisma.gradeItem.deleteMany({ where: { grade_id: sharedIds.gradeId } });
-        await prisma.gradeVersao.deleteMany({ where: { grade_id: sharedIds.gradeId } });
-        await prisma.grade.deleteMany({ where: { id: sharedIds.gradeId } });
+        await prisma.gradeVersao.deleteMany({
+            where: { grade_id: { in: [sharedIds.gradeId, sharedIds.gradeExclusivaBId] } },
+        });
+        await prisma.grade.deleteMany({
+            where: { id: { in: [sharedIds.gradeId, sharedIds.gradeExclusivaBId] } },
+        });
         await prisma.tamanho.deleteMany({ where: { id: sharedIds.tamanhoId } });
 
         if (app) await app.close();
@@ -408,41 +443,43 @@ describe("Isolamento E2E entre fabricos", () => {
             })
             .expect(400);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantB.produto.id,
-                pedido_id: tenantA.pedido.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        // A ficha só nasce junto do pedido (POST /pedidos/completo): a recusa de relações de
+        // outro fabrico vale para o produto, a etapa e o cliente informados.
+        const pedidosAntes = await prisma.pedido.count({
+            where: { fabrico_id: tenantA.fabrico.id },
+        });
+        const fichasAntes = await prisma.fichaTecnica.count({
+            where: { fabrico_id: tenantA.fabrico.id },
+        });
+        const pedidoCompleto = (chave: string, corpo: object) =>
+            request(app.getHttpServer())
+                .post("/pedidos/completo")
+                .set({ ...auth(tokenA), "Idempotency-Key": `${runId}-${chave}` })
+                .send(corpo);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantA.produto.id,
-                pedido_id: tenantB.pedido.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        await pedidoCompleto("produto-de-b", {
+            fichas: [{ produto_id: tenantB.produto.id, quantidade: 0 }],
+        }).expect(404);
+        await pedidoCompleto("etapa-de-b", {
+            fichas: [
+                {
+                    produto_id: tenantA.produto.id,
+                    quantidade: 0,
+                    etapa_atual_id: tenantB.etapa.id,
+                },
+            ],
+        }).expect(400);
+        await pedidoCompleto("cliente-de-b", {
+            cliente_id: tenantB.cliente.id,
+            fichas: [{ produto_id: tenantA.produto.id, quantidade: 0 }],
+        }).expect(404);
 
-        await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
-            .send({
-                produto_id: tenantA.produto.id,
-                pedido_id: tenantA.pedido.id,
-                etapa_atual_id: tenantB.etapa.id,
-                concluida: false,
-                quantidade: 1,
-            })
-            .expect(404);
+        await expect(
+            prisma.pedido.count({ where: { fabrico_id: tenantA.fabrico.id } }),
+        ).resolves.toBe(pedidosAntes);
+        await expect(
+            prisma.fichaTecnica.count({ where: { fabrico_id: tenantA.fabrico.id } }),
+        ).resolves.toBe(fichasAntes);
 
         await request(app.getHttpServer())
             .post("/produto-aviamento")
@@ -465,6 +502,131 @@ describe("Isolamento E2E entre fabricos", () => {
             .set(auth(tokenA))
             .send({ preco: 10 })
             .expect(404);
+    });
+
+    it("valida tipo, tecido e grade do produto contra o fabrico autenticado na criação e na edição", async () => {
+        const idInexistente = 2147483647;
+        const baseA = {
+            tipo_produto_id: tenantA.tipoProduto.id,
+            tecido_id: tenantA.tecido.id,
+            grade_versao_id: sharedIds.gradeVersaoId,
+        };
+
+        const gradeNaoLiberada = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                ...baseA,
+                nome: `${runId}-produto-grade-b`,
+                grade_versao_id: sharedIds.gradeVersaoExclusivaBId,
+            })
+            .expect(400);
+        const gradeInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-grade-x`, grade_versao_id: idInexistente })
+            .expect(400);
+        expect(gradeNaoLiberada.body).toEqual(gradeInexistente.body);
+
+        const tipoDeB = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                ...baseA,
+                nome: `${runId}-produto-tipo-b`,
+                tipo_produto_id: tenantB.tipoProduto.id,
+            })
+            .expect(400);
+        const tipoInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tipo-x`, tipo_produto_id: idInexistente })
+            .expect(400);
+        expect(tipoDeB.body).toEqual(tipoInexistente.body);
+
+        const tecidoDeB = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tecido-b`, tecido_id: tenantB.tecido.id })
+            .expect(400);
+        const tecidoInexistente = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-tecido-x`, tecido_id: idInexistente })
+            .expect(400);
+        expect(tecidoDeB.body).toEqual(tecidoInexistente.body);
+
+        await expect(
+            prisma.produto.count({
+                where: {
+                    nome: {
+                        in: ["grade-b", "grade-x", "tipo-b", "tipo-x", "tecido-b", "tecido-x"].map(
+                            (sufixo) => `${runId}-produto-${sufixo}`,
+                        ),
+                    },
+                },
+            }),
+        ).resolves.toBe(0);
+
+        const legitimo = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({ ...baseA, nome: `${runId}-produto-relacoes-validas` })
+            .expect(201);
+        const semOpcionais = await request(app.getHttpServer())
+            .post("/produtos")
+            .set(auth(tokenA))
+            .send({
+                nome: `${runId}-produto-sem-opcionais`,
+                tipo_produto_id: baseA.tipo_produto_id,
+            })
+            .expect(201);
+        expect(semOpcionais.body).toMatchObject({ tecido_id: null, grade_versao_id: null });
+
+        const tentativasUpdate = [
+            { tipo_produto_id: tenantB.tipoProduto.id },
+            { tipo_produto_id: idInexistente },
+            { tipo_produto_id: null },
+            { tecido_id: tenantB.tecido.id },
+            { tecido_id: idInexistente },
+            { grade_versao_id: sharedIds.gradeVersaoExclusivaBId },
+            { grade_versao_id: idInexistente },
+        ];
+        for (const body of tentativasUpdate) {
+            await request(app.getHttpServer())
+                .put(`/produtos/${legitimo.body.id}`)
+                .set(auth(tokenA))
+                .send(body)
+                .expect(400);
+        }
+
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject({ ...baseA, fabrico_id: tenantA.fabrico.id });
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${legitimo.body.id}`)
+            .set(auth(tokenA))
+            .send({ tecido_id: null, grade_versao_id: null })
+            .expect(200);
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject({ tecido_id: null, grade_versao_id: null });
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${legitimo.body.id}`)
+            .set(auth(tokenA))
+            .send(baseA)
+            .expect(200);
+        await expect(
+            prisma.produto.findUniqueOrThrow({ where: { id: legitimo.body.id } }),
+        ).resolves.toMatchObject(baseA);
+
+        await request(app.getHttpServer())
+            .put(`/produtos/${tenantB.produto.id}`)
+            .set(auth(tokenB))
+            .send({ grade_versao_id: sharedIds.gradeVersaoExclusivaBId })
+            .expect(200);
     });
 
     it("ignora ou rejeita fabrico_id falsificado no body e mantém fluxos válidos do próprio fabrico", async () => {
@@ -560,19 +722,24 @@ describe("Isolamento E2E entre fabricos", () => {
             .expect(201);
         expect(pedido.body.fabrico_id).toBe(tenantA.fabrico.id);
 
-        const ficha = await request(app.getHttpServer())
-            .post("/fichas-tecnicas")
-            .set(auth(tokenA))
+        const pedidoCompleto = await request(app.getHttpServer())
+            .post("/pedidos/completo")
+            .set({ ...auth(tokenA), "Idempotency-Key": `${runId}-fabrico-falso` })
             .send({
-                produto_id: produto.body.id,
-                pedido_id: pedido.body.id,
-                etapa_atual_id: tenantA.etapa.id,
-                concluida: false,
-                quantidade: 3,
                 fabrico_id: tenantB.fabrico.id,
+                fichas: [
+                    {
+                        produto_id: produto.body.id,
+                        etapa_atual_id: tenantA.etapa.id,
+                        quantidade: 0,
+                        fabrico_id: tenantB.fabrico.id,
+                    },
+                ],
             })
             .expect(201);
-        expect(ficha.body.fabrico_id).toBe(tenantA.fabrico.id);
+        expect(pedidoCompleto.body.fabrico_id).toBe(tenantA.fabrico.id);
+        expect(pedidoCompleto.body.fichas_tecnicas).toHaveLength(1);
+        expect(pedidoCompleto.body.fichas_tecnicas[0].fabrico_id).toBe(tenantA.fabrico.id);
 
         await request(app.getHttpServer())
             .put(`/produtos/${produto.body.id}`)
@@ -652,5 +819,128 @@ describe("Isolamento E2E entre fabricos", () => {
         await expect(
             prisma.fichaTecnica.findUniqueOrThrow({ where: { id: tenantA.ficha.id } }),
         ).resolves.toMatchObject({ fabrico_id: tenantA.fabrico.id });
+    });
+
+    it("permite alterar apenas ativo no vínculo fabrico-grade e preserva grade e fabrico originais", async () => {
+        const vinculoA = await prisma.fabricoGrade.findUniqueOrThrow({
+            where: {
+                fabrico_id_grade_id: {
+                    fabrico_id: tenantA.fabrico.id,
+                    grade_id: sharedIds.gradeId,
+                },
+            },
+        });
+        const vinculoOriginal = {
+            fabrico_id: tenantA.fabrico.id,
+            grade_id: sharedIds.gradeId,
+            ativo: true,
+        };
+
+        const tentativasInvalidas = [
+            { ativo: true, grade_id: sharedIds.gradeExclusivaBId },
+            { ativo: true, grade_id: sharedIds.gradeId },
+            { ativo: true, fabrico_id: tenantB.fabrico.id },
+            { ativo: true, fabrico_id: tenantA.fabrico.id },
+            {},
+        ];
+        for (const body of tentativasInvalidas) {
+            await request(app.getHttpServer())
+                .put(`/fabrico-grades/${vinculoA.id}`)
+                .set(auth(tokenAdmin))
+                .send(body)
+                .expect(400);
+        }
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenA))
+            .send({ ativo: false })
+            .expect(403);
+
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject(vinculoOriginal);
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenAdmin))
+            .send({ ativo: false })
+            .expect(200);
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject({ ...vinculoOriginal, ativo: false });
+
+        await request(app.getHttpServer())
+            .put(`/fabrico-grades/${vinculoA.id}`)
+            .set(auth(tokenAdmin))
+            .send({ ativo: true })
+            .expect(200);
+        await expect(
+            prisma.fabricoGrade.findUniqueOrThrow({ where: { id: vinculoA.id } }),
+        ).resolves.toMatchObject(vinculoOriginal);
+    });
+
+    it("vincula o parceiro apenas a etapas do próprio fabrico", async () => {
+        const nomeInvasor = `${runId}-parceiro-etapa-de-b`;
+
+        const criacao = await request(app.getHttpServer())
+            .post("/parceiros")
+            .set(auth(tokenA))
+            .send({ nome: nomeInvasor, etapa_id: tenantB.etapa.id })
+            .expect(400);
+        const inexistente = await request(app.getHttpServer())
+            .post("/parceiros")
+            .set(auth(tokenA))
+            .send({ nome: nomeInvasor, etapa_id: 2147483647 })
+            .expect(400);
+        expect(criacao.body.message).toBe(inexistente.body.message);
+        await expect(
+            prisma.parceiro.findFirst({
+                where: { fabrico_id: tenantA.fabrico.id, nome: nomeInvasor },
+            }),
+        ).resolves.toBeNull();
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: tenantB.etapa.id })
+            .expect(400);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: null });
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: tenantA.etapa.id })
+            .expect(200);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: tenantA.etapa.id });
+
+        const daEtapaA = await request(app.getHttpServer())
+            .get(`/parceiros/etapa/${tenantA.etapa.id}`)
+            .set(auth(tokenA))
+            .expect(200);
+        expect(daEtapaA.body.map((parceiro: { id: number }) => parceiro.id)).toEqual([
+            tenantA.parceiro.id,
+        ]);
+        const etapaA = await prisma.etapa.findUniqueOrThrow({ where: { id: tenantA.etapa.id } });
+        expect(daEtapaA.body[0].etapa).toMatchObject({ id: etapaA.id, nome: etapaA.nome });
+
+        const daEtapaB = await request(app.getHttpServer())
+            .get(`/parceiros/etapa/${tenantB.etapa.id}`)
+            .set(auth(tokenA))
+            .expect(200);
+        expect(daEtapaB.body).toEqual([]);
+
+        await request(app.getHttpServer())
+            .put(`/parceiros/${tenantA.parceiro.id}`)
+            .set(auth(tokenA))
+            .send({ etapa_id: null })
+            .expect(200);
+        await expect(
+            prisma.parceiro.findUniqueOrThrow({ where: { id: tenantA.parceiro.id } }),
+        ).resolves.toMatchObject({ etapa_id: null });
     });
 });

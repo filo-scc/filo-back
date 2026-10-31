@@ -1,12 +1,17 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { FichaTecnicaItemService } from "./ficha-tecnica-item.service";
+import { FichaTecnicaService } from "./ficha-tecnica.service";
 
 const { PrismaClientKnownRequestError, PrismaClientValidationError } = Prisma;
 
 describe("FichaTecnicaItemService", () => {
     let service: FichaTecnicaItemService;
     let prisma: any;
+    const fichaTecnicaService = {
+        sincronizarPedido: jest.fn(),
+        sincronizarFichaParceiros: jest.fn(),
+    } as unknown as FichaTecnicaService;
 
     const ficha = { id: 1, fabrico_id: 10, grade_versao_id: 20 };
     const itemDto = { cor_id: 30, grade_versao_item_id: 40, quantidade: 5 };
@@ -27,7 +32,7 @@ describe("FichaTecnicaItemService", () => {
             cor: { findMany: jest.fn(), findFirst: jest.fn() },
             gradeVersaoItem: { findMany: jest.fn(), findFirst: jest.fn() },
         };
-        service = new FichaTecnicaItemService(prisma);
+        service = new FichaTecnicaItemService(prisma as any, fichaTecnicaService);
     });
 
     it("lista itens por ficha técnica", async () => {
@@ -396,6 +401,7 @@ describe("FichaTecnicaItemService", () => {
 
     it("rejeita sync com cores fora do fabrico", async () => {
         prisma.fichaTecnica.findFirst.mockResolvedValue(ficha);
+        prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
         prisma.cor.findMany.mockResolvedValue([]);
 
         await expect(service.syncCoresBatch(1, [30], 10)).rejects.toThrow(
@@ -405,6 +411,7 @@ describe("FichaTecnicaItemService", () => {
 
     it("rejeita sync quando a grade não possui tamanhos", async () => {
         prisma.fichaTecnica.findFirst.mockResolvedValue(ficha);
+        prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
         prisma.cor.findMany.mockResolvedValue([{ id: 30 }]);
         prisma.gradeVersaoItem.findMany.mockResolvedValue([]);
 
@@ -477,5 +484,154 @@ describe("FichaTecnicaItemService", () => {
         await expect(service.create(1, itemDto as any, 10)).rejects.toThrow(
             new ConflictException("Esse item já existe nesta ficha técnica"),
         );
+    });
+
+    describe("replaceMatriz", () => {
+        it("retorna 404 sem escritas quando a ficha é excluída antes da releitura", async () => {
+            prisma.fichaTecnica.findFirst
+                .mockResolvedValueOnce({ ...ficha, pedido_id: 9 })
+                .mockResolvedValueOnce(null);
+            prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+            prisma.pedido = {
+                findUnique: jest.fn().mockResolvedValue({ finalizado: false }),
+            };
+            prisma.fichaTecnica.update = jest.fn();
+            const sincronizarParceiros = jest.mocked(fichaTecnicaService.sincronizarFichaParceiros);
+            const sincronizarPedido = jest.mocked(fichaTecnicaService.sincronizarPedido);
+            sincronizarParceiros.mockClear();
+            sincronizarPedido.mockClear();
+
+            await expect(service.replaceMatriz(1, [itemDto], 10)).rejects.toThrow(
+                new NotFoundException("Ficha técnica não encontrada"),
+            );
+
+            expect(prisma.pedido.findUnique).toHaveBeenCalledWith({
+                where: { delete_at: null, id: 9 },
+                select: { finalizado: true },
+            });
+            expect(prisma.fichaTecnica.findFirst).toHaveBeenLastCalledWith(
+                expect.objectContaining({ where: { delete_at: null, id: 1, fabrico_id: 10 } }),
+            );
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnica.update).not.toHaveBeenCalled();
+            expect(sincronizarParceiros).not.toHaveBeenCalled();
+            expect(sincronizarPedido).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("ficha concluída", () => {
+        const concluida = { ...ficha, concluida: true };
+        const atuais = [{ cor_id: 30, grade_versao_item_id: 40, quantidade: 5 }];
+
+        beforeEach(() => {
+            prisma.fichaTecnica.findFirst.mockResolvedValue(concluida);
+        });
+
+        it("salvar a mesma matriz é eco e não grava", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue(atuais);
+
+            await expect(
+                service.createManyByFichaTecnicaID(1, [itemDto] as any, 10),
+            ).resolves.toEqual(expect.objectContaining({ message: "Itens inalterados (eco)" }));
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("salvar matriz diferente dá 409 sem gravar", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue(atuais);
+
+            await expect(
+                service.createManyByFichaTecnicaID(1, [{ ...itemDto, quantidade: 6 }] as any, 10),
+            ).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("sync com o mesmo conjunto de cores é eco", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ cor_id: 30 }]);
+
+            await expect(service.syncCoresBatch(1, [30], 10)).resolves.toEqual(
+                expect.objectContaining({ cores_adicionadas: 0, cores_removidas: 0 }),
+            );
+            expect(prisma.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("sync com conjunto diferente dá 409", async () => {
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ cor_id: 30 }]);
+
+            await expect(service.syncCoresBatch(1, [31], 10)).rejects.toThrow(ConflictException);
+            expect(prisma.$transaction).not.toHaveBeenCalled();
+        });
+
+        it("gerar itens de cor que já tem toda a grade passa; cor nova dá 409", async () => {
+            prisma.cor.findFirst.mockResolvedValue({ id: 30 });
+            prisma.gradeVersaoItem.findMany.mockResolvedValue([{ id: 40 }]);
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ grade_versao_item_id: 40 }]);
+            await expect(service.gerarItensPorCor(1, 30, 10)).resolves.toBeDefined();
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
+            await expect(service.gerarItensPorCor(1, 30, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.createMany).not.toHaveBeenCalled();
+        });
+
+        it("remover itens de cores ausentes passa; presentes dá 409", async () => {
+            prisma.cor.findMany.mockResolvedValue([{ id: 30 }]);
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([]);
+            await expect(service.removerCoresBatch(1, [30], 10)).resolves.toEqual(
+                expect.objectContaining({ itens_removidos: 0 }),
+            );
+
+            prisma.fichaTecnicaItem.findMany.mockResolvedValue([{ id: 1 }]);
+            await expect(service.removerCoresBatch(1, [30], 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("limpar itens: dá 409 se houver itens", async () => {
+            prisma.fichaTecnicaItem.count = jest.fn().mockResolvedValue(3);
+
+            await expect(service.clearByFichaTecnicaID(1, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it("remove: item com quantidade 0 é eco; com quantidade > 0 dá 409", async () => {
+            const spy = jest.spyOn(service, "findOne");
+
+            spy.mockResolvedValue({
+                id: 1,
+                quantidade: 0,
+                ficha_tecnica: { concluida: true },
+            } as any);
+            await expect(service.remove(1, 10)).resolves.toEqual(
+                expect.objectContaining({ message: expect.stringContaining("eco") }),
+            );
+
+            spy.mockResolvedValue({
+                id: 1,
+                quantidade: 5,
+                ficha_tecnica: { concluida: true },
+            } as any);
+            await expect(service.remove(1, 10)).rejects.toThrow(ConflictException);
+            expect(prisma.fichaTecnicaItem.delete).not.toHaveBeenCalled();
+        });
+
+        it("update: valores iguais é eco; valor diferente dá 409", async () => {
+            const atual = {
+                id: 1,
+                cor_id: 30,
+                grade_versao_item_id: 40,
+                quantidade: 5,
+                ficha_tecnica: { concluida: true },
+            };
+            jest.spyOn(service, "findOne").mockResolvedValue(atual as any);
+
+            await expect(service.update(1, { quantidade: 5 } as any, 10)).resolves.toBeDefined();
+            await expect(service.update(1, { quantidade: 6 } as any, 10)).rejects.toThrow(
+                ConflictException,
+            );
+            expect(prisma.fichaTecnicaItem.update).not.toHaveBeenCalled();
+        });
     });
 });

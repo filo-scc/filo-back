@@ -48,6 +48,7 @@ describe("ConcluirFichasCronService", () => {
 
         expect(prisma.fichaTecnica.findMany).toHaveBeenCalledWith({
             where: {
+                delete_at: null,
                 concluida: false,
                 produzida_em: { lte: expect.any(Date) },
                 fabrico: { ativo: true },
@@ -55,22 +56,23 @@ describe("ConcluirFichasCronService", () => {
             select: { id: true, pedido_id: true },
         });
         expect(tx.fichaTecnica.updateMany).toHaveBeenCalledWith({
-            where: { id: { in: [50, 51, 52] }, concluida: false },
+            where: { delete_at: null, id: { in: [50, 51, 52] }, concluida: false },
             data: { concluida: true },
         });
         expect(tx.fichaEtapa.updateMany).toHaveBeenCalledWith({
             where: {
                 ficha_tecnica_id: { in: [50, 51, 52] },
+                ficha_tecnica: { delete_at: null },
                 data_fim: null,
             },
             data: { data_fim: expect.any(Date) },
         });
         expect(tx.pedido.updateMany).toHaveBeenCalledWith({
-            where: { id: 1, finalizado: false },
+            where: { delete_at: null, id: 1, finalizado: false },
             data: { finalizado: true },
         });
         expect(tx.pedido.updateMany).toHaveBeenCalledWith({
-            where: { id: 2, finalizado: true },
+            where: { delete_at: null, id: 2, finalizado: true },
             data: { finalizado: false },
         });
         expect(prisma.$transaction).toHaveBeenCalledTimes(1);

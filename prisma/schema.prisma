@@ -135,10 +135,14 @@ model Parceiro {
   banco           String?
   agencia         String?
   conta           String?
+  /// @deprecated Só exibição. O vínculo com a etapa é `etapa_id`; a coluna sai numa migration futura.
   categoria       String?
 
   fabrico_id Int
   fabrico    Fabrico @relation(fields: [fabrico_id], references: [id])
+
+  etapa_id Int?
+  etapa    Etapa? @relation(fields: [etapa_id], references: [id], onDelete: SetNull)
 
   endereco Endereco?
 
@@ -147,6 +151,7 @@ model Parceiro {
   ficha_parceiro FichaParceiro[]
 
   @@unique([fabrico_id, nome])
+  @@index([etapa_id])
   @@map("parceiros")
 }
 
@@ -196,8 +201,11 @@ model Etapa {
 
   fichas_tecnicas FichaTecnica[]
   fichas_etapas   FichaEtapa[]
+  parceiros       Parceiro[]
 
   @@unique([fabrico_id, nome])
+  // Índice único parcial (fabrico_id, ordem) WHERE ativa = true: criado por SQL na migration
+  // 20261011120000_etapas_ordem_unica_entre_ativas (o Prisma não declara índices parciais).
   @@map("etapas")
 }
 
@@ -295,6 +303,7 @@ model Icone {
 
 model FichaTecnica {
   id Int @id @default(autoincrement())
+  delete_at DateTime? @db.Timestamptz(3)
 
   observacoes String?
   concluida Boolean
@@ -581,6 +590,7 @@ model Aviamento {
 
 model Pedido {
   id Int @id @default(autoincrement())
+  delete_at DateTime? @db.Timestamptz(3)
 
   finalizado Boolean
   data_prevista DateTime?
@@ -593,6 +603,7 @@ model Pedido {
   valor_total Decimal? @db.Decimal(10, 2)
   custo_total Decimal? @db.Decimal(10, 2)
   idempotency_key String? @db.VarChar(128)
+  idempotency_fingerprint String? @db.VarChar(64)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

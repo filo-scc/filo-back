@@ -43,6 +43,12 @@ export class ProdutoController {
     }
 
     @Roles("PROPRIETARIO", "GERENTE")
+    @Get("/inativos")
+    findInativos(@CurrentUser() user: AuthenticatedUser) {
+        return this.service.findInativos(user);
+    }
+
+    @Roles("PROPRIETARIO", "GERENTE")
     @Get(":id")
     getById(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
         return this.service.getById(id, user);

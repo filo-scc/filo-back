@@ -83,11 +83,12 @@ describe("DashboardService", () => {
             calendarWeeks: 4,
         });
         expect(prisma.pedido.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { fabrico_id: 7 } }),
+            expect.objectContaining({ where: { delete_at: null, fabrico_id: 7 } }),
         );
         expect(prisma.fichaTecnica.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: {
+                    delete_at: null,
                     fabrico_id: 7,
                     produzida_em: {
                         gte: new Date("2026-08-03T03:00:00.000Z"),
@@ -200,6 +201,7 @@ describe("DashboardService", () => {
         expect(prisma.fichaTecnica.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
                 where: {
+                    delete_at: null,
                     fabrico_id: 7,
                     produzida_em: {
                         gte: new Date("2026-07-13T03:00:00.000Z"),

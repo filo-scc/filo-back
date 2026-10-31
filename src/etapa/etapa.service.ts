@@ -14,6 +14,8 @@ import type { AuthenticatedUser } from "src/auth/types/authenticated-user";
 
 type FabricoScope = AuthenticatedUser | number;
 
+const MENSAGEM_ORDEM_EM_USO = "Já existe outra etapa ativa com esta ordem neste fabrico";
+
 @Injectable()
 export class EtapaService {
     constructor(
@@ -58,6 +60,68 @@ export class EtapaService {
         return scope.fabrico_id;
     }
 
+    private async assertOrdemDisponivel(
+        tx: Prisma.TransactionClient,
+        fabricoId: number,
+        ordem: number,
+        ignorarEtapaId?: number,
+    ) {
+        const emUso = await tx.etapa.count({
+            where: {
+                fabrico_id: fabricoId,
+                ativa: true,
+                ordem,
+                ...(ignorarEtapaId !== undefined ? { id: { not: ignorarEtapaId } } : {}),
+            },
+        });
+
+        if (emUso > 0) {
+            throw new ConflictException(MENSAGEM_ORDEM_EM_USO);
+        }
+    }
+
+    // Corrida entre duas gravações: a validação passou nas duas e o índice único parcial barrou uma.
+    // Com o adaptador pg do Prisma 7, o campo violado vem em `meta.driverAdapterError`; `meta.target` é o formato legado.
+    private violouOrdemUnica(error: Prisma.PrismaClientKnownRequestError): boolean {
+        const meta = error.meta as
+            | {
+                  target?: unknown;
+                  driverAdapterError?: { cause?: { constraint?: { fields?: string[] } } };
+              }
+            | undefined;
+        const alvo = meta?.driverAdapterError?.cause?.constraint?.fields ?? meta?.target;
+
+        return String(alvo ?? "").includes("ordem");
+    }
+
+    // `produzida_em` só é gravado quando a ficha entra na última etapa ativa. Se a última etapa muda
+    // (nova etapa, reativação, desativação, ordem ou exclusão), as fichas abertas que já estavam na
+    // etapa que passa a ser a última nunca seriam carimbadas, não teriam para onde ser transferidas e
+    // o job de conclusão não as veria. Quem já tem `produzida_em` continua produzida (o carimbo não é
+    // limpo) e o job segue concluindo pela data original.
+    private async carimbarFichasNaUltimaEtapa(tx: Prisma.TransactionClient, fabricoId: number) {
+        const ultimaEtapaAtiva = await tx.etapa.findFirst({
+            where: { fabrico_id: fabricoId, ativa: true },
+            orderBy: { ordem: "desc" },
+            select: { id: true },
+        });
+
+        if (!ultimaEtapaAtiva) {
+            return;
+        }
+
+        await tx.fichaTecnica.updateMany({
+            where: {
+                delete_at: null,
+                fabrico_id: fabricoId,
+                concluida: false,
+                etapa_atual_id: ultimaEtapaAtiva.id,
+                produzida_em: null,
+            },
+            data: { produzida_em: new Date() },
+        });
+    }
+
     async create(data: CreateEtapaDto, user: AuthenticatedUser) {
         const fabricoId = this.resolverFabricoId(user, data.fabrico_id);
         const dadosEtapa = { ...data };
@@ -77,19 +141,29 @@ export class EtapaService {
             return await this.prisma.$transaction(async (tx) => {
                 const produtoIds = await this.obterProdutosDosFabricos([fabricoId], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+                if (data.ativa ?? true) {
+                    await this.assertOrdemDisponivel(tx, fabricoId, data.ordem);
+                }
                 const etapa = await tx.etapa.create({
                     data: {
                         ...dadosEtapa,
                         fabrico_id: fabricoId,
                     },
                 });
+                if (etapa.ativa) {
+                    await this.carimbarFichasNaUltimaEtapa(tx, fabricoId);
+                }
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    throw new ConflictException("Etapa já cadastrada");
+                    throw new ConflictException(
+                        this.violouOrdemUnica(error)
+                            ? MENSAGEM_ORDEM_EM_USO
+                            : "Etapa já cadastrada",
+                    );
                 }
 
                 if (error.code === "P2003") {
@@ -183,19 +257,33 @@ export class EtapaService {
             return await this.prisma.$transaction(async (tx) => {
                 const produtoIds = await this.obterProdutosDosFabricos([etapaAtual.fabrico_id], tx);
                 await this.produtoService.bloquearProdutosParaRecalculo(produtoIds, tx);
+                const ordemFinal = data.ordem ?? etapaAtual.ordem;
+                const ativaFinal = data.ativa ?? etapaAtual.ativa;
+                const mudouOrdemOuAtiva =
+                    ordemFinal !== etapaAtual.ordem || ativaFinal !== etapaAtual.ativa;
+                if (ativaFinal && mudouOrdemOuAtiva) {
+                    await this.assertOrdemDisponivel(tx, etapaAtual.fabrico_id, ordemFinal, id);
+                }
                 const etapa = await tx.etapa.update({
                     where: { id },
                     data: {
                         ...dadosEtapa,
                     },
                 });
+                if (mudouOrdemOuAtiva) {
+                    await this.carimbarFichasNaUltimaEtapa(tx, etapaAtual.fabrico_id);
+                }
                 await this.produtoService.recalcularCustosTotais(produtoIds, tx);
                 return etapa;
             });
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 if (error.code === "P2002") {
-                    throw new ConflictException("Etapa já cadastrada");
+                    throw new ConflictException(
+                        this.violouOrdemUnica(error)
+                            ? MENSAGEM_ORDEM_EM_USO
+                            : "Etapa já cadastrada",
+                    );
                 }
 
                 if (error.code === "P2003") {
@@ -216,6 +304,9 @@ export class EtapaService {
             const etapaRemovida = await tx.etapa.delete({
                 where: { id },
             });
+            if (etapaRemovida.ativa) {
+                await this.carimbarFichasNaUltimaEtapa(tx, etapaRemovida.fabrico_id);
+            }
             await this.produtoService.recalcularCustosTotais(produtoIds, tx);
             return etapaRemovida;
         });

@@ -143,4 +143,18 @@ export class FichaTecnicaItemController {
             (req as any).user.fabrico_id,
         );
     }
+
+    @Put(":ficha_tecnica_id/matriz")
+    replaceMatriz(
+        @Param("ficha_tecnica_id", ParseIntPipe) ficha_tecnica_id: number,
+        @Body() data: ReplaceFichaTecnicaItensDto,
+        @Req() req: Request,
+    ) {
+        return this.fichaTecnicaItemService.replaceMatriz(
+            ficha_tecnica_id,
+            data.itens,
+            (req as any).user.fabrico_id,
+            data,
+        );
+    }
 }

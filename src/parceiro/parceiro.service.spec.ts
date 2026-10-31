@@ -5,7 +5,6 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import type { AuthenticatedUser } from "../auth/types/authenticated-user";
 import { EnderecoService } from "../endereco/endereco.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -40,24 +39,28 @@ describe("ParceiroService", () => {
 
     const mockPrismaService = {
         parceiro: {
-            findMany: jest.fn<any>(),
-            findUnique: jest.fn<any>(),
-            findFirst: jest.fn<any>(),
-            create: jest.fn<any>(),
-            update: jest.fn<any>(),
-            delete: jest.fn<any>(),
+            findMany: jest.fn(),
+            findUnique: jest.fn(),
+            findFirst: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
         },
-        $transaction: jest.fn<any>(),
+        etapa: {
+            findFirst: jest.fn(),
+            findMany: jest.fn(),
+        },
+        $transaction: jest.fn(),
     };
 
     const mockEnderecoService = {
-        create: jest.fn<any>(),
-        update: jest.fn<any>(),
+        create: jest.fn(),
+        update: jest.fn(),
     };
 
     const mockProdutoService = {
-        bloquearProdutosParaRecalculo: jest.fn<any>(),
-        recalcularCustosTotais: jest.fn<any>(),
+        bloquearProdutosParaRecalculo: jest.fn(),
+        recalcularCustosTotais: jest.fn(),
     };
 
     const mockParceiro = {
@@ -66,9 +69,18 @@ describe("ParceiroService", () => {
         fabrico_id: 1,
         responsavel: "Thiago",
         telefone: "11999999999",
+        etapa_id: null,
+        etapa: null,
         endereco: { id: 10, rua: "Rua T" },
         parceiro_produto: [],
     };
+
+    function dadosGravados(escrita: { mock: { calls: any[][] } }): Record<string, unknown> {
+        return escrita.mock.calls[0][0].data;
+    }
+
+    const etapaCostura = { id: 5, nome: "Costura", ativa: true };
+    const etapaInativa = { id: 6, nome: "Acabamento", ativa: false };
 
     beforeEach(async () => {
         consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
@@ -90,6 +102,8 @@ describe("ParceiroService", () => {
         enderecoService = module.get<EnderecoService>(EnderecoService);
 
         jest.clearAllMocks();
+        mockPrismaService.etapa.findFirst.mockReset();
+        mockPrismaService.etapa.findMany.mockReset();
     });
 
     afterEach(() => {
@@ -111,6 +125,7 @@ describe("ParceiroService", () => {
                 where: { fabrico_id: 1 },
                 include: {
                     endereco: true,
+                    etapa: { select: { id: true, nome: true, ativa: true } },
                     parceiro_produto: { include: { produto: true } },
                 },
             });
@@ -173,6 +188,53 @@ describe("ParceiroService", () => {
             });
         });
 
+        it("deve vincular o parceiro pela etapa_id", async () => {
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaCostura);
+            mockEnderecoService.create.mockResolvedValue({ id: 20 });
+            mockPrismaService.parceiro.create.mockResolvedValue({ id: 2 });
+
+            await service.create({ ...createDto, etapa_id: 5 }, userFabrico1);
+
+            expect(prisma.etapa.findFirst).toHaveBeenCalledWith({
+                where: { id: 5, fabrico_id: 1 },
+                select: { id: true, ativa: true },
+            });
+            expect(dadosGravados(mockPrismaService.parceiro.create).etapa_id).toBe(5);
+        });
+
+        it("deve recusar etapa_id de outro fabrico sem criar endereco nem parceiro", async () => {
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
+            mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.create({ ...createDto, etapa_id: 99 }, userFabrico1),
+            ).rejects.toThrow(new BadRequestException("Etapa inválida"));
+            expect(enderecoService.create).not.toHaveBeenCalled();
+            expect(prisma.parceiro.create).not.toHaveBeenCalled();
+        });
+
+        it("deve recusar vínculo novo com etapa inativa", async () => {
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
+            mockPrismaService.etapa.findFirst.mockResolvedValue(etapaInativa);
+
+            await expect(
+                service.create({ ...createDto, etapa_id: 6 }, userFabrico1),
+            ).rejects.toThrow(BadRequestException);
+            expect(prisma.parceiro.create).not.toHaveBeenCalled();
+        });
+
+        it("deve criar sem etapa quando etapa_id nao e informado", async () => {
+            mockPrismaService.parceiro.findFirst.mockResolvedValue(null);
+            mockEnderecoService.create.mockResolvedValue({ id: 20 });
+            mockPrismaService.parceiro.create.mockResolvedValue({ id: 2 });
+
+            await service.create(createDto, userFabrico1);
+
+            expect(prisma.etapa.findFirst).not.toHaveBeenCalled();
+            expect(dadosGravados(mockPrismaService.parceiro.create)).not.toHaveProperty("etapa_id");
+        });
+
         it("deve rejeitar fabrico_id no payload", async () => {
             await expect(
                 service.create({ ...createDto, fabrico_id: 99 } as any, userFabrico1),
@@ -214,6 +276,86 @@ describe("ParceiroService", () => {
             expect(prisma.parceiro.update).toHaveBeenCalledWith({
                 where: { id: 1 },
                 data: expect.objectContaining({ nome: "Parceiro Atualizado" }),
+            });
+        });
+
+        describe("vínculo com a etapa", () => {
+            const parceiroNaCostura = {
+                ...mockParceiro,
+                etapa_id: 5,
+                etapa: etapaCostura,
+            };
+
+            function dadosDoUpdate() {
+                return dadosGravados(mockPrismaService.parceiro.update);
+            }
+
+            beforeEach(() => {
+                mockPrismaService.parceiro.update.mockResolvedValue({});
+            });
+
+            it("deve trocar de etapa por etapa_id e recalcular os produtos", async () => {
+                mockPrismaService.parceiro.findFirst.mockResolvedValue({
+                    ...parceiroNaCostura,
+                    parceiro_produto: [{ produto_id: 3 }],
+                });
+                mockPrismaService.etapa.findFirst.mockResolvedValue({ id: 8, ativa: true });
+
+                await service.update(1, { etapa_id: 8 }, userFabrico1);
+
+                expect(prisma.etapa.findFirst).toHaveBeenCalledWith({
+                    where: { id: 8, fabrico_id: 1 },
+                    select: { id: true, ativa: true },
+                });
+                expect(dadosDoUpdate()).toEqual({ etapa_id: 8 });
+                expect(mockProdutoService.recalcularCustosTotais).toHaveBeenCalledWith(
+                    [3],
+                    mockPrismaService,
+                );
+            });
+
+            it("deve recusar etapa_id de outro fabrico sem alterar o parceiro", async () => {
+                mockPrismaService.parceiro.findFirst.mockResolvedValue(parceiroNaCostura);
+                mockPrismaService.etapa.findFirst.mockResolvedValue(null);
+
+                await expect(service.update(1, { etapa_id: 99 }, userFabrico1)).rejects.toThrow(
+                    new BadRequestException("Etapa inválida"),
+                );
+                expect(prisma.parceiro.update).not.toHaveBeenCalled();
+            });
+
+            it("deve remover o vínculo quando etapa_id é null", async () => {
+                mockPrismaService.parceiro.findFirst.mockResolvedValue(parceiroNaCostura);
+
+                await service.update(1, { etapa_id: null }, userFabrico1);
+
+                expect(dadosDoUpdate()).toEqual({ etapa_id: null });
+                expect(prisma.etapa.findFirst).not.toHaveBeenCalled();
+            });
+
+            it("deve manter o vínculo quando etapa_id foi omitido", async () => {
+                mockPrismaService.parceiro.findFirst.mockResolvedValue(parceiroNaCostura);
+
+                await service.update(1, { telefone: "11111111111" }, userFabrico1);
+
+                expect(dadosDoUpdate()).toEqual({ telefone: "11111111111" });
+            });
+
+            it("deve recusar troca para etapa inativa, mas aceitar reenviar a etapa inativa atual", async () => {
+                mockPrismaService.parceiro.findFirst.mockResolvedValue({
+                    ...mockParceiro,
+                    etapa_id: 6,
+                    etapa: etapaInativa,
+                });
+                mockPrismaService.etapa.findFirst.mockResolvedValue(etapaInativa);
+
+                await service.update(1, { etapa_id: 6 }, userFabrico1);
+                expect(dadosDoUpdate()).toEqual({ etapa_id: 6 });
+
+                mockPrismaService.parceiro.findFirst.mockResolvedValue(parceiroNaCostura);
+                await expect(service.update(1, { etapa_id: 6 }, userFabrico1)).rejects.toThrow(
+                    BadRequestException,
+                );
             });
         });
 
@@ -274,16 +416,22 @@ describe("ParceiroService", () => {
         });
     });
 
-    describe("getParceirosByFabricoECategoria()", () => {
-        it("deve consultar categoria dentro do tenant autenticado", async () => {
+    describe("getParceirosByEtapa()", () => {
+        it("deve filtrar por etapa_id dentro do tenant autenticado", async () => {
             mockPrismaService.parceiro.findMany.mockResolvedValue([mockParceiro]);
 
-            const result = await service.getParceirosByFabricoECategoria("Costura", userFabrico1);
+            const result = await service.getParceirosByEtapa(5, userFabrico1);
 
             expect(result).toEqual([mockParceiro]);
             expect(prisma.parceiro.findMany).toHaveBeenCalledWith({
-                where: { fabrico_id: 1, categoria: "Costura" },
+                where: { fabrico_id: 1, etapa_id: 5 },
+                include: { etapa: { select: { id: true, nome: true, ativa: true } } },
             });
+        });
+
+        it("deve recusar ADMIN sem escopo", async () => {
+            await expect(service.getParceirosByEtapa(5, admin)).rejects.toThrow(ForbiddenException);
+            expect(prisma.parceiro.findMany).not.toHaveBeenCalled();
         });
     });
 });

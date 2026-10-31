@@ -13,6 +13,7 @@ import { CreatePedidoDto } from "./dto/create-pedido.dto";
 import { CreatePedidoCompletoDto, CreatePedidoFichaDto } from "./dto/create-pedido-completo.dto";
 import { UpdatePedidoCompletoDto } from "./dto/update-pedido-completo.dto";
 import { UpdatePedidoDto } from "./dto/update-pedido.dto";
+import { fingerprintPedido } from "./pedido-fingerprint";
 import { sincronizarFinalizacaoPedido } from "./pedido-finalizacao";
 import { lineTotal, moneyOrZero, sumMoney, toMoneyOrNull } from "src/common/utils/money";
 import {
@@ -22,6 +23,11 @@ import {
     proximoNumeroFicha,
     proximoNumeroPedido,
 } from "src/common/utils/concurrency";
+import { assertFichaEditavel } from "src/common/utils/ficha";
+
+type FichaParaTotais = CreatePedidoFichaDto & { defeitos_tecido?: number | null };
+
+const MENSAGEM_SEM_ETAPA_ATIVA = "Cadastre ao menos uma etapa ativa antes de criar fichas técnicas";
 
 const PALETA_13_CORES = [
     "#7FA9B8",
@@ -41,7 +47,7 @@ const PALETA_13_CORES = [
 
 const PEDIDO_COMPLETO_INCLUDE = {
     cliente: true,
-    fichas_tecnicas: { include: { fichas_etapas: true } },
+    fichas_tecnicas: { where: { delete_at: null }, include: { fichas_etapas: true } },
 } as const;
 
 @Injectable()
@@ -121,12 +127,15 @@ export class PedidoService {
             throw new BadRequestException("Informe o header Idempotency-Key para criar o pedido");
         }
 
+        const fingerprint = fingerprintPedido(data);
+
         // Replay antes das validações que dependem de estado mutável (cliente, produto ativo):
         // um retry idêntico de um pedido já criado precisa devolver o pedido, não um erro.
         const existente = await this.buscarPedidoPorIdempotencia(
             this.prisma,
             fabricoId,
             chaveIdempotencia,
+            fingerprint,
         );
 
         if (existente) {
@@ -169,6 +178,7 @@ export class PedidoService {
                             tx,
                             fabricoId,
                             chaveIdempotencia,
+                            fingerprint,
                         );
 
                         if (existente) {
@@ -212,7 +222,8 @@ export class PedidoService {
                             quantidade: totais.quantidade,
                             valor_total: totais.valor_total,
                             custo_total: totais.custo_total,
-                            ...(chaveIdempotencia ? { idempotency_key: chaveIdempotencia } : {}),
+                            idempotency_key: chaveIdempotencia,
+                            idempotency_fingerprint: fingerprint,
                         },
                     });
 
@@ -235,7 +246,7 @@ export class PedidoService {
                     }
 
                     return tx.pedido.findUnique({
-                        where: { id: pedido.id },
+                        where: { delete_at: null, id: pedido.id },
                         include: PEDIDO_COMPLETO_INCLUDE,
                     });
                 },
@@ -253,6 +264,7 @@ export class PedidoService {
                             this.prisma,
                             fabricoId,
                             chaveIdempotencia,
+                            fingerprint,
                         );
 
                         if (existente) {
@@ -303,17 +315,6 @@ export class PedidoService {
 
         this.assertUmaFichaPorProduto(fichasDto);
 
-        for (const fichaDto of fichasExistentesDto) {
-            const temEdicaoDeMatriz =
-                Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
-
-            if (fichaDto.grade_versao_id != null && !temEdicaoDeMatriz) {
-                throw new BadRequestException(
-                    "Para alterar a grade da ficha, envie também itens ou cores_ids",
-                );
-            }
-        }
-
         const produtoIdsNovos = [
             ...new Set(fichasNovasDto.map((ficha) => Number(ficha.produto_id))),
         ];
@@ -325,8 +326,16 @@ export class PedidoService {
                     await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
                     const pedido = await tx.pedido.findFirst({
-                        where: { id, fabrico_id: fabricoId },
-                        include: { fichas_tecnicas: true },
+                        where: { delete_at: null, id, fabrico_id: fabricoId },
+                        include: {
+                            fichas_tecnicas: {
+                                where: { delete_at: null },
+                                include: {
+                                    ficha_tecnica_itens: true,
+                                    ficha_parceiro: true,
+                                },
+                            },
+                        },
                     });
 
                     if (!pedido) {
@@ -382,12 +391,82 @@ export class PedidoService {
                         }
                     }
 
+                    const fichasConcluidas = fichasExistentesDto
+                        .map((fichaDto) => mapaFichasPedido.get(Number(fichaDto.id))!)
+                        .filter((fichaDb) => fichaDb.concluida);
+
+                    const precoParceiroPorProduto = new Map<
+                        number,
+                        Map<number, Prisma.Decimal | null>
+                    >();
+                    const precoClientePorProduto = new Map<number, Prisma.Decimal | null>();
+
+                    if (fichasConcluidas.length) {
+                        const produtoIdsConcluidos = [
+                            ...new Set(fichasConcluidas.map((f) => f.produto_id)),
+                        ];
+
+                        const parceiroProdutos = await tx.parceiroProduto.findMany({
+                            where: { produto_id: { in: produtoIdsConcluidos } },
+                            select: { produto_id: true, parceiro_id: true, preco: true },
+                        });
+
+                        for (const registro of parceiroProdutos) {
+                            if (!precoParceiroPorProduto.has(registro.produto_id)) {
+                                precoParceiroPorProduto.set(registro.produto_id, new Map());
+                            }
+                            precoParceiroPorProduto
+                                .get(registro.produto_id)!
+                                .set(registro.parceiro_id, registro.preco);
+                        }
+
+                        if (clienteIdEfetivo) {
+                            const clienteProdutos = await tx.clienteProduto.findMany({
+                                where: {
+                                    cliente_id: clienteIdEfetivo,
+                                    produto_id: { in: produtoIdsConcluidos },
+                                },
+                                select: { produto_id: true, preco_padrao: true },
+                            });
+
+                            for (const registro of clienteProdutos) {
+                                precoClientePorProduto.set(
+                                    registro.produto_id,
+                                    registro.preco_padrao,
+                                );
+                            }
+                        }
+                    }
+
                     for (const fichaDto of fichasExistentesDto) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                         if (Number(fichaDto.produto_id) !== fichaDb.produto_id) {
                             throw new BadRequestException(
                                 "Não é permitido alterar o produto da ficha",
+                            );
+                        }
+
+                        assertFichaEditavel(fichaDb, fichaDto, {
+                            precoParceiro:
+                                precoParceiroPorProduto.get(fichaDb.produto_id) ?? new Map(),
+                            precoPadraoCliente: clienteIdEfetivo
+                                ? (precoClientePorProduto.get(fichaDb.produto_id) ?? null)
+                                : undefined,
+                        });
+                    }
+
+                    for (const fichaDto of fichasExistentesDto) {
+                        const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
+                        const temEdicaoDeMatriz =
+                            Array.isArray(fichaDto.itens) || Array.isArray(fichaDto.cores_ids);
+                        const trocouGrade =
+                            fichaDto.grade_versao_id != null &&
+                            Number(fichaDto.grade_versao_id) !== fichaDb.grade_versao_id;
+
+                        if (!fichaDb.concluida && trocouGrade && !temEdicaoDeMatriz) {
+                            throw new BadRequestException(
+                                "Para alterar a grade da ficha, envie também itens ou cores_ids",
                             );
                         }
                     }
@@ -397,6 +476,12 @@ export class PedidoService {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
                         return { ...fichaDto, produto_id: fichaDb.produto_id };
                     });
+
+                    // Concluída que chegou até aqui é eco: nada dela é regravado (nem matriz, nem parceiros,
+                    // nem preços, nem custo do produto). Só as pendentes seguem para as escritas.
+                    const fichasExistentesEditaveis = fichasExistentesNormalizadas.filter(
+                        (fichaDto) => !mapaFichasPedido.get(Number(fichaDto.id))!.concluida,
+                    );
 
                     const idsParaManter = new Set(idsExistentesPayload);
                     const idsParaRemover = fichasDoPedido
@@ -412,11 +497,11 @@ export class PedidoService {
 
                     if (fichaProduzidaOmitida) {
                         throw new ConflictException(
-                            "Fichas técnicas concluídas ou já produzidas não podem ser removidas do pedido",
+                            "Fichas técnicas já produzidas não podem ser removidas do pedido",
                         );
                     }
 
-                    for (const fichaDto of fichasExistentesNormalizadas) {
+                    for (const fichaDto of fichasExistentesEditaveis) {
                         await this.sincronizarPrecosDeParceiros(tx, fichaDto, fabricoId);
                     }
 
@@ -434,15 +519,17 @@ export class PedidoService {
                         : new Map<number, number>();
 
                     if (idsParaRemover.length) {
-                        await tx.fichaEtapa.deleteMany({
-                            where: { ficha_tecnica_id: { in: idsParaRemover } },
-                        });
-                        await tx.fichaTecnica.deleteMany({
-                            where: { id: { in: idsParaRemover }, pedido_id: pedido.id },
+                        await tx.fichaTecnica.updateMany({
+                            where: {
+                                delete_at: null,
+                                id: { in: idsParaRemover },
+                                pedido_id: pedido.id,
+                            },
+                            data: { delete_at: new Date() },
                         });
                     }
 
-                    for (const fichaDto of fichasExistentesNormalizadas) {
+                    for (const fichaDto of fichasExistentesEditaveis) {
                         const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
                         if (clienteIdEfetivo) {
@@ -473,8 +560,11 @@ export class PedidoService {
 
                         if (temEdicaoDeMatriz) {
                             let gradeVersaoId = fichaDb.grade_versao_id;
+                            const trocouGrade =
+                                fichaDto.grade_versao_id != null &&
+                                Number(fichaDto.grade_versao_id) !== fichaDb.grade_versao_id;
 
-                            if (fichaDto.grade_versao_id) {
+                            if (trocouGrade) {
                                 const gradeMap = await this.alinharGradesDosProdutos(
                                     tx,
                                     [fichaDto],
@@ -556,7 +646,7 @@ export class PedidoService {
                         }
                     }
 
-                    const fichasParaTotais: CreatePedidoFichaDto[] = [
+                    const fichasParaTotais: FichaParaTotais[] = [
                         ...fichasExistentesNormalizadas.map((fichaDto) => {
                             const fichaDb = mapaFichasPedido.get(Number(fichaDto.id))!;
 
@@ -564,6 +654,7 @@ export class PedidoService {
                                 ...fichaDto,
                                 produto_id: fichaDb.produto_id,
                                 quantidade: fichaDb.quantidade,
+                                defeitos_tecido: fichaDb.defeitos_tecido,
                             };
                         }),
                         ...fichasNovas,
@@ -605,7 +696,7 @@ export class PedidoService {
                     await sincronizarFinalizacaoPedido(tx, pedido.id);
 
                     return tx.pedido.findUnique({
-                        where: { id: pedido.id },
+                        where: { delete_at: null, id: pedido.id },
                         include: PEDIDO_COMPLETO_INCLUDE,
                     });
                 },
@@ -661,15 +752,30 @@ export class PedidoService {
         }
     }
 
-    private buscarPedidoPorIdempotencia(
+    private async buscarPedidoPorIdempotencia(
         db: Prisma.TransactionClient | PrismaService,
         fabricoId: number,
         chaveIdempotencia: string,
+        fingerprint: string,
     ) {
-        return db.pedido.findFirst({
+        const pedido = await db.pedido.findFirst({
             where: { fabrico_id: fabricoId, idempotency_key: chaveIdempotencia },
             include: PEDIDO_COMPLETO_INCLUDE,
         });
+        if (pedido?.delete_at) {
+            throw new ConflictException(
+                "Este pedido foi excluído. Use uma nova chave para criar outro pedido.",
+            );
+        }
+        if (
+            pedido?.idempotency_fingerprint != null &&
+            pedido.idempotency_fingerprint !== fingerprint
+        ) {
+            throw new ConflictException(
+                "Esta chave de idempotência já foi usada com outro conteúdo. Use uma nova chave para criar outro pedido.",
+            );
+        }
+        return pedido;
     }
 
     private async persistirFichaNova(
@@ -833,6 +939,11 @@ export class PedidoService {
                     "Uma ou mais etapas não pertencem ao fabrico do pedido ou estão inativas",
                 );
             }
+        }
+
+        // Sem etapa ativa a ficha nasceria sem etapa atual e ficaria fora do Kanban: nem é criada.
+        if (fichasDto.length > 0 && !etapaPadrao) {
+            throw new BadRequestException(MENSAGEM_SEM_ETAPA_ATIVA);
         }
 
         return new Map(
@@ -1017,7 +1128,7 @@ export class PedidoService {
 
         if (ultimaEtapa?.id === etapaId) {
             await tx.fichaTecnica.updateMany({
-                where: { id: fichaId, produzida_em: null },
+                where: { delete_at: null, id: fichaId, produzida_em: null },
                 data: { produzida_em: dataInicio },
             });
         }
@@ -1066,7 +1177,7 @@ export class PedidoService {
                     produto_id_parceiro_id: { produto_id: produtoId, parceiro_id: parceiroId },
                 },
                 create: { produto_id: produtoId, parceiro_id: parceiroId, preco },
-                update: { preco },
+                update: parceiro.preco === undefined ? {} : { preco },
             });
         }
 
@@ -1144,7 +1255,7 @@ export class PedidoService {
     private async calcularTotais(
         tx: Prisma.TransactionClient,
         data: { cliente_id?: number | null },
-        fichasDto: CreatePedidoFichaDto[],
+        fichasDto: FichaParaTotais[],
         produtoIds: number[],
     ) {
         const produtos = await tx.produto.findMany({
@@ -1186,7 +1297,7 @@ export class PedidoService {
     private async calcularValorTotalDoCliente(
         tx: Prisma.TransactionClient,
         clienteId: number,
-        fichasDto: CreatePedidoFichaDto[],
+        fichasDto: FichaParaTotais[],
     ) {
         const produtosSemPrecoNoPayload = [
             ...new Set(
@@ -1225,17 +1336,23 @@ export class PedidoService {
                         ? ficha.preco_padrao
                         : precoPersistidoPorProduto.get(produtoId);
 
-                return lineTotal(Number(ficha.quantidade) || 0, precoUnitario);
+                // Apenas perdas de tecido reduzem o valor de venda; custo e matriz permanecem integrais.
+                const quantidadeFaturavel = Math.max(
+                    0,
+                    (Number(ficha.quantidade) || 0) - (ficha.defeitos_tecido ?? 0),
+                );
+                return lineTotal(quantidadeFaturavel, precoUnitario);
             }),
         );
     }
 
     async findAll(fabricoId: number) {
         return this.prisma.pedido.findMany({
-            where: { fabrico_id: fabricoId },
+            where: { delete_at: null, fabrico_id: fabricoId },
             include: {
                 cliente: true,
                 fichas_tecnicas: {
+                    where: { delete_at: null },
                     include: { fichas_etapas: true },
                 },
             },
@@ -1245,7 +1362,7 @@ export class PedidoService {
     async getById(id: number, fabricoId: number) {
         // Inclui todas as fichas, concluídas ou não: detalhe e edição do pedido dependem delas.
         const pedido = await this.prisma.pedido.findFirst({
-            where: { id, fabrico_id: fabricoId },
+            where: { delete_at: null, id, fabrico_id: fabricoId },
             include: PEDIDO_COMPLETO_INCLUDE,
         });
 
@@ -1262,7 +1379,7 @@ export class PedidoService {
             await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
             const pedido = await tx.pedido.findFirst({
-                where: { id, fabrico_id: fabricoId },
+                where: { delete_at: null, id, fabrico_id: fabricoId },
             });
 
             if (!pedido) {
@@ -1271,7 +1388,15 @@ export class PedidoService {
 
             this.assertPedidoEditavel(pedido);
 
-            await tx.pedido.delete({ where: { id: pedido.id } });
+            const excluidoEm = new Date();
+            await tx.fichaTecnica.updateMany({
+                where: { pedido_id: pedido.id, fabrico_id: fabricoId, delete_at: null },
+                data: { delete_at: excluidoEm },
+            });
+            await tx.pedido.update({
+                where: { id: pedido.id },
+                data: { delete_at: excluidoEm },
+            });
         });
 
         return `O pedido com o id ${id} foi deletado com sucesso`;
@@ -1293,7 +1418,7 @@ export class PedidoService {
             await this.lockPedidoDoFabrico(tx, id, fabricoId);
 
             const pedido = await tx.pedido.findFirst({
-                where: { id, fabrico_id: fabricoId },
+                where: { delete_at: null, id, fabrico_id: fabricoId },
             });
 
             if (!pedido) {
@@ -1305,7 +1430,12 @@ export class PedidoService {
             return tx.pedido.update({
                 where: { id: pedido.id },
                 data: {
-                    data_prevista: data.data_prevista ? new Date(data.data_prevista) : null,
+                    data_prevista:
+                        data.data_prevista === undefined
+                            ? undefined
+                            : data.data_prevista === null
+                              ? null
+                              : new Date(data.data_prevista),
                     observacoes: data.observacoes,
                     cliente_id: data.cliente_id,
                     valor_total:
@@ -1323,7 +1453,7 @@ export class PedidoService {
 
     async findAllCliente(cliente_id: number, fabricoId: number) {
         return this.prisma.pedido.findMany({
-            where: { cliente_id, fabrico_id: fabricoId },
+            where: { delete_at: null, cliente_id, fabrico_id: fabricoId },
         });
     }
 
@@ -1333,6 +1463,7 @@ export class PedidoService {
     ): Promise<string> {
         const pedidosAtivos = await db.pedido.findMany({
             where: {
+                delete_at: null,
                 fabrico_id: fabricoId,
                 finalizado: false,
                 NOT: { cor: { equals: "#FFFFFF", mode: "insensitive" } },
